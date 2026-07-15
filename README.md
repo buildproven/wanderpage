@@ -1,6 +1,6 @@
 # Wanderpage
 
-Wanderpage is a local-first TripStory generator: point it at a vacation photo folder and it builds a private, static, cinematic travel story. Originals are never modified. Published images are resized WebP files with metadata removed; public route coordinates are rounded; low-confidence locations are omitted or broadened; people are never identified.
+Wanderpage is a local-first vacation story generator: point it at a photo folder and it builds a private, static, cinematic travel story. Originals are never modified. Published images are resized WebP files with metadata removed; public route coordinates are rounded; low-confidence locations are omitted or broadened; people are never identified.
 
 ## Setup
 
