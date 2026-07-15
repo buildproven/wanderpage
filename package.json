@@ -1,0 +1,48 @@
+{
+  "name": "wanderpage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.24.0",
+  "engines": { "node": ">=20.9" },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "preview": "serve out",
+    "trip": "tsx scripts/trip.ts",
+    "trip:demo": "tsx scripts/trip.ts --demo",
+    "deploy": "tsx scripts/deploy.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "privacy": "tsx scripts/privacy-check.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm trip:demo && pnpm build && pnpm test:e2e"
+  },
+  "dependencies": {
+    "commander": "latest",
+    "exifr": "latest",
+    "motion": "latest",
+    "next": "latest",
+    "openai": "latest",
+    "p-limit": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "sharp": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "latest",
+    "@playwright/test": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "latest",
+    "jsdom": "latest",
+    "serve": "latest",
+    "tsx": "latest",
+    "typescript": "^5.9.3",
+    "vitest": "latest"
+  }
+}

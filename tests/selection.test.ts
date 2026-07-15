@@ -1,0 +1,6 @@
+import { describe, expect, it } from "vitest";
+import { selectPhotos } from "@/lib/selection/select";
+import type { PhotoRecord } from "@/lib/photos/types";
+
+const photo=(id:string,people=false,cluster?:string):PhotoRecord=>({id,hash:id,sourcePath:"/private/input",workingPath:"/cache",analysisPath:"/cache",width:1200,height:800,technical:{sharpness:80,exposure:80,contrast:80,colorBalance:80,resolution:80,noise:80,clipping:80,overall:80},perceptualHash:"0".repeat(16),similarityCluster:cluster,semantic:{photoId:id,containsPeople:people,peopleProminence:people?"prominent":"none",aestheticScore:80,storyScore:80,landmarkValue:80,emotionalValue:80,uniquenessScore:80,categories:["landscape"],possibleLocations:[],captionSeed:"Frame"},rejectionReasons:[]});
+describe("selection privacy and diversity",()=>{it("strictly excludes people and duplicate clusters",()=>{const photos=[photo("a",false,"x"),photo("b",false,"x"),photo("c",true),...Array.from({length:18},(_,i)=>photo(`n${i}`))];const result=selectPhotos(photos,"exclude",36);expect(result.selected.some((p)=>p.id==="c")).toBe(false);expect(result.selected.filter((p)=>p.similarityCluster==="x")).toHaveLength(1);expect(result.reasons.c).toMatch(/people/i);});});

@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+.trip-cache/
+.trip-output/
+test-results/
+playwright-report/
+.playwright-cli/
+output/
+public/trip/generated/
+demo-photos/
+*.tsbuildinfo
