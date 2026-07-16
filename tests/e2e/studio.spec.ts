@@ -47,7 +47,10 @@ test("creates a story through the local Studio interface", async ({ page, contex
 
   await page.goto("/studio");
   await expect(page.getByText("Local engine ready")).toBeVisible();
-  await page.getByRole("button", { name: "Choose folder" }).click();
+  await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/folders/pick" && response.status() === 200),
+    page.getByRole("button", { name: "Choose folder" }).click(),
+  ]);
   await expect(page.getByLabel("Photo folder path")).toHaveValue("/Users/test/Pictures/Oregon");
   await page.getByLabel(/Story title/).fill("Oregon, held in light");
   await page.getByRole("button", { name: /Build my Wanderpage/ }).click();
