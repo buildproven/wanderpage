@@ -8,6 +8,19 @@ test("explains Wanderpage and opens a complete static story", async ({ page }) =
   await expect(page).toHaveURL(/\/demo\/?$/);
   await expect(page.getByRole("heading", { name: "A Line Along the Pacific" })).toBeVisible();
   await expect(page.getByRole("heading", { name: /Frames from/ })).toBeVisible();
+  const galleryImages = page.locator(".gallery-button img");
+  await expect(galleryImages.first()).toBeVisible();
+  await galleryImages.last().scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => galleryImages.evaluateAll(images => images.every(image => (image as HTMLImageElement).naturalWidth > 0)))
+    .toBe(true);
+  const aspectRatioErrors = await galleryImages.evaluateAll(images =>
+    images.map(image => {
+      const photo = image as HTMLImageElement;
+      return Math.abs(photo.clientWidth / photo.clientHeight - photo.naturalWidth / photo.naturalHeight);
+    })
+  );
+  expect(Math.max(...aspectRatioErrors)).toBeLessThan(0.02);
   const first = page.locator(".gallery-button").first();
   await first.click();
   await expect(page.getByRole("dialog")).toBeVisible();
