@@ -73,7 +73,7 @@ export default function Story({ trip }: { trip: TripManifest }) {
         <div>
           <span className="eyebrow">The passage</span>
         </div>
-        <motion.blockquote {...reveal}>{trip.opening}</motion.blockquote>
+        <blockquote>{trip.opening}</blockquote>
       </section>
       <section className="stats" aria-label="Trip at a glance">
         {trip.stats.map(stat => (

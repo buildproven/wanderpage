@@ -70,6 +70,7 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);
 }
 .mark {
@@ -112,17 +113,26 @@ button {
 .intro {
   width: min(1120px, 90vw);
   margin: auto;
-  padding: 9rem 0;
+  padding: clamp(5.5rem, 8vw, 8rem) 0;
   display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 8vw;
+  grid-template-columns: 10rem minmax(0, 1fr);
+  gap: clamp(3rem, 6vw, 6rem);
+  align-items: start;
+}
+.intro > div {
+  padding-top: 0.45rem;
+}
+.intro .eyebrow {
+  color: var(--rust);
 }
 .intro blockquote {
+  max-width: 44rem;
   margin: 0;
   font:
-    normal clamp(2rem, 4vw, 4rem)/1.08 Georgia,
+    normal clamp(1.55rem, 2.25vw, 2.25rem)/1.3 Georgia,
     serif;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.02em;
+  text-wrap: pretty;
 }
 .stats {
   width: min(1120px, 90vw);
@@ -706,6 +716,17 @@ button {
   outline-offset: 4px;
 }
 @media (max-width: 760px) {
+  .hero-nav {
+    padding-inline: 5vw;
+  }
+  .hero-nav .mark {
+    font-size: 1.18rem;
+  }
+  .hero-nav .eyebrow {
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
   .hero-copy {
     padding-bottom: 12vh;
   }
@@ -719,7 +740,15 @@ button {
   }
   .intro {
     grid-template-columns: 1fr;
-    padding: 6rem 0;
+    gap: 1.75rem;
+    padding: 4.5rem 0;
+  }
+  .intro > div {
+    padding-top: 0;
+  }
+  .intro blockquote {
+    font-size: clamp(1.4rem, 6vw, 1.9rem);
+    line-height: 1.34;
   }
   .stats {
     grid-template-columns: repeat(2, 1fr);

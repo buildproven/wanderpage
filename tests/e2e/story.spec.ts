@@ -7,6 +7,11 @@ test("explains Wanderpage and opens a complete static story", async ({ page }) =
   await page.getByRole("link", { name: /Explore a finished story/ }).click();
   await expect(page).toHaveURL(/\/demo\/?$/);
   await expect(page.getByRole("heading", { name: "A Line Along the Pacific" })).toBeVisible();
+  await page.getByRole("link", { name: /Read the story/ }).click();
+  const opening = page.locator(".intro blockquote");
+  await expect(opening).toBeVisible();
+  const openingFontSize = await opening.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(openingFontSize).toBeLessThanOrEqual(38);
   await expect(page.getByRole("heading", { name: /Frames from/ })).toBeVisible();
   const galleryImages = page.locator(".gallery-button img");
   await expect(galleryImages.first()).toBeVisible();
