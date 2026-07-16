@@ -13,6 +13,16 @@ cp .env.example .env.local
 
 Set `OPENAI_API_KEY` for real vision analysis and narrative generation. The model names and Wikimedia user agent are configurable in `.env.example`. Vercel may use an existing CLI login or `VERCEL_TOKEN`.
 
+## Open the local app
+
+On macOS, double-click `Open Wanderpage.command`. Or launch the same local interface from a terminal:
+
+```bash
+pnpm studio
+```
+
+Wanderpage builds the interface, opens it in the default browser, and listens only on `127.0.0.1`. Choose a photo folder, set the people and route privacy controls, and select **Build my Wanderpage**. The app shows live progress, the selected edit, rejected-photo counts, the local decision report, and the finished story. Only one story runs at a time.
+
 ## Generate a story
 
 ```bash
@@ -70,6 +80,7 @@ It sends a small contact sheet through the configured vision model using Structu
 - `OPENAI_VISION_MODEL`: defaults to `gpt-5.6-luna`.
 - `OPENAI_WRITER_MODEL`: defaults to `gpt-5.6-terra`.
 - `WIKIMEDIA_USER_AGENT`: descriptive API user agent.
+- `WANDERPAGE_PORT`: optional local Studio port; defaults to `4317` on `127.0.0.1`.
 - `VERCEL_TOKEN`: optional when the Vercel CLI is already authenticated.
 - `WANDERPAGE_WORKSPACE`: optional advanced override for writing generated data, cache, reports, and public assets into an isolated workspace; the integration suite uses this to protect the repository checkout.
 
