@@ -9,12 +9,11 @@ const execute = promisify(execFile),
   root = process.cwd(),
   port = Number(process.env.WANDERPAGE_PORT ?? 4317);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("WANDERPAGE_PORT must be a valid port number.");
-if (
-  !process.argv.includes("--no-build") ||
-  !(await stat(join(root, "out/studio.html"))
+const existingBuild = await stat(join(root, "out/studio.html"))
     .then(() => true)
-    .catch(() => false))
-) {
+    .catch(() => false),
+  skipBuild = process.argv.includes("--no-build") && existingBuild;
+if (!skipBuild) {
   console.log("Preparing Wanderpage Studio…");
   await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["build"], { cwd: root, maxBuffer: 10_000_000 });
 }

@@ -23,6 +23,11 @@ describe("trip page names", () => {
       expect(await availableTripSlug(directory, manifest)).toBe("a-line-along-the-pacific");
       await writeFile(join(directory, "a-line-along-the-pacific.json"), JSON.stringify(manifest));
       expect(await availableTripSlug(directory, manifest)).toBe("a-line-along-the-pacific");
+      const differentPhotos = {
+        ...manifest,
+        photos: manifest.photos.map((photo, index) => (index === 0 ? { ...photo, id: "different-photo" } : photo)),
+      };
+      expect(await availableTripSlug(directory, differentPhotos)).toBe("a-line-along-the-pacific-2026");
       const later = { ...manifest, dateRange: { start: "2027-09-04", end: "2027-09-07" } };
       expect(await availableTripSlug(directory, later)).toBe("a-line-along-the-pacific-2027");
     } finally {

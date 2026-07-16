@@ -9,8 +9,10 @@ import { createTempWorkspace, removeTempWorkspace, repoRoot } from "../helpers/w
 describe("local Studio server", () => {
   let workspace = "",
     base = "",
-    finish: ((result: StudioJobResult) => void) | undefined;
+    finish: ((result: StudioJobResult) => void) | undefined,
+    advance: ((stage: string, progress: number, message: string) => void) | undefined;
   const runner: StudioRunner = async (_request, onProgress) => {
+    advance = onProgress;
     onProgress("analyze", 52, "Analyzing fixture contact sheet");
     return new Promise(resolve => {
       finish = resolve;
@@ -57,6 +59,10 @@ describe("local Studio server", () => {
     expect(await running.json()).toMatchObject({ status: "running", progress: { stage: "analyze", progress: 52 } });
     const conflict = await post("/api/jobs", { input: workspace, people: "include", maxPhotos: 36, privacy: "approximate" });
     expect(conflict.status).toBe(409);
+    advance?.("build", 91, "Rebuilding static pages");
+    await writeFile(join(workspace, "out/studio.html"), "partial build output");
+    const studioDuringBuild = await fetch(`${base}/studio`);
+    expect(await studioDuringBuild.text()).toContain("Local studio");
     finish?.(await fixtureResult());
     await expect
       .poll(async () => {

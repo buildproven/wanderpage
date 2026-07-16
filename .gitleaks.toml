@@ -18,8 +18,8 @@ id = "env-secret"
 regex = '''(?i)(api_key|secret|password|token)\s*=\s*['""][^'"\s]{10,}['""]'''
 tags = ["env", "secret"]
 
-# Allowlist for test/example files (broad exclusion)
+# Allow only explicit placeholder values and generated dependency/build trees.
 [allowlist]
-description = "Test and example files"
+description = "Placeholders and generated files"
 regexes = ['''test_secret_.*|example_.*|dummy_.*|fake_.*|EXAMPLE_.*|your_.*_here|replace_with_.*|TODO:.*''']
-paths = ['''(tests/|test/|__tests__/|examples/|docs/|\.md$|\.gitleaksignore$|node_modules/|dist/|build/|\.next/|coverage/)''']
+paths = ['''(^|/)(\.gitleaksignore|node_modules/|dist/|build/|\.next/|coverage/)''']

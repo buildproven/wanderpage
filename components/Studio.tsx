@@ -34,7 +34,10 @@ export default function Studio() {
     const timer = window.setInterval(
       () =>
         void api<StudioJob>(`/api/jobs/${job.id}`)
-          .then(setJob)
+          .then(value => {
+            setJob(value);
+            setError("");
+          })
           .catch(reason => setError(reason instanceof Error ? reason.message : "Unable to read job status.")),
       650
     );

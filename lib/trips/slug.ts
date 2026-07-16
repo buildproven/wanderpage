@@ -16,7 +16,8 @@ export function tripSlug(title: string) {
 
 export async function availableTripSlug(directory: string, manifest: TripManifest) {
   const base = tripSlug(manifest.title),
-    dated = manifest.dateRange?.start ? `${base}-${manifest.dateRange.start.slice(0, 4)}` : undefined,
+    year = `${manifest.dateRange?.start ?? ""} ${manifest.dateRange?.end ?? ""}`.match(/\b(?:19|20)\d{2}\b/)?.[0],
+    dated = year ? `${base}-${year}` : undefined,
     candidates = [base, ...(dated && dated !== base ? [dated] : [])];
   for (let index = 2; index < 100; index++) candidates.push(`${base}-${index}`);
   for (const candidate of candidates) {
@@ -29,9 +30,13 @@ export async function availableTripSlug(directory: string, manifest: TripManifes
 }
 
 function sameTrip(existing: Partial<TripManifest>, manifest: TripManifest) {
+  const existingPhotoIds = existing.photos?.map(photo => photo.id).sort(),
+    manifestPhotoIds = manifest.photos.map(photo => photo.id).sort();
   return (
     existing.title === manifest.title &&
     existing.dateRange?.start === manifest.dateRange?.start &&
-    existing.dateRange?.end === manifest.dateRange?.end
+    existing.dateRange?.end === manifest.dateRange?.end &&
+    existingPhotoIds?.length === manifestPhotoIds.length &&
+    existingPhotoIds.every((id, index) => id === manifestPhotoIds[index])
   );
 }

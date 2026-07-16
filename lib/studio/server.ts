@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { extname, isAbsolute, join, normalize, resolve } from "node:path";
+import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { runTrip } from "@/lib/pipeline/run";
@@ -30,7 +30,8 @@ export function createStudioServer({
 }: { root?: string; port?: number; runner?: StudioRunner } = {}) {
   const projectRoot = resolve(root),
     jobs = new Map<string, StudioJob>();
-  let boundPort = port;
+  let boundPort = port,
+    studioSnapshot = new Map<string, Buffer>();
   const productionRunner = runner ?? ((request, onProgress) => runProductionJob(projectRoot, request, onProgress));
   const server = createServer((request, response) => void route(request, response));
 
@@ -96,7 +97,8 @@ export function createStudioServer({
       return;
     }
     if (request.method === "GET" || request.method === "HEAD") {
-      await serveStatic(projectRoot, url.pathname, response, request.method === "HEAD");
+      const rebuilding = [...jobs.values()].some(job => job.status === "building");
+      await serveStatic(projectRoot, url.pathname, response, request.method === "HEAD", rebuilding ? studioSnapshot : undefined);
       return;
     }
     json(response, 404, { error: "Not found." });
@@ -117,6 +119,7 @@ export function createStudioServer({
 
   return {
     async start() {
+      studioSnapshot = await loadStudioSnapshot(projectRoot);
       await new Promise<void>((done, reject) => {
         server.once("error", reject);
         server.listen(port, "127.0.0.1", () => done());
@@ -172,7 +175,7 @@ function update(job: StudioJob, status: StudioJob["status"], progress: number, m
 }
 function trimJobs(jobs: Map<string, StudioJob>) {
   while (jobs.size > 5) {
-    const oldest = [...jobs.keys()][0];
+    const oldest = [...jobs.values()].find(job => job.status === "complete" || job.status === "failed")?.id;
     if (oldest) jobs.delete(oldest);
     else break;
   }
@@ -208,15 +211,44 @@ function json(response: ServerResponse, status: number, value: unknown) {
   response.end(JSON.stringify(value));
 }
 
-async function serveStatic(root: string, pathname: string, response: ServerResponse, head: boolean) {
+async function serveStatic(root: string, pathname: string, response: ServerResponse, head: boolean, snapshot?: Map<string, Buffer>) {
   const output = normalize(join(root, "out")),
     clean = decodeURIComponent(pathname).replace(/^\/+|\/+$/g, "") || "index.html",
-    file = normalize(join(output, extname(clean) ? clean : `${clean}.html`));
-  if (!file.startsWith(`${output}/`)) {
+    file = normalize(join(output, extname(clean) ? clean : `${clean}.html`)),
+    outputRelativePath = relative(output, file);
+  if (outputRelativePath === ".." || outputRelativePath.startsWith(`..${sep}`) || isAbsolute(outputRelativePath)) {
     response.writeHead(403).end();
     return;
   }
+  const cached = snapshot?.get(outputRelativePath);
+  if (cached) {
+    response.writeHead(200, { "Content-Type": mime(file), "Content-Length": cached.length });
+    response.end(head ? undefined : cached);
+    return;
+  }
   await serveFile(file, response, head);
+}
+
+async function loadStudioSnapshot(root: string) {
+  const output = join(root, "out"),
+    snapshot = new Map<string, Buffer>();
+  await cacheDirectory(output, "", snapshot);
+  return snapshot;
+}
+
+async function cacheDirectory(output: string, directory: string, snapshot: Map<string, Buffer>) {
+  const entries = await readdir(join(output, directory), { withFileTypes: true }).catch(() => []);
+  await Promise.all(
+    entries.map(entry => {
+      const child = join(directory, entry.name);
+      return entry.isDirectory() ? cacheDirectory(output, child, snapshot) : cacheFile(output, child, snapshot);
+    })
+  );
+}
+
+async function cacheFile(output: string, file: string, snapshot: Map<string, Buffer>) {
+  const contents = await readFile(join(output, file)).catch(() => undefined);
+  if (contents) snapshot.set(file, contents);
 }
 async function serveFile(file: string, response: ServerResponse, head = false) {
   try {

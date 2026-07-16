@@ -91,15 +91,24 @@ export class MockAIProvider implements AIProvider {
     };
   }
 }
-async function retry<T>(task: () => Promise<T>, attempts = 3) {
+export async function retry<T>(task: () => Promise<T>, attempts = 3) {
   let last: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
       return await task();
     } catch (error) {
       last = error;
+      if (!retryable(error)) throw error;
       if (i < attempts - 1) await new Promise(resolve => setTimeout(resolve, 500 * 2 ** i));
     }
   }
   throw last;
+}
+
+function retryable(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const status = "status" in error && typeof error.status === "number" ? error.status : undefined;
+  if (status !== undefined) return status === 429 || status >= 500;
+  const code = "code" in error && typeof error.code === "string" ? error.code : "";
+  return ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN", "ENETUNREACH"].includes(code);
 }
