@@ -15,9 +15,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
+    "test:live": "WANDERPAGE_LIVE_TEST=1 vitest run tests/live/openai-photo-folder.test.ts",
     "test:e2e": "playwright test",
     "privacy": "tsx scripts/privacy-check.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm trip:demo && pnpm build && pnpm test:e2e"
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm trip:demo && pnpm build && pnpm privacy && pnpm test:e2e"
   },
   "dependencies": {
     "commander": "latest",

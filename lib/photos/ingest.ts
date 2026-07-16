@@ -14,7 +14,7 @@ export async function discoverPhotos(root:string):Promise<string[]> { const entr
 async function hashFile(path:string){return createHash("sha256").update(await readFile(path)).digest("hex");}
 
 async function decodablePath(source:string,cache:string,hash:string){
-  try{await sharp(source).metadata();return source;}catch(error){
+  try{await sharp(source).rotate().resize(2,2,{fit:"inside"}).toBuffer();return source;}catch(error){
     if(process.platform!=="darwin"||![".heic",".heif"].includes(extname(source).toLowerCase())) throw error;
     const fallback=join(cache,`${hash}-heic-fallback.jpg`); await execute("sips",["-s","format","jpeg",source,"--out",fallback]); return fallback;
   }

@@ -9,6 +9,7 @@ test-results/
 playwright-report/
 .playwright-cli/
 output/
+.wanderpage-test-*/
 public/trip/generated/
 demo-photos/
 *.tsbuildinfo

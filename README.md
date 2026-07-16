@@ -54,6 +54,16 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
+`pnpm test` includes a fixture-driven integration test that creates a temporary nested photo folder with JPEG, WebP, duplicate, EXIF/GPS, and (on macOS) HEIC inputs. It runs the production pipeline, builds an isolated static Next.js export, applies the privacy and 90 MB budget checks, then opens the generated story in Chromium. Temporary originals and outputs are removed after the run.
+
+The external OpenAI path is an explicit paid/network smoke test rather than part of every local test run:
+
+```bash
+OPENAI_API_KEY=... pnpm test:live
+```
+
+It sends a small contact sheet through the configured vision model using Structured Outputs, generates the narrative, and validates the resulting manifest. Wikipedia/Wikimedia and weather remain graceful network enrichments; deterministic test substitutes cover their pipeline contracts during the default integration test.
+
 ## Environment
 
 - `OPENAI_API_KEY`: required for real AI-backed generation and strict people exclusion.
@@ -61,5 +71,6 @@ pnpm test:e2e
 - `OPENAI_WRITER_MODEL`: defaults to `gpt-5.6-terra`.
 - `WIKIMEDIA_USER_AGENT`: descriptive API user agent.
 - `VERCEL_TOKEN`: optional when the Vercel CLI is already authenticated.
+- `WANDERPAGE_WORKSPACE`: optional advanced override for writing generated data, cache, reports, and public assets into an isolated workspace; the integration suite uses this to protect the repository checkout.
 
 Online enrichment uses Wikipedia/Wikimedia and Open-Meteo during generation only. Their failure degrades to a complete photo-led story without unsupported facts; the exported site makes no runtime API calls.
