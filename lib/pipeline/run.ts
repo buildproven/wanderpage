@@ -108,12 +108,6 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
     photos,
     process.env.WIKIMEDIA_USER_AGENT ?? "Wanderpage/0.1 (personal vacation story generator)"
   );
-  for (const photo of photos) {
-    const destination = destinations.find(item => item.photoIds.includes(photo.id));
-    if (destination && destination.confidence >= 0.55 && !photo.semantic?.possibleLocations.some(l => l.confidence > 0.8)) {
-      /* GPS evidence owns the association locally. */
-    }
-  }
   dependencies.onProgress?.({ stage: "select", progress: 68, message: "Selecting the strongest, most varied photographs" });
   const selection = selectPhotos(photos, options.people, options.maxPhotos);
   dependencies.onProgress?.({ stage: "write", progress: 74, message: "Writing the story from supported evidence" });

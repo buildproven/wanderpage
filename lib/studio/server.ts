@@ -71,6 +71,10 @@ export function createStudioServer({
         if (!isAbsolute(parsed.input)) throw new Error("Choose an absolute photo-folder path.");
         const metadata = await stat(parsed.input);
         if (!metadata.isDirectory()) throw new Error("The selected path is not a folder.");
+        if ([...jobs.values()].some(job => ["queued", "running", "building"].includes(job.status))) {
+          json(response, 409, { error: "A Wanderpage story is already being generated." });
+          return;
+        }
         const job = createJob(parsed);
         jobs.set(job.id, job);
         json(response, 202, { id: job.id });
@@ -110,6 +114,7 @@ export function createStudioServer({
       job.result = await jobRunner(job.request, (stage, progress, message) =>
         update(job, stage === "build" ? "building" : "running", progress, message, stage)
       );
+      studioSnapshot = await loadStudioSnapshot(projectRoot);
       update(job, "complete", 100, "Your trip page is ready");
     } catch (error) {
       job.error = message(error);
@@ -150,8 +155,9 @@ async function runProductionJob(
   onProgress("build", 91, "Building the private static website");
   await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["build"], { cwd: root, maxBuffer: 10_000_000 });
   onProgress("privacy", 97, "Checking metadata, paths, and secrets");
-  const privacy = await validateStaticExport(join(root, "out"), [process.env.OPENAI_API_KEY ?? "", process.env.VERCEL_TOKEN ?? ""]);
-  if (privacy.errors.length) throw new Error(`Privacy validation failed: ${privacy.errors[0]}`);
+  const secrets = [process.env.OPENAI_API_KEY, process.env.VERCEL_TOKEN].filter((value): value is string => Boolean(value));
+  const privacy = await validateStaticExport(join(root, "out"), secrets);
+  if (privacy.errors.length) throw new Error(`Privacy validation failed:\n${privacy.errors.join("\n")}`);
   const selection = JSON.parse(await readFile(join(root, ".trip-output/selection.json"), "utf8")) as StudioSelection;
   return { path: result.path, summary: result.summary, manifest: result.manifest, selection };
 }
@@ -224,6 +230,10 @@ async function serveStatic(root: string, pathname: string, response: ServerRespo
   if (cached) {
     response.writeHead(200, { "Content-Type": mime(file), "Content-Length": cached.length });
     response.end(head ? undefined : cached);
+    return;
+  }
+  if (snapshot) {
+    response.writeHead(404).end("Not found");
     return;
   }
   await serveFile(file, response, head);

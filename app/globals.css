@@ -704,10 +704,6 @@ button {
   outline: 3px solid var(--rust);
   outline-offset: 4px;
 }
-:focus-visible {
-  outline: 3px solid var(--rust);
-  outline-offset: 4px;
-}
 @media (max-width: 760px) {
   .hero-copy {
     padding-bottom: 12vh;
