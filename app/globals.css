@@ -2,6 +2,7 @@
   --paper: #f2eee5;
   --ink: #17211f;
   --rust: #c76542;
+  --rust-text: #a04e2f;
   --mist: #a4aca5;
   --line: rgba(23, 33, 31, 0.2);
 }
@@ -123,7 +124,7 @@ button {
   padding-top: 0.45rem;
 }
 .intro .eyebrow {
-  color: var(--rust);
+  color: var(--rust-text);
 }
 .intro blockquote {
   max-width: 44rem;
