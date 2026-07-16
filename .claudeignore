@@ -1,0 +1,16 @@
+node_modules/
+.claude-kit/
+.next/
+out/
+.vercel/
+coverage/
+test-results/
+playwright-report/
+output/
+.trip-cache/
+.trip-output/
+pnpm-lock.yaml
+*.tsbuildinfo
+.env
+.env.*
+!.env.example

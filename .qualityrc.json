@@ -1,0 +1,47 @@
+{
+  "version": "1.0.0",
+  "maturity": "auto",
+  "detected": {
+    "level": "production-ready",
+    "sourceFiles": 53,
+    "testFiles": 9,
+    "hasDocumentation": true,
+    "hasDependencies": true,
+    "detectedAt": "2026-07-16T15:10:09.686Z"
+  },
+  "checks": {
+    "prettier": {
+      "enabled": true,
+      "required": false
+    },
+    "eslint": {
+      "enabled": "auto",
+      "required": true
+    },
+    "stylelint": {
+      "enabled": false,
+      "required": false
+    },
+    "tests": {
+      "enabled": "auto",
+      "required": true
+    },
+    "coverage": {
+      "enabled": false,
+      "required": false,
+      "threshold": 80
+    },
+    "security-audit": {
+      "enabled": "auto",
+      "required": true
+    },
+    "documentation": {
+      "enabled": false,
+      "required": false
+    },
+    "lighthouse": {
+      "enabled": false,
+      "required": false
+    }
+  }
+}
