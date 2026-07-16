@@ -1,7 +1,5 @@
-import Story from "@/components/Story";
-import rawManifest from "@/data/trip.json";
-import { TripManifestSchema } from "@/lib/schemas/trip";
+import Landing from "@/components/Landing";
 
 export default function Home() {
-  return <Story trip={TripManifestSchema.parse(rawManifest)} />;
+  return <Landing />;
 }

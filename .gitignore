@@ -1,6 +1,9 @@
 node_modules/
 .next/
 out/
+.vercel/
+coverage/
+.DS_Store
 .env
 .env.local
 .trip-cache/
@@ -9,6 +12,10 @@ test-results/
 playwright-report/
 .playwright-cli/
 output/
+.wanderpage-test-*/
 public/trip/generated/
+data/trips/*.json
+!data/trips/.gitkeep
 demo-photos/
 *.tsbuildinfo
+.vercel
