@@ -18,3 +18,4 @@ data/trips/*.json
 !data/trips/.gitkeep
 demo-photos/
 *.tsbuildinfo
+.vercel
