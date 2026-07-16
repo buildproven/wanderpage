@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TripManifest } from "@/lib/schemas/trip";
 
@@ -28,7 +29,7 @@ export default function Story({ trip }: { trip: TripManifest }) {
   return <main>
     <section className="hero" aria-labelledby="trip-title">
       <motion.div className="hero-media" style={{ scale: heroScale }}><Image src={hero.srcLarge} alt={hero.alt} fill priority sizes="100vw" /></motion.div>
-      <nav className="hero-nav" aria-label="Story navigation"><span className="mark">Wanderpage</span><a className="eyebrow" href="#story">Read the story ↓</a></nav>
+      <nav className="hero-nav" aria-label="Story navigation"><Link className="mark" href="/">Wanderpage</Link><a className="eyebrow" href="#story">Read the story ↓</a></nav>
       <motion.div className="hero-copy" initial={{opacity:0,y:24}} animate={{opacity:1,y:0}} transition={{duration:1}}>
         <span className="eyebrow">A photographic field note</span><h1 id="trip-title">{trip.title}</h1>
         <div className="hero-meta"><span>{trip.dateRange ? `${trip.dateRange.start} — ${trip.dateRange.end}` : ""}</span><span>{trip.destinations.map((d) => d.name).join(" · ")}</span></div>
