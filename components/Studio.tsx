@@ -17,7 +17,7 @@ export default function Studio(){
   useEffect(()=>{if(!job||["complete","failed"].includes(job.status))return;const timer=window.setInterval(()=>void api<StudioJob>(`/api/jobs/${job.id}`).then(setJob).catch((reason)=>setError(reason instanceof Error?reason.message:"Unable to read job status.")),650);return()=>window.clearInterval(timer);},[job]);
   const busy=job&&!["complete","failed"].includes(job.status),selected=job?.result?.manifest.photos??[],rejected=job?.result?.selection.rejected.length??0;
   const phase=job?.status==="complete"?"complete":busy?"working":"setup";
-  const displayedError=job?.status==="failed"?job.error??"Story generation failed.":error;
+  const displayedError=job?.status==="failed"?job.error??"Trip generation failed.":error;
   const canBuild=connection==="ready"&&folder.trim().length>0&&!busy&&!(people==="exclude"&&!status?.openaiConfigured);
 
   async function chooseFolder(){setError("");setPicking(true);try{const value=await api<{path:string}>("/api/folders/pick",{method:"POST"});setFolder(value.path);}catch(reason){setError(reason instanceof Error?reason.message:"Folder selection was cancelled.");}finally{setPicking(false);}}
@@ -49,7 +49,7 @@ export default function Studio(){
           {phase==="complete"&&job?.result&&<motion.div className="studio-panel studio-complete" key="complete" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}}>
             <div className="studio-title"><span className="eyebrow">The edit is ready</span><h1>{job.result.manifest.title}</h1><p>{selected.length} selected · {rejected} left out · {numberValue(job.result.summary,"duplicatesRemoved")} duplicates removed</p></div>
             <div className="studio-review-strip">{selected.slice(0,5).map((photo,index)=><motion.div key={photo.id} initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:index*.08}}><Image src={photo.srcThumb} alt={photo.alt} width={photo.width} height={photo.height}/></motion.div>)}</div>
-            <div className="studio-result-actions"><a className="studio-build" href="/demo" target="_blank" rel="noreferrer"><span>Open the story</span><b>↗</b></a><a href="/report" target="_blank" rel="noreferrer">Review every decision</a><button type="button" onClick={()=>{setJob(undefined);setError("");}}>Make another</button></div>
+            <div className="studio-result-actions"><a className="studio-build" href={job.result.path} target="_blank" rel="noreferrer"><span>Open this trip</span><b>↗</b></a><a href="/report" target="_blank" rel="noreferrer">Review every decision</a><button type="button" onClick={()=>{setJob(undefined);setError("");}}>Make another</button></div>
           </motion.div>}
         </AnimatePresence>
         {phase!=="setup"&&displayedError&&<p className="studio-error" role="alert">{displayedError}</p>}

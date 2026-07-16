@@ -38,7 +38,7 @@ export function createStudioServer({root=process.cwd(),port=4317,runner}:{root?:
 
   async function executeJob(job:StudioJob,jobRunner:StudioRunner){
     update(job,"running",2,"Starting the local photo pipeline");
-    try{job.result=await jobRunner(job.request,(stage,progress,message)=>update(job,stage==="build"?"building":"running",progress,message,stage));update(job,"complete",100,"Your Wanderpage story is ready");}
+    try{job.result=await jobRunner(job.request,(stage,progress,message)=>update(job,stage==="build"?"building":"running",progress,message,stage));update(job,"complete",100,"Your trip page is ready");}
     catch(error){job.error=message(error);update(job,"failed",job.progress.progress,job.error);}
   }
 
@@ -53,7 +53,7 @@ async function runProductionJob(root:string,request:StudioJobRequest,onProgress:
   const result=await runTrip({...request,force:false,dryRun:false,demo:false},{root,onProgress:(event)=>onProgress(event.stage,Math.min(88,event.progress*.88),event.message)});
   onProgress("build",91,"Building the private static website");await execute(process.platform==="win32"?"pnpm.cmd":"pnpm",["build"],{cwd:root,maxBuffer:10_000_000});
   onProgress("privacy",97,"Checking metadata, paths, and secrets");const privacy=await validateStaticExport(join(root,"out"),[process.env.OPENAI_API_KEY??"",process.env.VERCEL_TOKEN??""]);if(privacy.errors.length)throw new Error(`Privacy validation failed: ${privacy.errors[0]}`);
-  const selection=JSON.parse(await readFile(join(root,".trip-output/selection.json"),"utf8")) as StudioSelection;return {summary:result.summary,manifest:result.manifest,selection};
+  const selection=JSON.parse(await readFile(join(root,".trip-output/selection.json"),"utf8")) as StudioSelection;return {path:result.path,summary:result.summary,manifest:result.manifest,selection};
 }
 
 function createJob(request:StudioJobRequest):StudioJob{const now=new Date().toISOString();return {id:randomUUID(),status:"queued",createdAt:now,updatedAt:now,request,progress:{stage:"queued",progress:0,message:"Waiting to begin",at:now}};}

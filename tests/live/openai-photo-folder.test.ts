@@ -19,7 +19,7 @@ describe.skipIf(!enabled)("live OpenAI photo-folder smoke test",()=>{
     const result=await runTrip({input,people:"exclude",title:"Live OpenAI Smoke Test",maxPhotos:12,privacy:"approximate",force:true,dryRun:false,demo:false},{root:workspace});
     expect(result.summary.provider).toBe("openai");
     expect(result.summary.modelCalls).toBeGreaterThanOrEqual(2);
-    const manifest=TripManifestSchema.parse(JSON.parse(await readFile(join(workspace,"data/trip.json"),"utf8")));
+    const manifest=TripManifestSchema.parse(JSON.parse(await readFile(join(workspace,`data/trips/${result.slug}.json`),"utf8")));
     expect(manifest.photos.length).toBeGreaterThan(0);
     expect(manifest.photos.every((photo)=>!photo.containsPeople)).toBe(true);
     expect(manifest.photos.every((photo)=>photo.alt.length>8)).toBe(true);

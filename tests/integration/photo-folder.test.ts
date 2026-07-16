@@ -46,7 +46,8 @@ describe("photo folder to deployed-site artifact",()=>{
     expect(provider.contactSheets[0]!.bytes).toBeGreaterThan(10_000);
     expect(await fileHashes(input)).toEqual(originalHashes);
 
-    const manifestPath=join(workspace,"data/trip.json");
+    expect(result.path).toBe("/trips/controlled-coast-test");
+    const manifestPath=join(workspace,"data/trips/controlled-coast-test.json");
     const manifest=TripManifestSchema.parse(JSON.parse(await readFile(manifestPath,"utf8")));
     expect(manifest.title).toBe("Controlled Coast Test");
     expect(manifest.peopleMode).toBe("exclude");
@@ -54,7 +55,7 @@ describe("photo folder to deployed-site artifact",()=>{
     expect(manifest.photos.every((photo)=>photo.srcLarge.startsWith("/trip/generated/"))).toBe(true);
     expect(manifest.route[0]).toMatchObject({lat:45.9,lon:-124});
 
-    await execute("pnpm",["exec","next","build",workspace],{cwd:repoRoot,env:{...process.env,NEXT_TELEMETRY_DISABLED:"1"},maxBuffer:10_000_000});
+    await execute("pnpm",["exec","next","build",workspace],{cwd:repoRoot,env:{...process.env,NEXT_TELEMETRY_DISABLED:"1",WANDERPAGE_WORKSPACE:workspace},maxBuffer:10_000_000});
     const exported=join(workspace,"out"),privacy=await validateStaticExport(exported,["integration-secret-that-must-not-leak"]);
     expect(privacy.errors).toEqual([]);
     expect(await directoryBytes(exported)).toBeLessThan(90*1024*1024);
@@ -64,7 +65,7 @@ describe("photo folder to deployed-site artifact",()=>{
     try{
       const page=await browser.newPage({viewport:{width:1280,height:900}}),consoleErrors:string[]=[];
       page.on("console",(message)=>{if(message.type()==="error")consoleErrors.push(message.text());});
-      await page.goto(`${server.url}/demo`,{waitUntil:"networkidle"});
+      await page.goto(`${server.url}${result.path}`,{waitUntil:"networkidle"});
       await expect(page.getByRole("heading",{name:"Controlled Coast Test"}).isVisible()).resolves.toBe(true);
       await expect(page.locator(".gallery-button").count()).resolves.toBe(manifest.photos.length);
       for(const button of await page.locator(".gallery-button").all())await button.scrollIntoViewIfNeeded();
@@ -84,9 +85,9 @@ describe("photo folder to deployed-site artifact",()=>{
       const originalHashes=await fileHashes(cliInput);
       await execute("pnpm",["exec","tsx",join(repoRoot,"scripts/trip.ts"),"--input",cliInput,"--people","include","--title","CLI Folder Test","--max-photos","12"],{cwd:repoRoot,env:{...process.env,OPENAI_API_KEY:"",WANDERPAGE_WORKSPACE:cliWorkspace},maxBuffer:10_000_000});
       expect(await fileHashes(cliInput)).toEqual(originalHashes);
-      const manifest=TripManifestSchema.parse(JSON.parse(await readFile(join(cliWorkspace,"data/trip.json"),"utf8")));
+      const manifest=TripManifestSchema.parse(JSON.parse(await readFile(join(cliWorkspace,"data/trips/cli-folder-test.json"),"utf8")));
       expect(manifest.title).toBe("CLI Folder Test");expect(manifest.photos.length).toBeGreaterThan(0);
-      await execute("pnpm",["exec","next","build",cliWorkspace],{cwd:repoRoot,env:{...process.env,NEXT_TELEMETRY_DISABLED:"1"},maxBuffer:10_000_000});
+      await execute("pnpm",["exec","next","build",cliWorkspace],{cwd:repoRoot,env:{...process.env,NEXT_TELEMETRY_DISABLED:"1",WANDERPAGE_WORKSPACE:cliWorkspace},maxBuffer:10_000_000});
       const privacy=await validateStaticExport(join(cliWorkspace,"out"));expect(privacy.errors).toEqual([]);
     }finally{await removeTempWorkspace(cliWorkspace);}
   },120_000);

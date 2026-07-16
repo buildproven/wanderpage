@@ -51,6 +51,7 @@ export async function copySiteScaffold(workspace:string){
   for(const directory of ["app","components","lib/schemas"])await cp(join(repoRoot,directory),join(workspace,directory),{recursive:true});
   await cp(join(repoRoot,"lib/studio/types.ts"),join(workspace,"lib/studio/types.ts"));
   await cp(join(repoRoot,"public/trip/demo"),join(workspace,"public/trip/demo"),{recursive:true});
+  await cp(join(repoRoot,"data/trip.demo.json"),join(workspace,"data/trip.demo.json"));
   for(const file of ["next.config.ts","next-env.d.ts","package.json","tsconfig.json"])await cp(join(repoRoot,file),join(workspace,file));
 }
 

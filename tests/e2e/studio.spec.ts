@@ -14,7 +14,7 @@ test("creates a story through the local Studio interface",async({page,context})=
     if(path==="/api/jobs/fixture-job"){
       jobReads++;
       if(jobReads<2)return route.fulfill({json:{id:"fixture-job",status:"running",createdAt:"2026-07-15T12:00:00Z",updatedAt:"2026-07-15T12:00:01Z",request:{input:"/Users/test/Pictures/Oregon",people:"exclude",maxPhotos:36,privacy:"approximate"},progress:{stage:"analyze",progress:56,message:"Analyzing contact sheet 1 of 1",at:"2026-07-15T12:00:01Z"}}});
-      return route.fulfill({json:{id:"fixture-job",status:"complete",createdAt:"2026-07-15T12:00:00Z",updatedAt:"2026-07-15T12:00:03Z",request:{input:"/Users/test/Pictures/Oregon",people:"exclude",maxPhotos:36,privacy:"approximate"},progress:{stage:"complete",progress:100,message:"Your Wanderpage story is ready",at:"2026-07-15T12:00:03Z"},result:{manifest,summary:{inputPhotos:8,selectedPhotos:8,duplicatesRemoved:0},selection:{selected:manifest.photos.map((photo)=>photo.id),rejected:[],reasons:{}}}}});
+      return route.fulfill({json:{id:"fixture-job",status:"complete",createdAt:"2026-07-15T12:00:00Z",updatedAt:"2026-07-15T12:00:03Z",request:{input:"/Users/test/Pictures/Oregon",people:"exclude",maxPhotos:36,privacy:"approximate"},progress:{stage:"complete",progress:100,message:"Your trip page is ready",at:"2026-07-15T12:00:03Z"},result:{path:"/trips/a-line-along-the-pacific",manifest,summary:{inputPhotos:8,selectedPhotos:8,duplicatesRemoved:0},selection:{selected:manifest.photos.map((photo)=>photo.id),rejected:[],reasons:{}}}}});
     }
     return route.fulfill({status:404,json:{error:"Not found"}});
   });
@@ -28,5 +28,5 @@ test("creates a story through the local Studio interface",async({page,context})=
   await expect(page.getByRole("heading",{name:/Analyzing contact sheet/})).toBeVisible();
   await expect(page.getByText("The edit is ready")).toBeVisible();
   await expect(page.getByRole("heading",{name:"A Line Along the Pacific"})).toBeVisible();
-  const popupPromise=context.waitForEvent("page");await page.getByRole("link",{name:/Open the story/}).click();const story=await popupPromise;await story.waitForLoadState();expect(story.url()).toMatch(/\/demo/);
+  const popupPromise=context.waitForEvent("page");await page.getByRole("link",{name:/Open this trip/}).click();const story=await popupPromise;await story.waitForLoadState();expect(story.url()).toMatch(/\/trips\/a-line-along-the-pacific/);
 });

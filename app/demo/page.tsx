@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Story from "@/components/Story";
-import rawManifest from "@/data/trip.json";
+import rawManifest from "@/data/trip.demo.json";
 import { TripManifestSchema } from "@/lib/schemas/trip";
 
 export const metadata: Metadata = {

@@ -21,7 +21,9 @@ On macOS, double-click `Open Wanderpage.command`. Or launch the same local inter
 pnpm studio
 ```
 
-Wanderpage builds the interface, opens it in the default browser, and listens only on `127.0.0.1`. Choose a photo folder, set the people and route privacy controls, and select **Build my Wanderpage**. The app shows live progress, the selected edit, rejected-photo counts, the local decision report, and the finished story. Only one story runs at a time.
+Wanderpage builds the interface, opens it in the default browser, and listens only on `127.0.0.1`. Choose a photo folder, set the people and route privacy controls, and select **Build my Wanderpage**. The app shows live progress, the selected edit, rejected-photo counts, the local decision report, and the finished trip. Only one trip runs at a time.
+
+The permanent sample stays at `/demo`. Generated trips receive readable title-based pages such as `/trips/oregon-coast`; separate titles are preserved as separate pages under `data/trips/`.
 
 ## Generate a story
 

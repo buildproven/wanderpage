@@ -35,4 +35,4 @@ describe("local Studio server",()=>{
   function post(path:string,value:unknown){return fetch(`${base}${path}`,{method:"POST",headers:{Origin:base,"Content-Type":"application/json"},body:JSON.stringify(value)});}
 });
 
-async function fixtureResult():Promise<StudioJobResult>{const manifest=TripManifestSchema.parse(JSON.parse(await readFile(join(repoRoot,"data/trip.demo.json"),"utf8")));return {manifest,summary:{inputPhotos:8,selectedPhotos:8,duplicatesRemoved:0},selection:{selected:manifest.photos.map((photo)=>photo.id),rejected:[],reasons:{}}};}
+async function fixtureResult():Promise<StudioJobResult>{const manifest=TripManifestSchema.parse(JSON.parse(await readFile(join(repoRoot,"data/trip.demo.json"),"utf8")));return {path:"/trips/a-line-along-the-pacific",manifest,summary:{inputPhotos:8,selectedPhotos:8,duplicatesRemoved:0},selection:{selected:manifest.photos.map((photo)=>photo.id),rejected:[],reasons:{}}};}

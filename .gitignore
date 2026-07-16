@@ -11,5 +11,7 @@ playwright-report/
 output/
 .wanderpage-test-*/
 public/trip/generated/
+data/trips/*.json
+!data/trips/.gitkeep
 demo-photos/
 *.tsbuildinfo
