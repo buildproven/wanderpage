@@ -25,5 +25,8 @@ module.exports = {
     "subject-empty": [2, "never"],
     // Type must not be empty
     "type-empty": [2, "never"],
+    // Machine-generated review-evidence trailers (Reviewed-By: quality ...)
+    // embed full commit SHAs and exceed 100 chars by design.
+    "footer-max-line-length": [0, "always"],
   },
 };
