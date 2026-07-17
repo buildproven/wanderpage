@@ -6,6 +6,7 @@ const coordinate = z.object({ lat: z.number(), lon: z.number() });
 export const TripManifestSchema = z.object({
   schemaVersion: z.literal("1.0"),
   generatedAt: z.string(),
+  published: z.boolean().default(true),
   title: z.string(),
   subtitle: z.string(),
   opening: z.string(),
