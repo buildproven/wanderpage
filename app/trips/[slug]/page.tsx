@@ -1,16 +1,19 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Story from "@/components/Story";
 import { TripManifestSchema } from "@/lib/schemas/trip";
+import { listTrips } from "@/lib/trips/publish";
 
-const directory = join(process.env.WANDERPAGE_WORKSPACE ?? process.cwd(), "data/trips");
+const root = process.env.WANDERPAGE_WORKSPACE ?? process.cwd(),
+  directory = join(root, "data/trips");
 
 export const dynamicParams = false;
 export async function generateStaticParams() {
-  const params = (await tripFiles()).map(file => ({ slug: file.slice(0, -5) }));
-  return params.length ? params : [{ slug: "placeholder" }];
+  const trips = await listTrips(root),
+    published = trips.filter(trip => trip.manifest.published).map(trip => ({ slug: trip.slug }));
+  return published.length ? published : [{ slug: "placeholder" }];
 }
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params,
@@ -24,11 +27,6 @@ export default async function TripPage({ params }: { params: Promise<{ slug: str
   return <Story trip={trip} />;
 }
 
-async function tripFiles() {
-  return readdir(directory)
-    .then(files => files.filter(file => file.endsWith(".json")).sort())
-    .catch(() => []);
-}
 async function loadTrip(slug: string) {
   if (!/^[a-z0-9-]+$/.test(slug)) return undefined;
   return readFile(join(directory, `${slug}.json`), "utf8")

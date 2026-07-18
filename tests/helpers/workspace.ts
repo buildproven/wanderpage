@@ -61,7 +61,7 @@ export async function createPhotoFolder(
 }
 
 export async function copySiteScaffold(workspace: string) {
-  for (const directory of ["app", "components", "lib/schemas"])
+  for (const directory of ["app", "components", "lib/schemas", "lib/trips"])
     await cp(join(repoRoot, directory), join(workspace, directory), { recursive: true });
   await cp(join(repoRoot, "lib/studio/types.ts"), join(workspace, "lib/studio/types.ts"));
   await cp(join(repoRoot, "public/trip/demo"), join(workspace, "public/trip/demo"), { recursive: true });
