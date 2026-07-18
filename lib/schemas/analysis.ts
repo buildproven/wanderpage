@@ -25,7 +25,6 @@ export const PhotoSemanticAnalysisSchema = z.object({
   categories: z.array(photoCategorySchema),
   possibleLocations: z.array(z.object({ label: z.string(), confidence: z.number().min(0).max(1), evidence: z.string() })),
   captionSeed: z.string(),
-  rejectionReason: z.string().optional(),
 });
 
 export const ContactSheetAnalysisSchema = z.object({ photos: z.array(PhotoSemanticAnalysisSchema) });
