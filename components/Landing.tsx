@@ -20,10 +20,19 @@ export default function Landing() {
     <main className="product-page">
       <section className="product-hero" aria-labelledby="product-title">
         <motion.div className="product-hero-media" style={{ scale: heroScale }}>
-          <Image src="/trip/demo/coast-hero-large.webp" alt="A long Pacific beach beneath coastal headlands" fill priority sizes="100vw" />
+          <Image
+            src="/trip/demo/coast-hero-large.webp"
+            alt="A long Pacific beach beneath coastal headlands"
+            fill
+            priority
+            loading="eager"
+            sizes="100vw"
+          />
         </motion.div>
         <nav className="product-nav" aria-label="Primary navigation">
-          <span className="product-wordmark">Wanderpage</span>
+          <span className="product-wordmark">
+            Wanderpage <small>Field edition / 01</small>
+          </span>
           <Link href="/demo" className="product-nav-link">
             View the demo ↗
           </Link>
@@ -45,6 +54,12 @@ export default function Landing() {
             Explore a finished story <span>→</span>
           </Link>
         </motion.div>
+        <div className="product-hero-folio" aria-hidden="true">
+          <span>42.8° N</span>
+          <i />
+          <span>Pacific passage</span>
+          <b>WP—001</b>
+        </div>
         <div className="product-hero-note">
           <span>Local-first</span>
           <span>Originals untouched</span>
@@ -65,6 +80,10 @@ export default function Landing() {
           It reads dates and approximate places, removes duplicates, filters weak frames, and selects a varied sequence. Then it writes
           restrained context, builds the route, strips private metadata, and exports a static site ready to share.
         </motion.p>
+        <aside className="product-margin-note" aria-label="Wanderpage editing principle">
+          <span>Editor’s note 01</span>
+          <p>A finished trip is not every frame. It is the sequence you would choose if you had one quiet afternoon.</p>
+        </aside>
       </section>
 
       <section className="product-process" aria-labelledby="process-title">
@@ -81,46 +100,55 @@ export default function Landing() {
         </div>
         <div className="product-steps">
           <motion.article {...reveal}>
-            <span>01</span>
+            <span className="proof-number">01</span>
             <div>
               <h3>Choose the folder</h3>
               <p>JPEG, PNG, WebP, and iPhone HEIC photos can stay exactly where they are.</p>
             </div>
-            <Image
-              src="/trip/demo/headland-medium.webp"
-              alt="An empty trail above the Pacific"
-              width={900}
-              height={675}
-              sizes="(max-width: 760px) 92vw, 45vw"
-            />
+            <figure>
+              <Image
+                src="/trip/demo/headland-medium.webp"
+                alt="An empty trail above the Pacific"
+                width={900}
+                height={675}
+                sizes="(max-width: 760px) 92vw, 45vw"
+              />
+              <figcaption>ROLL 01 / SOURCE FOLDER / READ ONLY</figcaption>
+            </figure>
           </motion.article>
           <motion.article {...reveal}>
-            <span>02</span>
+            <span className="proof-number">02</span>
             <div>
               <h3>Set the boundary</h3>
               <p>Include people, or exclude every frame where a person is visible. No names. No face identification.</p>
             </div>
-            <Image
-              src="/trip/demo/tidepool-medium.webp"
-              alt="Tide pools among dark coastal rocks"
-              width={900}
-              height={675}
-              sizes="(max-width: 760px) 92vw, 45vw"
-            />
+            <figure>
+              <Image
+                src="/trip/demo/tidepool-medium.webp"
+                alt="Tide pools among dark coastal rocks"
+                width={900}
+                height={675}
+                sizes="(max-width: 760px) 92vw, 45vw"
+              />
+              <figcaption>PROOF 06 / PRIVACY BOUNDARY APPLIED</figcaption>
+            </figure>
           </motion.article>
           <motion.article {...reveal}>
-            <span>03</span>
+            <span className="proof-number">03</span>
             <div>
               <h3>Receive the story</h3>
               <p>A responsive photo essay with chapters, route, facts, gallery, credits, and a private static export.</p>
             </div>
-            <Image
-              src="/trip/demo/cabin-medium.webp"
-              alt="The ocean seen through a warm cabin window"
-              width={900}
-              height={600}
-              sizes="(max-width: 760px) 92vw, 45vw"
-            />
+            <figure>
+              <Image
+                src="/trip/demo/cabin-medium.webp"
+                alt="The ocean seen through a warm cabin window"
+                width={900}
+                height={600}
+                sizes="(max-width: 760px) 92vw, 45vw"
+              />
+              <figcaption>FINAL SEQUENCE / READY TO SHARE</figcaption>
+            </figure>
           </motion.article>
         </div>
       </section>
@@ -128,6 +156,11 @@ export default function Landing() {
       <section className="product-privacy" aria-labelledby="privacy-title">
         <div>
           <p className="product-kicker">Privacy is the architecture</p>
+          <span className="product-privacy-stamp" aria-hidden="true">
+            Originals
+            <br />
+            untouched
+          </span>
           <h2 id="privacy-title">
             The originals
             <br />
@@ -168,7 +201,9 @@ export default function Landing() {
       </section>
 
       <footer className="product-footer">
-        <span className="product-wordmark">Wanderpage</span>
+        <span className="product-wordmark">
+          Wanderpage <small>Field edition / 01</small>
+        </span>
         <p>Private photos. Public story.</p>
         <Link href="/demo">View demo ↗</Link>
       </footer>

@@ -48,11 +48,11 @@ export default function Story({ trip }: { trip: TripManifest }) {
     <main>
       <section className="hero" aria-labelledby="trip-title">
         <motion.div className="hero-media" style={{ scale: heroScale }}>
-          <Image src={hero.srcLarge} alt={hero.alt} fill priority sizes="100vw" />
+          <Image src={hero.srcLarge} alt={hero.alt} fill priority loading="eager" sizes="100vw" />
         </motion.div>
         <nav className="hero-nav" aria-label="Story navigation">
           <Link className="mark" href="/">
-            Wanderpage
+            Wanderpage <small>Field note / travel story</small>
           </Link>
           <a className="eyebrow" href="#story">
             Read the story ↓
@@ -66,6 +66,11 @@ export default function Story({ trip }: { trip: TripManifest }) {
             <span>{trip.destinations.map(d => d.name).join(" · ")}</span>
           </div>
         </motion.div>
+        <div className="story-folio" aria-hidden="true">
+          <span>01</span>
+          <i />
+          <span>{trip.photos.length.toString().padStart(2, "0")} selected frames</span>
+        </div>
         <span className="scroll-cue">Follow the coastline</span>
       </section>
 
@@ -107,7 +112,10 @@ export default function Story({ trip }: { trip: TripManifest }) {
             <motion.header className="chapter-heading" {...reveal}>
               <span className="chapter-number">0{index + 1}</span>
               <h2>{chapter.title}</h2>
-              <p className="chapter-text">{chapter.narrative}</p>
+              <div>
+                {destination && <span className="chapter-location">{destination.name} / field entry</span>}
+                <p className="chapter-text">{chapter.narrative}</p>
+              </div>
             </motion.header>
             <div className={`spread ${index % 2 ? "reverse" : ""}`}>
               {chapterPhotos.slice(0, 2).map((photo, photoIndex) => (
