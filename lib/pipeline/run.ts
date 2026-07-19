@@ -283,16 +283,31 @@ async function runDemo(root: string, output: string) {
   const demo = TripManifestSchema.parse(JSON.parse(await readFile(join(root, "data/trip.demo.json"), "utf8")));
   const publishedAssets = new Set(demo.photos.flatMap(photo => [photo.srcLarge, photo.srcMedium, photo.srcThumb])),
     publishedSizeBytes = (
-      await Promise.all([...publishedAssets].map(async src => (await stat(join(root, "public", src.replace(/^\//, "")))).size))
+      await Promise.all(
+        [...publishedAssets].map(async src => {
+          try {
+            return (await stat(join(root, "public", src.replace(/^\//, "")))).size;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT")
+              throw new Error(`Demo manifest references a missing published asset: ${src}`, { cause: error });
+            throw error;
+          }
+        })
+      )
     ).reduce((total, bytes) => total + bytes, 0),
-    publishedSizeMegabytes = (publishedSizeBytes / (1024 * 1024)).toFixed(1);
+    publishedSizeLabel =
+      publishedSizeBytes < 1024 * 1024
+        ? `${Math.ceil(publishedSizeBytes / 1024)} KB`
+        : `${(publishedSizeBytes / (1024 * 1024)).toFixed(1)} MB`,
+    selectedPhotos = demo.photos.filter(photo => photo.source === "user").length,
+    destinationsFound = demo.destinations.length;
   const summary = {
     generatedAt: new Date().toISOString(),
-    inputPhotos: 8,
+    inputPhotos: demo.photos.length,
     duplicatesRemoved: 0,
     lowQualityRejected: 0,
-    selectedPhotos: 8,
-    destinationsFound: 4,
+    selectedPhotos,
+    destinationsFound,
     modelCalls: 0,
     provider: "deterministic-mock",
     publishedSizeBytes,
@@ -307,10 +322,10 @@ async function runDemo(root: string, output: string) {
   await writeFile(join(output, "run-summary.json"), JSON.stringify(summary, null, 2));
   await writeFile(
     join(output, "report/index.html"),
-    `<!doctype html><title>Wanderpage demo report</title><style>body{font:16px system-ui;max-width:760px;margin:4rem auto;color:#17211f}</style><h1>Deterministic demo complete</h1><p>8 curated demo frames, 4 approximate destinations, no people, no API calls.</p><p>The public story contains optimized metadata-free WebP assets only.</p>`
+    `<!doctype html><title>Wanderpage demo report</title><style>body{font:16px system-ui;max-width:760px;margin:4rem auto;color:#17211f}</style><h1>Deterministic demo complete</h1><p>${selectedPhotos} curated demo frames, ${destinationsFound} approximate destinations, no people, no API calls.</p><p>The public story contains optimized metadata-free WebP assets only.</p>`
   );
   console.log(
-    `\nWanderpage demo complete\n\nSelected photos:      8\nDestinations found:   4\nPublished size:       ${publishedSizeMegabytes} MB\nPage:                  /demo\nLocal preview:        pnpm build && pnpm preview\nReport:               .trip-output/report/index.html`
+    `\nWanderpage demo complete\n\nSelected photos:      ${selectedPhotos}\nDestinations found:   ${destinationsFound}\nPublished size:       ${publishedSizeLabel}\nPage:                  /demo\nLocal preview:        pnpm build && pnpm preview\nReport:               .trip-output/report/index.html`
   );
   return { manifest: demo, summary, slug: "demo", path: "/demo" };
 }
