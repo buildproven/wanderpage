@@ -69,7 +69,7 @@ export default function Story({ trip }: { trip: TripManifest }) {
         <div className="story-folio" aria-hidden="true">
           <span>01</span>
           <i />
-          <span>{trip.photos.length.toString().padStart(2, "0")} selected frames</span>
+          <span>{gallery.length.toString().padStart(2, "0")} selected frames</span>
         </div>
         <span className="scroll-cue">Follow the coastline</span>
       </section>

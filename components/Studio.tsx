@@ -124,7 +124,15 @@ export default function Studio() {
           </nav>
           <div className="studio-docket" aria-hidden="true">
             <span>LOCAL WORK ORDER</span>
-            <span>{phase === "setup" ? "AWAITING SOURCE" : phase === "working" ? "EDIT IN PROGRESS" : "PROOF READY"}</span>
+            <span>
+              {job?.status === "failed"
+                ? "EDIT FAILED"
+                : phase === "setup"
+                  ? "AWAITING SOURCE"
+                  : phase === "working"
+                    ? "EDIT IN PROGRESS"
+                    : "PROOF READY"}
+            </span>
           </div>
           <AnimatePresence mode="wait">
             {phase === "setup" && (
