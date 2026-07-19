@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function DemoPage() {
-  return <Story trip={TripManifestSchema.parse(rawManifest)} />;
+  return <Story trip={TripManifestSchema.parse(rawManifest)} showProductContext />;
 }

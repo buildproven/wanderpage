@@ -33,3 +33,17 @@ test("explains Wanderpage and opens a complete static story", async ({ page }) =
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.locator("body")).not.toHaveCSS("overflow-x", "scroll");
 });
+
+test("a direct demo visit explains how Wanderpage made the story", async ({ page }) => {
+  await page.goto("/demo");
+
+  await expect(page.getByRole("heading", { name: /Made by Wanderpage/ })).toBeVisible();
+  await expect(page.getByText(/generated from a folder of travel photos/i)).toBeVisible();
+  await expect(page.getByText(/exact GPS and camera metadata removed/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /See how Wanderpage works/ })).toHaveAttribute("href", "/");
+
+  const gallerySources = await page
+    .locator(".gallery-button img")
+    .evaluateAll(images => images.map(image => new URL((image as HTMLImageElement).src).pathname));
+  expect(new Set(gallerySources).size).toBe(8);
+});
