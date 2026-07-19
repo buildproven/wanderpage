@@ -102,6 +102,7 @@ describe("photo folder to deployed-site artifact", () => {
       });
       await page.goto(`${server.url}${result.path}`, { waitUntil: "networkidle" });
       await expect(page.getByRole("heading", { name: "Controlled Coast Test" }).isVisible()).resolves.toBe(true);
+      await expect(page.getByRole("heading", { name: /Made by Wanderpage/ }).count()).resolves.toBe(0);
       await expect(page.locator(".gallery-button").count()).resolves.toBe(manifest.photos.length);
       for (const button of await page.locator(".gallery-button").all()) await button.scrollIntoViewIfNeeded();
       await page.waitForFunction(() =>

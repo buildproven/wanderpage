@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { buildContactSheet } from "@/lib/ai/contact-sheet";
@@ -281,6 +281,11 @@ function routeDistance(destinations: Awaited<ReturnType<typeof inferDestinations
 async function runDemo(root: string, output: string) {
   await mkdir(output, { recursive: true });
   const demo = TripManifestSchema.parse(JSON.parse(await readFile(join(root, "data/trip.demo.json"), "utf8")));
+  const publishedAssets = new Set(demo.photos.flatMap(photo => [photo.srcLarge, photo.srcMedium, photo.srcThumb])),
+    publishedSizeBytes = (
+      await Promise.all([...publishedAssets].map(async src => (await stat(join(root, "public", src.replace(/^\//, "")))).size))
+    ).reduce((total, bytes) => total + bytes, 0),
+    publishedSizeMegabytes = (publishedSizeBytes / (1024 * 1024)).toFixed(1);
   const summary = {
     generatedAt: new Date().toISOString(),
     inputPhotos: 8,
@@ -290,7 +295,7 @@ async function runDemo(root: string, output: string) {
     destinationsFound: 4,
     modelCalls: 0,
     provider: "deterministic-mock",
-    publishedSizeBytes: 1240000,
+    publishedSizeBytes,
   };
   await mkdir(join(output, "report"), { recursive: true });
   await cp(join(root, "data/trip.demo.json"), join(output, "selection.json"));
@@ -305,7 +310,7 @@ async function runDemo(root: string, output: string) {
     `<!doctype html><title>Wanderpage demo report</title><style>body{font:16px system-ui;max-width:760px;margin:4rem auto;color:#17211f}</style><h1>Deterministic demo complete</h1><p>8 curated demo frames, 4 approximate destinations, no people, no API calls.</p><p>The public story contains optimized metadata-free WebP assets only.</p>`
   );
   console.log(
-    "\nWanderpage demo complete\n\nSelected photos:      8\nDestinations found:   4\nPublished size:       1.2 MB\nPage:                  /demo\nLocal preview:        pnpm build && pnpm preview\nReport:               .trip-output/report/index.html"
+    `\nWanderpage demo complete\n\nSelected photos:      8\nDestinations found:   4\nPublished size:       ${publishedSizeMegabytes} MB\nPage:                  /demo\nLocal preview:        pnpm build && pnpm preview\nReport:               .trip-output/report/index.html`
   );
   return { manifest: demo, summary, slug: "demo", path: "/demo" };
 }
