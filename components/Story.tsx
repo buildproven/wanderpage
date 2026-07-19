@@ -172,6 +172,46 @@ export default function Story({ trip }: { trip: TripManifest }) {
         <Image src={gallery.at(-1)!.srcLarge} alt={gallery.at(-1)!.alt} fill sizes="100vw" />
         <motion.p {...reveal}>{trip.closing}</motion.p>
       </section>
+      <section className="story-provenance" aria-labelledby="provenance-title">
+        <motion.div className="provenance-lead" {...reveal}>
+          <span className="eyebrow">Behind this demo</span>
+          <h2 id="provenance-title">
+            Made by Wanderpage,
+            <br />
+            <em>from one photo folder.</em>
+          </h2>
+          <p>
+            This complete story was generated from a folder of travel photos—without manually selecting frames, writing captions, or
+            designing a page.
+          </p>
+          <Link href="/" className="provenance-link">
+            See how Wanderpage works <span aria-hidden="true">→</span>
+          </Link>
+        </motion.div>
+        <ol className="provenance-notes">
+          <motion.li {...reveal}>
+            <span>01</span>
+            <div>
+              <strong>The edit</strong>
+              <p>Eight distinct frames selected, sequenced, and shaped into a coherent visual rhythm.</p>
+            </div>
+          </motion.li>
+          <motion.li {...reveal}>
+            <span>02</span>
+            <div>
+              <strong>The story</strong>
+              <p>Dates and approximate places organized into a route, chapters, captions, and sourced context.</p>
+            </div>
+          </motion.li>
+          <motion.li {...reveal}>
+            <span>03</span>
+            <div>
+              <strong>The boundary</strong>
+              <p>Originals left untouched; exact GPS and camera metadata removed from every published image.</p>
+            </div>
+          </motion.li>
+        </ol>
+      </section>
       <footer className="credits">
         <div className="credits-inner">
           <div>
@@ -196,7 +236,7 @@ export default function Story({ trip }: { trip: TripManifest }) {
         </div>
         <div className="footer-line">
           <span>Wanderpage</span>
-          <span>Private photos · public story</span>
+          <span>Private by default · shared by choice</span>
         </div>
       </footer>
 
