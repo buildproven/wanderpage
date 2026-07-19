@@ -358,6 +358,86 @@ button {
   padding: 2rem;
   letter-spacing: -0.04em;
 }
+.story-provenance {
+  padding: clamp(6rem, 10vw, 10rem) max(5vw, calc((100vw - 1180px) / 2));
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(28rem, 1.1fr);
+  gap: clamp(4rem, 9vw, 9rem);
+  background: linear-gradient(90deg, transparent 0 49.94%, rgba(23, 33, 31, 0.08) 49.94% 50.06%, transparent 50.06%), var(--paper);
+}
+.provenance-lead .eyebrow {
+  color: var(--rust-text);
+}
+.provenance-lead h2 {
+  margin: 1rem 0 2rem;
+  font:
+    normal clamp(3rem, 5.7vw, 6.2rem)/0.9 Georgia,
+    serif;
+  letter-spacing: -0.055em;
+}
+.provenance-lead h2 em {
+  font-weight: normal;
+}
+.provenance-lead > p {
+  max-width: 34rem;
+  margin: 0 0 2.5rem;
+  color: #4e5b56;
+  font:
+    normal clamp(1.1rem, 1.5vw, 1.32rem)/1.6 Georgia,
+    serif;
+}
+.provenance-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid currentColor;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.provenance-link span {
+  font-size: 1.2rem;
+  transition: transform 0.3s ease;
+}
+.provenance-link:hover span {
+  transform: translateX(0.4rem);
+}
+.provenance-notes {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+.provenance-notes li {
+  padding: 2rem 0;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 1.5rem;
+}
+.provenance-notes li > span {
+  color: var(--rust-text);
+  font:
+    italic 1rem Georgia,
+    serif;
+}
+.provenance-notes strong {
+  display: block;
+  margin-bottom: 0.55rem;
+  font:
+    normal clamp(1.6rem, 2.5vw, 2.35rem) Georgia,
+    serif;
+  letter-spacing: -0.035em;
+}
+.provenance-notes p {
+  max-width: 32rem;
+  margin: 0;
+  color: #59645f;
+  line-height: 1.6;
+}
 .credits {
   padding: 7rem 5vw 3rem;
   background: #17211f;
@@ -712,6 +792,13 @@ button {
 :focus-visible {
   outline: 3px solid var(--rust);
   outline-offset: 4px;
+}
+@media (max-width: 900px) {
+  .story-provenance {
+    grid-template-columns: 1fr;
+    gap: 5rem;
+    background: var(--paper);
+  }
 }
 @media (max-width: 760px) {
   .hero-nav {

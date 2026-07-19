@@ -49,7 +49,9 @@ export default function Landing() {
             <br />
             <em>beautifully edited.</em>
           </h1>
-          <p className="product-summary">Wanderpage turns a folder of vacation photos into a cinematic, private website—automatically.</p>
+          <p className="product-summary">
+            Wanderpage turns a folder of vacation photos into a cinematic website—kept local until you choose to share it.
+          </p>
           <Link href="/demo" className="product-cta">
             Explore a finished story <span>→</span>
           </Link>
@@ -137,7 +139,7 @@ export default function Landing() {
             <span className="proof-number">03</span>
             <div>
               <h3>Receive the story</h3>
-              <p>A responsive photo essay with chapters, route, facts, gallery, credits, and a private static export.</p>
+              <p>A responsive photo essay with chapters, route, facts, gallery, credits, and a static export you control.</p>
             </div>
             <figure>
               <Image
@@ -204,7 +206,7 @@ export default function Landing() {
         <span className="product-wordmark">
           Wanderpage <small>Field edition / 01</small>
         </span>
-        <p>Private photos. Public story.</p>
+        <p>Private by default. Shared by choice.</p>
         <Link href="/demo">View demo ↗</Link>
       </footer>
     </main>
