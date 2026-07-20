@@ -57,7 +57,7 @@ export default function Landing() {
           </Link>
         </motion.div>
         <div className="product-hero-folio" aria-hidden="true">
-          <span>42.8° N</span>
+          <span>Four-day edit</span>
           <i />
           <span>Pacific passage</span>
           <b>WP—001</b>

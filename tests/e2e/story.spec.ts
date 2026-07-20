@@ -4,6 +4,8 @@ test("explains Wanderpage and opens a complete static story", async ({ page }) =
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Your trip, beautifully edited/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /A camera roll is evidence/ })).toBeVisible();
+  await expect(page.locator(".product-hero-folio")).toContainText("Four-day edit");
+  await expect(page.locator(".product-hero-folio")).not.toContainText(/\d+\.\d+°/);
   await page.getByRole("link", { name: /Explore a finished story/ }).click();
   await expect(page).toHaveURL(/\/demo\/?$/);
   await expect(page.getByRole("heading", { name: "A Line Along the Pacific" })).toBeVisible();
