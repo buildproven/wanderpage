@@ -2,6 +2,25 @@
   "name": "wanderpage",
   "version": "0.1.0",
   "private": true,
+  "description": "Local-first travel photo editor that turns a photo folder into a curated static trip page.",
+  "license": "MIT",
+  "author": "buildproven",
+  "homepage": "https://github.com/buildproven/wanderpage",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buildproven/wanderpage.git"
+  },
+  "bugs": {
+    "url": "https://github.com/buildproven/wanderpage/issues"
+  },
+  "keywords": [
+    "travel",
+    "photos",
+    "static-site",
+    "local-first",
+    "privacy",
+    "nextjs"
+  ],
   "type": "module",
   "packageManager": "pnpm@11.13.1",
   "engines": {
