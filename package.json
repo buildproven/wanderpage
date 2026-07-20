@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Local-first travel photo editor that turns a photo folder into a curated static trip page.",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "author": "buildproven",
   "homepage": "https://github.com/buildproven/wanderpage",
   "repository": {
