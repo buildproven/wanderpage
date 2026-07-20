@@ -82,7 +82,21 @@ export default function Studio() {
   return (
     <main className="studio-page">
       <aside className="studio-atmosphere" aria-hidden="true">
-        <Image src="/trip/demo/coast-hero-large.webp" alt="" fill priority sizes="38vw" />
+        <div className="studio-atmosphere-media">
+          <Image src="/trip/demo/coast-hero-large.webp" alt="" fill priority loading="eager" sizes="38vw" />
+        </div>
+        <div className="studio-roll-meta">
+          <span>WP / LOCAL EDIT</span>
+          <span>ROLL 001</span>
+        </div>
+        <div className="studio-route-mark">
+          <i />
+          <i />
+          <i />
+          <span>folder</span>
+          <span>edit</span>
+          <span>story</span>
+        </div>
         <div className="studio-atmosphere-copy">
           <span>Wanderpage Studio</span>
           <p>
@@ -95,7 +109,7 @@ export default function Studio() {
       <section className="studio-workspace">
         <header className="studio-header">
           <Link href="/" className="studio-wordmark">
-            Wanderpage
+            Wanderpage <small>Studio desk / 01</small>
           </Link>
           <div className={`studio-connection ${connection}`}>
             <i />
@@ -108,6 +122,18 @@ export default function Studio() {
             <Phase index="02" label="Edit" active={phase === "working"} done={phase === "complete"} />
             <Phase index="03" label="Review" active={phase === "complete"} done={false} />
           </nav>
+          <div className="studio-docket" aria-hidden="true">
+            <span>LOCAL WORK ORDER</span>
+            <span>
+              {job?.status === "failed"
+                ? "EDIT FAILED"
+                : phase === "setup"
+                  ? "AWAITING SOURCE"
+                  : phase === "working"
+                    ? "EDIT IN PROGRESS"
+                    : "PROOF READY"}
+            </span>
+          </div>
           <AnimatePresence mode="wait">
             {phase === "setup" && (
               <motion.div

@@ -63,3 +63,31 @@ test("creates a story through the local Studio interface", async ({ page, contex
   await story.waitForLoadState();
   expect(story.url()).toMatch(/\/trips\/a-line-along-the-pacific/);
 });
+
+test("keeps a failed edit visible in the Studio docket", async ({ page }) => {
+  await page.route("**/api/**", async route => {
+    const request = route.request(),
+      path = new URL(request.url()).pathname;
+    if (path === "/api/status") return route.fulfill({ json: { ready: true, openaiConfigured: true, platform: "darwin" } });
+    if (path === "/api/jobs" && request.method() === "POST") return route.fulfill({ status: 202, json: { id: "failed-job" } });
+    if (path === "/api/jobs/failed-job")
+      return route.fulfill({
+        json: {
+          id: "failed-job",
+          status: "failed",
+          createdAt: "2026-07-15T12:00:00Z",
+          updatedAt: "2026-07-15T12:00:01Z",
+          request: { input: "/Users/test/Pictures/Oregon", people: "exclude", maxPhotos: 36, privacy: "approximate" },
+          progress: { stage: "ingest", progress: 4, message: "Reading photo folder", at: "2026-07-15T12:00:01Z" },
+          error: "Photo folder is no longer readable.",
+        },
+      });
+    return route.fulfill({ status: 404, json: { error: "Not found" } });
+  });
+
+  await page.goto("/studio");
+  await page.getByLabel("Photo folder path").fill("/Users/test/Pictures/Oregon");
+  await page.getByRole("button", { name: /Build my Wanderpage/ }).click();
+  await expect(page.getByText("EDIT FAILED")).toBeVisible();
+  await expect(page.locator(".studio-error")).toHaveText("Photo folder is no longer readable.");
+});
