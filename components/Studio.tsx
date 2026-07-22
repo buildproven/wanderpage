@@ -4,9 +4,11 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import type { TripManifest } from "@/lib/schemas/trip";
 import type { StudioJob, StudioStatus } from "@/lib/studio/types";
 
 type Connection = "checking" | "ready" | "offline";
+type ManagedTrip = { slug: string; manifest: TripManifest };
 
 export default function Studio() {
   const [connection, setConnection] = useState<Connection>("checking"),
@@ -18,7 +20,12 @@ export default function Studio() {
     [maxPhotos, setMaxPhotos] = useState(36);
   const [job, setJob] = useState<StudioJob>(),
     [error, setError] = useState(""),
-    [picking, setPicking] = useState(false);
+    [picking, setPicking] = useState(false),
+    [trips, setTrips] = useState<ManagedTrip[]>([]),
+    [reviewTrip, setReviewTrip] = useState<ManagedTrip>(),
+    [draft, setDraft] = useState<TripManifest>(),
+    [removedPhotos, setRemovedPhotos] = useState<TripManifest["photos"]>([]),
+    [saving, setSaving] = useState(false);
 
   useEffect(() => {
     void api<StudioStatus>("/api/status")
@@ -26,6 +33,7 @@ export default function Studio() {
         setStatus(value);
         setPeople(value.openaiConfigured ? "exclude" : "include");
         setConnection("ready");
+        void loadTrips().catch(reason => setError(reason instanceof Error ? reason.message : "Unable to load your local trip library."));
       })
       .catch(() => setConnection("offline"));
   }, []);
@@ -44,9 +52,10 @@ export default function Studio() {
     return () => window.clearInterval(timer);
   }, [job]);
   const busy = job && !["complete", "failed"].includes(job.status),
-    selected = job?.result?.manifest.photos ?? [],
-    rejected = job?.result?.selection.rejected.length ?? 0;
-  const phase = job?.status === "complete" ? "complete" : busy ? "working" : "setup";
+    rejected = job?.result?.selection.rejected.length ?? 0,
+    currentTrip = reviewTrip ?? (job?.result ? { slug: slugFromPath(job.result.path), manifest: job.result.manifest } : undefined),
+    currentManifest = draft ?? currentTrip?.manifest;
+  const phase = currentManifest ? "complete" : busy ? "working" : "setup";
   const displayedError = job?.status === "failed" ? (job.error ?? "Trip generation failed.") : error;
   const canBuild = connection === "ready" && folder.trim().length > 0 && !busy && !(people === "exclude" && !status?.openaiConfigured);
 
@@ -67,6 +76,9 @@ export default function Studio() {
     if (!canBuild) return;
     setError("");
     setJob(undefined);
+    setReviewTrip(undefined);
+    setDraft(undefined);
+    setRemovedPhotos([]);
     try {
       const value = await api<{ id: string }>("/api/jobs", {
         method: "POST",
@@ -76,6 +88,87 @@ export default function Studio() {
       setJob(await api<StudioJob>(`/api/jobs/${value.id}`));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not start Wanderpage.");
+    }
+  }
+
+  async function loadTrips() {
+    const value = await api<{ trips: ManagedTrip[] }>("/api/trips");
+    setTrips(value.trips);
+  }
+  async function openTrip(slug: string) {
+    setError("");
+    try {
+      const value = await api<{ manifest: TripManifest }>(`/api/trips/${slug}`);
+      setJob(undefined);
+      setReviewTrip({ slug, manifest: value.manifest });
+      setDraft(value.manifest);
+      setRemovedPhotos([]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to open this trip.");
+    }
+  }
+  function updateDraft(update: (value: TripManifest) => TripManifest) {
+    if (!currentManifest) return;
+    setDraft(update(currentManifest));
+  }
+  async function persistDraft() {
+    if (!currentTrip || !currentManifest) return;
+    const value = await api<{ manifest: TripManifest }>(`/api/trips/${currentTrip.slug}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ manifest: { ...currentManifest, published: false } }),
+    });
+    setReviewTrip({ slug: currentTrip.slug, manifest: value.manifest });
+    setDraft(value.manifest);
+    await loadTrips();
+  }
+  async function saveDraft() {
+    setSaving(true);
+    setError("");
+    try {
+      await persistDraft();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save this draft.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function changePublication(published: boolean) {
+    if (!currentTrip || !currentManifest) return;
+    setSaving(true);
+    setError("");
+    try {
+      if (published) await persistDraft();
+      const value = await api<{ manifest: TripManifest }>(`/api/trips/${currentTrip.slug}/${published ? "publish" : "unpublish"}`, {
+        method: "POST",
+      });
+      setReviewTrip({ slug: currentTrip.slug, manifest: value.manifest });
+      setDraft(value.manifest);
+      await loadTrips();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to update publishing state.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeCurrentTrip() {
+    if (
+      !currentTrip ||
+      !confirm(`Delete “${currentManifest?.title ?? currentTrip.slug}”? This removes its local manifest, not your originals.`)
+    )
+      return;
+    setSaving(true);
+    try {
+      await api(`/api/trips/${currentTrip.slug}`, { method: "DELETE" });
+      setJob(undefined);
+      setReviewTrip(undefined);
+      setDraft(undefined);
+      setRemovedPhotos([]);
+      await loadTrips();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to delete this trip.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -238,6 +331,19 @@ export default function Studio() {
                     <b>→</b>
                   </button>
                 </form>
+                {trips.length > 0 && (
+                  <section className="studio-library" aria-labelledby="trip-library-title">
+                    <span className="eyebrow">Your local library</span>
+                    <h2 id="trip-library-title">Past edits</h2>
+                    {trips.map(trip => (
+                      <button key={trip.slug} type="button" onClick={() => void openTrip(trip.slug)}>
+                        <span>{trip.manifest.published ? "Published" : "Draft"}</span>
+                        <b>{trip.manifest.title}</b>
+                        <small>{trip.manifest.photos.length} selected frames</small>
+                      </button>
+                    ))}
+                  </section>
+                )}
               </motion.div>
             )}
             {phase === "working" && job && (
@@ -268,7 +374,7 @@ export default function Studio() {
                 </div>
               </motion.div>
             )}
-            {phase === "complete" && job?.result && (
+            {phase === "complete" && currentTrip && currentManifest && (
               <motion.div
                 className="studio-panel studio-complete"
                 key="complete"
@@ -276,15 +382,15 @@ export default function Studio() {
                 animate={{ opacity: 1, y: 0 }}
               >
                 <div className="studio-title">
-                  <span className="eyebrow">The edit is ready</span>
-                  <h1>{job.result.manifest.title}</h1>
+                  <span className="eyebrow">{currentManifest.published ? "Published story" : "Draft ready for review"}</span>
+                  <h1>{currentManifest.title}</h1>
                   <p>
-                    {selected.length} selected · {rejected} left out · {numberValue(job.result.summary, "duplicatesRemoved")} duplicates
-                    removed
+                    {currentManifest.photos.length} selected · {rejected} left out ·{" "}
+                    {numberValue(job?.result?.summary ?? {}, "duplicatesRemoved")} duplicates removed
                   </p>
                 </div>
                 <div className="studio-review-strip">
-                  {selected.slice(0, 5).map((photo, index) => (
+                  {currentManifest.photos.slice(0, 5).map((photo, index) => (
                     <motion.div
                       key={photo.id}
                       initial={{ opacity: 0, y: 14 }}
@@ -295,18 +401,228 @@ export default function Studio() {
                     </motion.div>
                   ))}
                 </div>
+                <section className="studio-evidence" aria-label="Privacy and evidence review">
+                  <div>
+                    <span>Privacy check</span>
+                    <b>{job?.result?.review?.privacy.passed === false ? "Needs attention" : "Passed"}</b>
+                    <small>Metadata, local paths, and configured secrets are checked before a static build is served.</small>
+                  </div>
+                  <div>
+                    <span>People setting</span>
+                    <b>{currentManifest.peopleMode === "exclude" ? "Excluded" : "May appear"}</b>
+                    <small>{rejected} frames left out by the edit.</small>
+                  </div>
+                  <div>
+                    <span>Location evidence</span>
+                    <b>{currentManifest.destinations.length} approximate stops</b>
+                    <small>
+                      {currentManifest.sources.length} supporting source{currentManifest.sources.length === 1 ? "" : "s"} retained locally.
+                    </small>
+                  </div>
+                </section>
+                {!currentManifest.published && (
+                  <section className="studio-editor" aria-labelledby="editor-title">
+                    <span className="eyebrow">Owner’s edit</span>
+                    <h2 id="editor-title">Make this story yours</h2>
+                    <label>
+                      Title
+                      <input
+                        value={currentManifest.title}
+                        maxLength={120}
+                        onChange={event => updateDraft(value => ({ ...value, title: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Subtitle
+                      <input
+                        value={currentManifest.subtitle}
+                        maxLength={220}
+                        onChange={event => updateDraft(value => ({ ...value, subtitle: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Opening note
+                      <textarea
+                        value={currentManifest.opening}
+                        maxLength={800}
+                        onChange={event => updateDraft(value => ({ ...value, opening: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Closing note
+                      <textarea
+                        value={currentManifest.closing}
+                        maxLength={800}
+                        onChange={event => updateDraft(value => ({ ...value, closing: event.target.value }))}
+                      />
+                    </label>
+                    <div className="studio-chapter-editor">
+                      <span>Chapters</span>
+                      {currentManifest.chapters.map(chapter => (
+                        <div key={chapter.id}>
+                          <input
+                            aria-label={`Title for ${chapter.id}`}
+                            value={chapter.title}
+                            maxLength={120}
+                            onChange={event =>
+                              updateDraft(value => ({
+                                ...value,
+                                chapters: value.chapters.map(item =>
+                                  item.id === chapter.id ? { ...item, title: event.target.value } : item
+                                ),
+                              }))
+                            }
+                          />
+                          <textarea
+                            aria-label={`Narrative for ${chapter.id}`}
+                            value={chapter.narrative}
+                            maxLength={1200}
+                            onChange={event =>
+                              updateDraft(value => ({
+                                ...value,
+                                chapters: value.chapters.map(item =>
+                                  item.id === chapter.id ? { ...item, narrative: event.target.value } : item
+                                ),
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {currentManifest.destinations.length > 0 && (
+                      <div className="studio-destination-editor">
+                        <span>Approximate route stops</span>
+                        {currentManifest.destinations.map(destination => (
+                          <button
+                            key={destination.id}
+                            type="button"
+                            onClick={() =>
+                              updateDraft(value => ({
+                                ...value,
+                                destinations: value.destinations.filter(item => item.id !== destination.id),
+                                route: value.route.filter(item => item.destinationId !== destination.id),
+                                photos: value.photos.map(photo =>
+                                  photo.destinationId === destination.id ? { ...photo, destinationId: undefined } : photo
+                                ),
+                                chapters: value.chapters.map(chapter =>
+                                  chapter.destinationId === destination.id ? { ...chapter, destinationId: undefined } : chapter
+                                ),
+                              }))
+                            }
+                          >
+                            Remove {destination.name} from the public route
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="studio-photo-editor">
+                      <span>Selected frames</span>
+                      {currentManifest.photos.map((photo, index) => (
+                        <article key={photo.id}>
+                          <Image src={photo.srcThumb} alt={photo.alt} width={96} height={72} />
+                          <div>
+                            <input
+                              aria-label={`Caption for ${photo.alt}`}
+                              value={photo.caption ?? ""}
+                              maxLength={320}
+                              onChange={event =>
+                                updateDraft(value => ({
+                                  ...value,
+                                  photos: value.photos.map(item =>
+                                    item.id === photo.id ? { ...item, caption: event.target.value || undefined } : item
+                                  ),
+                                }))
+                              }
+                            />
+                            <small>{photo.id === currentManifest.heroPhotoId ? "Hero frame" : "Selected frame"}</small>
+                          </div>
+                          <div className="studio-photo-actions">
+                            <button type="button" onClick={() => updateDraft(value => ({ ...value, heroPhotoId: photo.id }))}>
+                              Hero
+                            </button>
+                            <button
+                              type="button"
+                              disabled={index === 0}
+                              onClick={() => updateDraft(value => ({ ...value, photos: move(value.photos, index, index - 1) }))}
+                            >
+                              Earlier
+                            </button>
+                            <button
+                              type="button"
+                              disabled={index === currentManifest.photos.length - 1}
+                              onClick={() => updateDraft(value => ({ ...value, photos: move(value.photos, index, index + 1) }))}
+                            >
+                              Later
+                            </button>
+                            <button
+                              type="button"
+                              disabled={currentManifest.photos.length === 1}
+                              onClick={() => {
+                                setRemovedPhotos(value => [...value, photo]);
+                                updateDraft(value => ({ ...value, photos: value.photos.filter(item => item.id !== photo.id) }));
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    {removedPhotos.length > 0 && (
+                      <div className="studio-restore">
+                        <span>Removed in this review</span>
+                        {removedPhotos.map(photo => (
+                          <button
+                            key={photo.id}
+                            type="button"
+                            onClick={() => {
+                              updateDraft(value => ({ ...value, photos: [...value.photos, photo] }));
+                              setRemovedPhotos(value => value.filter(item => item.id !== photo.id));
+                            }}
+                          >
+                            Restore {photo.alt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
                 <div className="studio-result-actions">
-                  <a className="studio-build" href={job.result.path} target="_blank" rel="noreferrer">
-                    <span>Open this trip</span>
-                    <b>↗</b>
-                  </a>
+                  {!currentManifest.published && (
+                    <button className="studio-build" type="button" disabled={saving} onClick={() => void changePublication(true)}>
+                      <span>{saving ? "Saving…" : "Publish this story"}</span>
+                      <b>→</b>
+                    </button>
+                  )}
+                  {currentManifest.published && (
+                    <a className="studio-build" href={`/trips/${currentTrip.slug}`} target="_blank" rel="noreferrer">
+                      <span>Open published story</span>
+                      <b>↗</b>
+                    </a>
+                  )}
+                  {!currentManifest.published && (
+                    <button type="button" disabled={saving} onClick={() => void saveDraft()}>
+                      Save draft
+                    </button>
+                  )}
+                  {currentManifest.published && (
+                    <button type="button" disabled={saving} onClick={() => void changePublication(false)}>
+                      Unpublish
+                    </button>
+                  )}
                   <a href="/report" target="_blank" rel="noreferrer">
                     Review every decision
                   </a>
+                  <button type="button" disabled={saving} onClick={() => void removeCurrentTrip()}>
+                    Delete trip
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
                       setJob(undefined);
+                      setReviewTrip(undefined);
+                      setDraft(undefined);
+                      setRemovedPhotos([]);
                       setError("");
                     }}
                   >
@@ -368,6 +684,16 @@ function folderName(path: string) {
 function numberValue(summary: Record<string, unknown>, key: string) {
   const value = summary[key];
   return typeof value === "number" ? value : 0;
+}
+function slugFromPath(path: string) {
+  return path.split("/").filter(Boolean).at(-1) ?? "";
+}
+function move<T>(items: T[], from: number, to: number) {
+  const copy = [...items],
+    [item] = copy.splice(from, 1);
+  if (item === undefined) return items;
+  copy.splice(to, 0, item);
+  return copy;
 }
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);

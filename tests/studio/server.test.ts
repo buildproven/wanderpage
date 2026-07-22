@@ -23,7 +23,10 @@ describe("local Studio server", () => {
   beforeAll(async () => {
     workspace = await createTempWorkspace("studio-server");
     await mkdir(join(workspace, "out"), { recursive: true });
+    await mkdir(join(workspace, "data/trips"), { recursive: true });
     await writeFile(join(workspace, "out/studio.html"), "<!doctype html><title>Wanderpage Studio</title><h1>Local studio</h1>");
+    const manifest = TripManifestSchema.parse(JSON.parse(await readFile(join(repoRoot, "data/trip.demo.json"), "utf8")));
+    await writeFile(join(workspace, "data/trips/draft-trip.json"), JSON.stringify({ ...manifest, published: false }, null, 2));
     studio = createStudioServer({ port: 0, runner, root: workspace });
     base = (await studio.start()).replace(/\/studio$/, "");
   });
@@ -70,6 +73,25 @@ describe("local Studio server", () => {
         return ((await value.json()) as { status: string }).status;
       })
       .toBe("complete");
+  });
+
+  it("lists and saves local draft manifests", async () => {
+    const listed = await fetch(`${base}/api/trips`, { headers: { Origin: base } });
+    expect(listed.status).toBe(200);
+    expect(((await listed.json()) as { trips: Array<{ slug: string }> }).trips.map(trip => trip.slug)).toContain("draft-trip");
+
+    const current = await fetch(`${base}/api/trips/draft-trip`, { headers: { Origin: base } });
+    const { manifest } = (await current.json()) as { manifest: unknown };
+    const saved = await fetch(`${base}/api/trips/draft-trip`, {
+      method: "PATCH",
+      headers: { Origin: base, "Content-Type": "application/json" },
+      body: JSON.stringify({ manifest: { ...(manifest as object), title: "Reviewed locally", published: true } }),
+    });
+    expect(saved.status).toBe(200);
+    expect(((await saved.json()) as { manifest: { title: string; published: boolean } }).manifest).toMatchObject({
+      title: "Reviewed locally",
+      published: false,
+    });
   });
 
   function post(path: string, value: unknown) {

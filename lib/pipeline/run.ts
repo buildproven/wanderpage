@@ -221,7 +221,7 @@ async function makeManifest(
   return {
     schemaVersion: "1.0",
     generatedAt: new Date().toISOString(),
-    published: true,
+    published: false,
     title: options.title ?? narrative.title,
     subtitle: narrative.subtitle,
     opening: narrative.opening,

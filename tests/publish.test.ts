@@ -1,13 +1,13 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import rawManifest from "@/data/trip.demo.json";
-import { listTrips, setTripPublished } from "@/lib/trips/publish";
+import { deleteTrip, getTrip, listTrips, setTripPublished, writeTrip } from "@/lib/trips/publish";
 import { TripManifestSchema } from "@/lib/schemas/trip";
 import { createTempWorkspace, removeTempWorkspace } from "./helpers/workspace";
 
 describe("trip publish controls", () => {
-  it("defaults generated trips to published", () => {
+  it("keeps legacy manifests published when the flag is absent", () => {
     expect(TripManifestSchema.parse(rawManifest).published).toBe(true);
   });
 
@@ -40,6 +40,26 @@ describe("trip publish controls", () => {
     try {
       await mkdir(join(workspace, "data/trips"), { recursive: true });
       await expect(setTripPublished(workspace, "does-not-exist", false)).rejects.toThrow("No trip found");
+    } finally {
+      await removeTempWorkspace(workspace);
+    }
+  });
+
+  it("writes, reads, and deletes only the requested trip manifest", async () => {
+    const workspace = await createTempWorkspace("publish-delete"),
+      directory = join(workspace, "data/trips"),
+      first = TripManifestSchema.parse({ ...rawManifest, title: "First trip" }),
+      second = TripManifestSchema.parse({ ...rawManifest, title: "Second trip" });
+    try {
+      await mkdir(directory, { recursive: true });
+      await writeTrip(workspace, "first-trip", { ...first, published: false });
+      await writeTrip(workspace, "second-trip", second);
+      expect((await getTrip(workspace, "first-trip"))?.published).toBe(false);
+
+      await deleteTrip(workspace, "first-trip");
+      await expect(access(join(directory, "first-trip.json"))).rejects.toThrow();
+      expect((await getTrip(workspace, "second-trip"))?.title).toBe("Second trip");
+      await expect(writeTrip(workspace, "../outside", second)).rejects.toThrow("Trip slug is invalid");
     } finally {
       await removeTempWorkspace(workspace);
     }

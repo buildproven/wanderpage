@@ -8,7 +8,9 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { runTrip } from "@/lib/pipeline/run";
 import { validateStaticExport } from "@/lib/publishing/privacy";
-import type { StudioJob, StudioJobRequest, StudioJobResult, StudioSelection, StudioStatus } from "@/lib/studio/types";
+import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
+import { deleteTrip, getTrip, listTrips, setTripPublished, writeTrip } from "@/lib/trips/publish";
+import type { StudioJob, StudioJobRequest, StudioJobResult, StudioReview, StudioSelection, StudioStatus } from "@/lib/studio/types";
 
 const execute = promisify(execFile),
   requestSchema = z.object({
@@ -17,7 +19,8 @@ const execute = promisify(execFile),
     people: z.enum(["include", "exclude"]),
     maxPhotos: z.number().int().min(12).max(60),
     privacy: z.enum(["approximate", "exact"]),
-  });
+  }),
+  draftSchema = z.object({ manifest: TripManifestSchema });
 export type StudioRunner = (
   request: StudioJobRequest,
   onProgress: (stage: string, progress: number, message: string) => void
@@ -60,6 +63,40 @@ export function createStudioServer({
         json(response, 400, { error: error instanceof Error ? error.message : "Folder selection was cancelled." });
       }
       return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/trips") {
+      json(response, 200, { trips: await listTrips(projectRoot) });
+      return;
+    }
+    const tripMatch = url.pathname.match(/^\/api\/trips\/([a-z0-9-]+)(?:\/(publish|unpublish))?$/);
+    if (tripMatch) {
+      const [, slug, action] = tripMatch;
+      try {
+        if (request.method === "GET" && !action) {
+          const manifest = await getTrip(projectRoot, slug!);
+          if (!manifest) return json(response, 404, { error: "Trip not found." });
+          return json(response, 200, { manifest });
+        }
+        if (request.method === "PATCH" && !action) {
+          const existing = await getTrip(projectRoot, slug!);
+          if (!existing) return json(response, 404, { error: "Trip not found." });
+          if (existing.published) throw new Error("Unpublish this trip before editing its draft.");
+          const parsed = draftSchema.parse(await readJson(request));
+          const manifest = normalizeDraft({ ...parsed.manifest, published: false });
+          return json(response, 200, { manifest: await writeTrip(projectRoot, slug!, manifest) });
+        }
+        if (request.method === "POST" && action) {
+          const published = action === "publish";
+          const { manifest, review } = await changePublication(projectRoot, slug!, published);
+          return json(response, 200, { manifest, review });
+        }
+        if (request.method === "DELETE" && !action) {
+          await removeTrip(projectRoot, slug!);
+          return json(response, 200, { deleted: slug });
+        }
+      } catch (error) {
+        return json(response, 400, { error: message(error) });
+      }
     }
     if (request.method === "POST" && url.pathname === "/api/jobs") {
       if ([...jobs.values()].some(job => ["queued", "running", "building"].includes(job.status))) {
@@ -152,14 +189,88 @@ async function runProductionJob(
     { ...request, force: false, dryRun: false, demo: false },
     { root, onProgress: event => onProgress(event.stage, Math.min(88, event.progress * 0.88), event.message) }
   );
-  onProgress("build", 91, "Building the private static website");
+  const privacy = await buildAndValidate(root, onProgress);
+  const selection = JSON.parse(await readFile(join(root, ".trip-output/selection.json"), "utf8")) as StudioSelection;
+  return {
+    path: result.path,
+    summary: result.summary,
+    manifest: result.manifest,
+    selection,
+    review: makeReview(result.manifest, privacy.files.length),
+  };
+}
+
+async function buildAndValidate(root: string, onProgress?: (stage: string, progress: number, message: string) => void) {
+  onProgress?.("build", 91, "Building the private static website");
   await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["build"], { cwd: root, maxBuffer: 10_000_000 });
-  onProgress("privacy", 97, "Checking metadata, paths, and secrets");
+  onProgress?.("privacy", 97, "Checking metadata, paths, and secrets");
   const secrets = [process.env.OPENAI_API_KEY, process.env.VERCEL_TOKEN].filter((value): value is string => Boolean(value));
   const privacy = await validateStaticExport(join(root, "out"), secrets);
   if (privacy.errors.length) throw new Error(`Privacy validation failed:\n${privacy.errors.join("\n")}`);
-  const selection = JSON.parse(await readFile(join(root, ".trip-output/selection.json"), "utf8")) as StudioSelection;
-  return { path: result.path, summary: result.summary, manifest: result.manifest, selection };
+  return privacy;
+}
+
+async function changePublication(root: string, slug: string, published: boolean) {
+  const original = await getTrip(root, slug);
+  if (!original) throw new Error("Trip not found.");
+  await setTripPublished(root, slug, published);
+  try {
+    const privacy = await buildAndValidate(root);
+    const manifest = (await getTrip(root, slug))!;
+    return { manifest, review: makeReview(manifest, privacy.files.length) };
+  } catch (error) {
+    await writeTrip(root, slug, original);
+    await buildAndValidate(root).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function removeTrip(root: string, slug: string) {
+  const original = await deleteTrip(root, slug);
+  try {
+    await buildAndValidate(root);
+  } catch (error) {
+    await writeTrip(root, slug, original);
+    await buildAndValidate(root).catch(() => undefined);
+    throw error;
+  }
+}
+
+function makeReview(manifest: TripManifest, exportedFiles: number): StudioReview {
+  return {
+    privacy: { passed: true, exportedFiles },
+    destinations: manifest.destinations.map(destination => ({
+      id: destination.id,
+      name: destination.name,
+      confidence: destination.confidence,
+    })),
+    sourceCount: manifest.sources.length,
+  };
+}
+
+function normalizeDraft(manifest: TripManifest) {
+  if (!manifest.photos.length) throw new Error("Keep at least one selected photo in the story.");
+  const photoIds = new Set(manifest.photos.map(photo => photo.id));
+  if (photoIds.size !== manifest.photos.length) throw new Error("A story cannot contain the same photo more than once.");
+  const heroPhotoId = photoIds.has(manifest.heroPhotoId) ? manifest.heroPhotoId : manifest.photos[0]!.id;
+  const destinationIds = new Set(manifest.destinations.map(destination => destination.id));
+  const chapters = manifest.chapters
+    .map(chapter => ({
+      ...chapter,
+      destinationId: chapter.destinationId && destinationIds.has(chapter.destinationId) ? chapter.destinationId : undefined,
+      photoIds: chapter.photoIds.filter(photoId => photoIds.has(photoId)),
+    }))
+    .filter(chapter => chapter.photoIds.length > 0);
+  return TripManifestSchema.parse({
+    ...manifest,
+    heroPhotoId,
+    photos: manifest.photos.map(photo =>
+      photo.destinationId && !destinationIds.has(photo.destinationId) ? { ...photo, destinationId: undefined } : photo
+    ),
+    route: manifest.route.filter(point => destinationIds.has(point.destinationId)),
+    stats: manifest.stats.map(stat => (stat.label === "Destinations" ? { ...stat, value: String(manifest.destinations.length) } : stat)),
+    chapters,
+  });
 }
 
 function createJob(request: StudioJobRequest): StudioJob {

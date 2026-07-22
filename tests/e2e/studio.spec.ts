@@ -2,7 +2,10 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import type { TripManifest } from "../../lib/schemas/trip";
 
-const manifest = JSON.parse(readFileSync(new URL("../../data/trip.demo.json", import.meta.url), "utf8")) as TripManifest;
+const manifest = {
+  ...(JSON.parse(readFileSync(new URL("../../data/trip.demo.json", import.meta.url), "utf8")) as TripManifest),
+  published: false,
+};
 
 test("creates a story through the local Studio interface", async ({ page, context }) => {
   let jobReads = 0;
@@ -10,6 +13,7 @@ test("creates a story through the local Studio interface", async ({ page, contex
     const request = route.request(),
       path = new URL(request.url()).pathname;
     if (path === "/api/status") return route.fulfill({ json: { ready: true, openaiConfigured: true, platform: "darwin" } });
+    if (path === "/api/trips") return route.fulfill({ json: { trips: [] } });
     if (path === "/api/folders/pick") return route.fulfill({ json: { path: "/Users/test/Pictures/Oregon" } });
     if (path === "/api/jobs" && request.method() === "POST") return route.fulfill({ status: 202, json: { id: "fixture-job" } });
     if (path === "/api/jobs/fixture-job") {
@@ -42,6 +46,9 @@ test("creates a story through the local Studio interface", async ({ page, contex
         },
       });
     }
+    if (path === "/api/trips/a-line-along-the-pacific" && request.method() === "PATCH") return route.fulfill({ json: { manifest } });
+    if (path === "/api/trips/a-line-along-the-pacific/publish" && request.method() === "POST")
+      return route.fulfill({ json: { manifest: { ...manifest, published: true } } });
     return route.fulfill({ status: 404, json: { error: "Not found" } });
   });
 
@@ -55,10 +62,12 @@ test("creates a story through the local Studio interface", async ({ page, contex
   await page.getByLabel(/Story title/).fill("Oregon, held in light");
   await page.getByRole("button", { name: /Build my Wanderpage/ }).click();
   await expect(page.getByRole("heading", { name: /Analyzing contact sheet/ })).toBeVisible();
-  await expect(page.getByText("The edit is ready")).toBeVisible();
+  await expect(page.getByText("Draft ready for review")).toBeVisible();
   await expect(page.getByRole("heading", { name: "A Line Along the Pacific" })).toBeVisible();
+  await expect(page.getByText("Privacy check")).toBeVisible();
+  await page.getByRole("button", { name: /Publish this story/ }).click();
   const popupPromise = context.waitForEvent("page");
-  await page.getByRole("link", { name: /Open this trip/ }).click();
+  await page.getByRole("link", { name: /Open published story/ }).click();
   const story = await popupPromise;
   await story.waitForLoadState();
   expect(story.url()).toMatch(/\/trips\/a-line-along-the-pacific/);
@@ -69,6 +78,7 @@ test("keeps a failed edit visible in the Studio docket", async ({ page }) => {
     const request = route.request(),
       path = new URL(request.url()).pathname;
     if (path === "/api/status") return route.fulfill({ json: { ready: true, openaiConfigured: true, platform: "darwin" } });
+    if (path === "/api/trips") return route.fulfill({ json: { trips: [] } });
     if (path === "/api/jobs" && request.method() === "POST") return route.fulfill({ status: 202, json: { id: "failed-job" } });
     if (path === "/api/jobs/failed-job")
       return route.fulfill({
