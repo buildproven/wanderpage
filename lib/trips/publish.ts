@@ -39,13 +39,13 @@ export async function writeTrip(root: string, slug: string, manifest: TripManife
   return parsed;
 }
 
-export async function deleteTrip(root: string, slug: string) {
+export async function deleteTrip(root: string, slug: string, { removeAssets = true }: { removeAssets?: boolean } = {}) {
   if (!validSlug(slug)) throw new Error("Trip slug is invalid.");
   const manifest = await getTrip(root, slug);
   if (!manifest) throw new Error(`No trip found at data/trips/${slug}.json`);
   await unlink(join(root, "data/trips", `${slug}.json`));
   await syncPublishedAssets(root);
-  await removeTripAssets(root, slug);
+  if (removeAssets) await removeTripAssets(root, slug);
   return manifest;
 }
 

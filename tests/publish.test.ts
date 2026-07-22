@@ -2,6 +2,7 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import rawManifest from "@/data/trip.demo.json";
+import { syncPublishedAssets } from "@/lib/trips/assets";
 import { deleteTrip, getTrip, listTrips, setTripPublished, writeTrip } from "@/lib/trips/publish";
 import { TripManifestSchema } from "@/lib/schemas/trip";
 import { createTempWorkspace, removeTempWorkspace } from "./helpers/workspace";
@@ -62,6 +63,21 @@ describe("trip publish controls", () => {
       await expect(access(join(directory, "first-trip.json"))).rejects.toThrow();
       expect((await getTrip(workspace, "second-trip"))?.title).toBe("Second trip");
       await expect(writeTrip(workspace, "../outside", second)).rejects.toThrow("Trip slug is invalid");
+    } finally {
+      await removeTempWorkspace(workspace);
+    }
+  });
+
+  it("keeps the current public assets when a published trip is missing its private assets", async () => {
+    const workspace = await createTempWorkspace("publish-atomic"),
+      manifest = TripManifestSchema.parse(rawManifest);
+    try {
+      await writeTrip(workspace, "missing-assets", manifest);
+      await mkdir(join(workspace, "public/trip/generated/current"), { recursive: true });
+      await writeFile(join(workspace, "public/trip/generated/current/keep.webp"), "published");
+
+      await expect(syncPublishedAssets(workspace)).rejects.toThrow("missing its private image assets");
+      await expect(readFile(join(workspace, "public/trip/generated/current/keep.webp"), "utf8")).resolves.toBe("published");
     } finally {
       await removeTempWorkspace(workspace);
     }

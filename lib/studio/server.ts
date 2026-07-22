@@ -9,7 +9,7 @@ import { z } from "zod";
 import { runTrip } from "@/lib/pipeline/run";
 import { validateStaticExport } from "@/lib/publishing/privacy";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
-import { syncPublishedAssets } from "@/lib/trips/assets";
+import { removeTripAssets, syncPublishedAssets } from "@/lib/trips/assets";
 import { deleteTrip, getTrip, listTrips, setTripPublished, writeTrip } from "@/lib/trips/publish";
 import type { StudioJob, StudioJobRequest, StudioJobResult, StudioReview, StudioSelection, StudioStatus } from "@/lib/studio/types";
 
@@ -35,7 +35,8 @@ export function createStudioServer({
   const projectRoot = resolve(root),
     jobs = new Map<string, StudioJob>();
   let boundPort = port,
-    studioSnapshot = new Map<string, Buffer>();
+    studioSnapshot = new Map<string, Buffer>(),
+    siteMutation = Promise.resolve();
   const productionRunner = runner ?? ((request, onProgress) => runProductionJob(projectRoot, request, onProgress));
   const server = createServer((request, response) => void route(request, response));
 
@@ -93,11 +94,11 @@ export function createStudioServer({
         }
         if (request.method === "POST" && action) {
           const published = action === "publish";
-          const { manifest, review } = await changePublication(projectRoot, slug!, published);
+          const { manifest, review } = await mutateSite(() => changePublication(projectRoot, slug!, published));
           return json(response, 200, { manifest, review });
         }
         if (request.method === "DELETE" && !action) {
-          await removeTrip(projectRoot, slug!);
+          await mutateSite(() => removeTrip(projectRoot, slug!));
           return json(response, 200, { deleted: slug });
         }
       } catch (error) {
@@ -155,8 +156,10 @@ export function createStudioServer({
   async function executeJob(job: StudioJob, jobRunner: StudioRunner) {
     update(job, "running", 2, "Starting the local photo pipeline");
     try {
-      job.result = await jobRunner(job.request, (stage, progress, message) =>
-        update(job, stage === "build" ? "building" : "running", progress, message, stage)
+      job.result = await mutateSite(() =>
+        jobRunner(job.request, (stage, progress, message) =>
+          update(job, stage === "build" ? "building" : "running", progress, message, stage)
+        )
       );
       studioSnapshot = await loadStudioSnapshot(projectRoot);
       update(job, "complete", 100, "Your trip page is ready");
@@ -185,6 +188,20 @@ export function createStudioServer({
       openBrowser(`http://127.0.0.1:${boundPort}/studio`);
     },
   };
+
+  async function mutateSite<T>(operation: () => Promise<T>) {
+    const previous = siteMutation;
+    let release: () => void;
+    siteMutation = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release!();
+    }
+  }
 }
 
 async function runProductionJob(
@@ -220,28 +237,39 @@ async function buildAndValidate(root: string, onProgress?: (stage: string, progr
 async function changePublication(root: string, slug: string, published: boolean) {
   const original = await getTrip(root, slug);
   if (!original) throw new Error("Trip not found.");
-  await setTripPublished(root, slug, published);
   try {
+    await setTripPublished(root, slug, published);
     const privacy = await buildAndValidate(root);
     const manifest = (await getTrip(root, slug))!;
     return { manifest, review: makeReview(manifest, privacy.files.length) };
   } catch (error) {
-    await writeTrip(root, slug, original);
-    await syncPublishedAssets(root);
-    await buildAndValidate(root).catch(() => undefined);
+    await restoreTripAfterFailedBuild(root, slug, original, error);
     throw error;
   }
 }
 
 async function removeTrip(root: string, slug: string) {
-  const original = await deleteTrip(root, slug);
+  const original = await getTrip(root, slug);
+  if (!original) throw new Error("Trip not found.");
+  try {
+    await deleteTrip(root, slug, { removeAssets: false });
+    await buildAndValidate(root);
+    await removeTripAssets(root, slug);
+  } catch (error) {
+    await restoreTripAfterFailedBuild(root, slug, original, error);
+    throw error;
+  }
+}
+
+async function restoreTripAfterFailedBuild(root: string, slug: string, original: TripManifest, originalError: unknown) {
+  await writeTrip(root, slug, original);
+  await syncPublishedAssets(root);
   try {
     await buildAndValidate(root);
-  } catch (error) {
-    await writeTrip(root, slug, original);
-    await syncPublishedAssets(root);
-    await buildAndValidate(root).catch(() => undefined);
-    throw error;
+  } catch (rollbackError) {
+    throw new Error(`${message(originalError)}; additionally, restoring the static site failed: ${message(rollbackError)}`, {
+      cause: rollbackError,
+    });
   }
 }
 
