@@ -9,6 +9,7 @@ import { z } from "zod";
 import { runTrip } from "@/lib/pipeline/run";
 import { validateStaticExport } from "@/lib/publishing/privacy";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
+import { syncPublishedAssets } from "@/lib/trips/assets";
 import { deleteTrip, getTrip, listTrips, setTripPublished, writeTrip } from "@/lib/trips/publish";
 import type { StudioJob, StudioJobRequest, StudioJobResult, StudioReview, StudioSelection, StudioStatus } from "@/lib/studio/types";
 
@@ -66,6 +67,11 @@ export function createStudioServer({
     }
     if (request.method === "GET" && url.pathname === "/api/trips") {
       json(response, 200, { trips: await listTrips(projectRoot) });
+      return;
+    }
+    const assetMatch = url.pathname.match(/^\/api\/trips\/([a-z0-9-]+)\/assets\/([a-z0-9-]+-(?:large|medium|thumb)\.webp)$/);
+    if (request.method === "GET" && assetMatch) {
+      await serveFile(join(projectRoot, ".trip-assets", assetMatch[1]!, assetMatch[2]!), response);
       return;
     }
     const tripMatch = url.pathname.match(/^\/api\/trips\/([a-z0-9-]+)(?:\/(publish|unpublish))?$/);
@@ -133,8 +139,9 @@ export function createStudioServer({
       json(response, 200, job);
       return;
     }
-    if (request.method === "GET" && url.pathname === "/report") {
-      await serveFile(join(projectRoot, ".trip-output/report/index.html"), response);
+    const reportMatch = url.pathname.match(/^\/report\/([a-z0-9-]+)$/);
+    if (request.method === "GET" && reportMatch) {
+      await serveFile(join(projectRoot, ".trip-output/reports", reportMatch[1]!, "index.html"), response);
       return;
     }
     if (request.method === "GET" || request.method === "HEAD") {
@@ -220,6 +227,7 @@ async function changePublication(root: string, slug: string, published: boolean)
     return { manifest, review: makeReview(manifest, privacy.files.length) };
   } catch (error) {
     await writeTrip(root, slug, original);
+    await syncPublishedAssets(root);
     await buildAndValidate(root).catch(() => undefined);
     throw error;
   }
@@ -231,6 +239,7 @@ async function removeTrip(root: string, slug: string) {
     await buildAndValidate(root);
   } catch (error) {
     await writeTrip(root, slug, original);
+    await syncPublishedAssets(root);
     await buildAndValidate(root).catch(() => undefined);
     throw error;
   }

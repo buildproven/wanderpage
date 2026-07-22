@@ -45,6 +45,10 @@ export default function Studio() {
           .then(value => {
             setJob(value);
             setError("");
+            if (value.status === "complete")
+              void loadTrips().catch(reason =>
+                setError(reason instanceof Error ? reason.message : "Unable to refresh your local trip library.")
+              );
           })
           .catch(reason => setError(reason instanceof Error ? reason.message : "Unable to read job status.")),
       650
@@ -397,7 +401,12 @@ export default function Studio() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.08 }}
                     >
-                      <Image src={photo.srcThumb} alt={photo.alt} width={photo.width} height={photo.height} />
+                      <Image
+                        src={studioImageSrc(currentTrip.slug, currentManifest.published, photo.srcThumb)}
+                        alt={photo.alt}
+                        width={photo.width}
+                        height={photo.height}
+                      />
                     </motion.div>
                   ))}
                 </div>
@@ -519,7 +528,12 @@ export default function Studio() {
                       <span>Selected frames</span>
                       {currentManifest.photos.map((photo, index) => (
                         <article key={photo.id}>
-                          <Image src={photo.srcThumb} alt={photo.alt} width={96} height={72} />
+                          <Image
+                            src={studioImageSrc(currentTrip.slug, currentManifest.published, photo.srcThumb)}
+                            alt={photo.alt}
+                            width={96}
+                            height={72}
+                          />
                           <div>
                             <input
                               aria-label={`Caption for ${photo.alt}`}
@@ -543,14 +557,14 @@ export default function Studio() {
                             <button
                               type="button"
                               disabled={index === 0}
-                              onClick={() => updateDraft(value => ({ ...value, photos: move(value.photos, index, index - 1) }))}
+                              onClick={() => updateDraft(value => reorderPhoto(value, index, index - 1))}
                             >
                               Earlier
                             </button>
                             <button
                               type="button"
                               disabled={index === currentManifest.photos.length - 1}
-                              onClick={() => updateDraft(value => ({ ...value, photos: move(value.photos, index, index + 1) }))}
+                              onClick={() => updateDraft(value => reorderPhoto(value, index, index + 1))}
                             >
                               Later
                             </button>
@@ -610,7 +624,7 @@ export default function Studio() {
                       Unpublish
                     </button>
                   )}
-                  <a href="/report" target="_blank" rel="noreferrer">
+                  <a href={`/report/${currentTrip.slug}`} target="_blank" rel="noreferrer">
                     Review every decision
                   </a>
                   <button type="button" disabled={saving} onClick={() => void removeCurrentTrip()}>
@@ -694,6 +708,24 @@ function move<T>(items: T[], from: number, to: number) {
   if (item === undefined) return items;
   copy.splice(to, 0, item);
   return copy;
+}
+function reorderPhoto(manifest: TripManifest, from: number, to: number) {
+  const photos = move(manifest.photos, from, to),
+    orderedIds = photos.map(photo => photo.id),
+    rank = new Map(orderedIds.map((id, index) => [id, index]));
+  return {
+    ...manifest,
+    photos,
+    chapters: manifest.chapters.map(chapter => ({
+      ...chapter,
+      photoIds: [...chapter.photoIds].sort((left, right) => (rank.get(left) ?? Infinity) - (rank.get(right) ?? Infinity)),
+    })),
+  };
+}
+function studioImageSrc(slug: string, published: boolean, source: string) {
+  if (published) return source;
+  const asset = source.split("/").at(-1);
+  return asset ? `/api/trips/${slug}/assets/${asset}` : source;
 }
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);

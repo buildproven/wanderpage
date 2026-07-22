@@ -17,6 +17,7 @@ describe("trip publish controls", () => {
       manifest = TripManifestSchema.parse(rawManifest);
     try {
       await mkdir(directory, { recursive: true });
+      await mkdir(join(workspace, ".trip-assets/a-line-along-the-pacific"), { recursive: true });
       await writeFile(join(directory, "a-line-along-the-pacific.json"), JSON.stringify(manifest));
 
       const unpublished = await setTripPublished(workspace, "a-line-along-the-pacific", false);
@@ -54,6 +55,7 @@ describe("trip publish controls", () => {
       await mkdir(directory, { recursive: true });
       await writeTrip(workspace, "first-trip", { ...first, published: false });
       await writeTrip(workspace, "second-trip", second);
+      await mkdir(join(workspace, ".trip-assets/second-trip"), { recursive: true });
       expect((await getTrip(workspace, "first-trip"))?.published).toBe(false);
 
       await deleteTrip(workspace, "first-trip");

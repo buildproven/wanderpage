@@ -29,9 +29,13 @@ The permanent sample stays at `/demo`. Generated trips receive readable title-ba
 
 ```bash
 pnpm trip --input "/absolute/path/to/vacation-photos" --people include --title "Oregon Coast 2026"
+pnpm trip:list
+pnpm trip:publish oregon-coast-2026
 pnpm build
 pnpm preview
 ```
+
+New trips are private drafts: their images stay outside the static site until you publish them. In Studio, review the draft and use **Publish this story**. From the CLI, use `pnpm trip:list` to find the generated slug, then `pnpm trip:publish <slug>` before building. `pnpm trip:unpublish <slug>` removes a trip and its assets from the next static export.
 
 Strict people exclusion requires the vision API so the tool can conservatively filter visible people:
 

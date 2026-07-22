@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { buildContactSheet } from "@/lib/ai/contact-sheet";
@@ -12,6 +12,7 @@ import { writeReports } from "@/lib/publishing/report";
 import { selectPhotos } from "@/lib/selection/select";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
 import { availableTripSlug } from "@/lib/trips/slug";
+import { syncPublishedAssets, tripAssetsDirectory } from "@/lib/trips/assets";
 
 export type RunOptions = {
   input?: string;
@@ -40,7 +41,7 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
   const root = resolve(dependencies.root ?? process.env.WANDERPAGE_WORKSPACE ?? process.cwd());
   const cache = join(root, ".trip-cache"),
     output = join(root, ".trip-output"),
-    generated = join(root, "public/trip/generated");
+    generated = join(root, ".trip-assets");
   if (options.demo) return runDemo(root, output);
   if (!options.input) throw new Error("--input is required unless --demo is used");
   if (options.people === "exclude" && !process.env.OPENAI_API_KEY && !dependencies.aiProvider)
@@ -141,7 +142,11 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
     )
   );
   dependencies.onProgress?.({ stage: "publish", progress: 86, message: "Preparing private, metadata-free web images" });
-  const manifest = await makeManifest(options, selection, narrative, destinations, enriched, generated);
+  const pendingAssets = join(
+    generated,
+    `.pending-${createHash("sha256").update(`${Date.now()}-${Math.random()}`).digest("hex").slice(0, 12)}`
+  );
+  const manifest = await makeManifest(options, selection, narrative, destinations, enriched, pendingAssets, "/trip/generated/pending");
   const summary = {
     generatedAt: new Date().toISOString(),
     inputPhotos: files.length,
@@ -160,12 +165,27 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
   await mkdir(tripsDirectory, { recursive: true });
   const slug = await availableTripSlug(tripsDirectory, manifest),
     path = `/trips/${slug}`;
-  if (!options.dryRun) await writeFile(join(tripsDirectory, `${slug}.json`), JSON.stringify(TripManifestSchema.parse(manifest), null, 2));
+  const finalManifest = TripManifestSchema.parse({
+    ...manifest,
+    photos: manifest.photos.map(photo => ({
+      ...photo,
+      srcLarge: photo.srcLarge.replace("/pending/", `/${slug}/`),
+      srcMedium: photo.srcMedium.replace("/pending/", `/${slug}/`),
+      srcThumb: photo.srcThumb.replace("/pending/", `/${slug}/`),
+    })),
+  });
+  if (!options.dryRun) {
+    await rm(tripAssetsDirectory(root, slug), { recursive: true, force: true });
+    await rename(pendingAssets, tripAssetsDirectory(root, slug));
+    await writeFile(join(tripsDirectory, `${slug}.json`), JSON.stringify(finalManifest, null, 2));
+    await syncPublishedAssets(root);
+    await cp(join(output, "report"), join(output, "reports", slug), { recursive: true });
+  } else await rm(pendingAssets, { recursive: true, force: true });
   dependencies.onProgress?.({ stage: "complete", progress: 100, message: "Trip page generation complete" });
   console.log(
     `\nWanderpage complete\n\nInput photos:         ${files.length}\nDuplicates removed:   ${summary.duplicatesRemoved}\nLow-quality rejected: ${summary.lowQualityRejected}\nSelected photos:      ${selection.selected.length}\nDestinations found:   ${summary.destinationsFound}\nPage:                  ${path}\nReport:                .trip-output/report/index.html`
   );
-  return { manifest, summary, slug, path };
+  return { manifest: finalManifest, summary, slug, path };
 }
 
 async function makeManifest(
@@ -174,10 +194,11 @@ async function makeManifest(
   narrative: Awaited<ReturnType<AIProvider["generateNarrative"]>>,
   destinations: Awaited<ReturnType<typeof inferDestinations>>,
   enriched: Awaited<ReturnType<typeof enrichDestination>>[],
-  generated: string
+  generated: string,
+  publicPath: string
 ): Promise<TripManifest> {
   await mkdir(generated, { recursive: true });
-  const published = await Promise.all(selection.selected.map(photo => publishPhoto(photo, generated)));
+  const published = await Promise.all(selection.selected.map(photo => publishPhoto(photo, generated, publicPath)));
   const captions = new Map(narrative.captions.map(item => [item.photoId, item]));
   const destinationObjects = destinations
     .filter(d => d.confidence >= 0.55)

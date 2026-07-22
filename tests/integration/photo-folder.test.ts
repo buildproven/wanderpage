@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { access, readdir, readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, relative } from "node:path";
 import { promisify } from "node:util";
@@ -81,8 +81,10 @@ describe("photo folder to deployed-site artifact", () => {
     expect(manifest.peopleMode).toBe("exclude");
     expect(manifest.photos.every(photo => !photo.containsPeople)).toBe(true);
     expect(manifest.photos.every(photo => photo.srcLarge.startsWith("/trip/generated/"))).toBe(true);
+    await expect(access(join(workspace, "public/trip/generated/controlled-coast-test"))).rejects.toThrow();
     expect(manifest.route[0]).toMatchObject({ lat: 45.9, lon: -124 });
     await setTripPublished(workspace, "controlled-coast-test", true);
+    await expect(access(join(workspace, "public/trip/generated/controlled-coast-test"))).resolves.toBeUndefined();
 
     await execute("pnpm", ["exec", "next", "build", workspace], {
       cwd: repoRoot,
