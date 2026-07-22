@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { access, readdir, readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, relative } from "node:path";
 import { promisify } from "node:util";
@@ -14,6 +14,7 @@ import { runTrip } from "@/lib/pipeline/run";
 import { validateStaticExport } from "@/lib/publishing/privacy";
 import { TripManifestSchema } from "@/lib/schemas/trip";
 import type { PhotoSemanticAnalysis } from "@/lib/schemas/analysis";
+import { setTripPublished } from "@/lib/trips/publish";
 import { copySiteScaffold, createPhotoFolder, createTempWorkspace, removeTempWorkspace, repoRoot } from "../helpers/workspace";
 
 const execute = promisify(execFile);
@@ -76,10 +77,14 @@ describe("photo folder to deployed-site artifact", () => {
     const manifestPath = join(workspace, "data/trips/controlled-coast-test.json");
     const manifest = TripManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
     expect(manifest.title).toBe("Controlled Coast Test");
+    expect(manifest.published).toBe(false);
     expect(manifest.peopleMode).toBe("exclude");
     expect(manifest.photos.every(photo => !photo.containsPeople)).toBe(true);
     expect(manifest.photos.every(photo => photo.srcLarge.startsWith("/trip/generated/"))).toBe(true);
+    await expect(access(join(workspace, "public/trip/generated/controlled-coast-test"))).rejects.toThrow();
     expect(manifest.route[0]).toMatchObject({ lat: 45.9, lon: -124 });
+    await setTripPublished(workspace, "controlled-coast-test", true);
+    await expect(access(join(workspace, "public/trip/generated/controlled-coast-test"))).resolves.toBeUndefined();
 
     await execute("pnpm", ["exec", "next", "build", workspace], {
       cwd: repoRoot,
@@ -150,6 +155,8 @@ describe("photo folder to deployed-site artifact", () => {
       const manifest = TripManifestSchema.parse(JSON.parse(await readFile(join(cliWorkspace, "data/trips/cli-folder-test.json"), "utf8")));
       expect(manifest.title).toBe("CLI Folder Test");
       expect(manifest.photos.length).toBeGreaterThan(0);
+      expect(manifest.published).toBe(false);
+      await setTripPublished(cliWorkspace, "cli-folder-test", true);
       await execute("pnpm", ["exec", "next", "build", cliWorkspace], {
         cwd: repoRoot,
         env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", WANDERPAGE_WORKSPACE: cliWorkspace },

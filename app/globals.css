@@ -1388,6 +1388,186 @@ button {
   text-transform: uppercase;
   text-underline-offset: 4px;
 }
+.studio-library {
+  margin-top: 3rem;
+  border-top: 1px solid rgba(23, 33, 31, 0.24);
+  padding-top: 1.5rem;
+}
+.studio-library h2,
+.studio-editor h2 {
+  margin: 0.35rem 0 1.15rem;
+  font:
+    normal 1.7rem Georgia,
+    serif;
+}
+.studio-library > button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 5rem 1fr auto;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.9rem 0;
+  border: 0;
+  border-top: 1px solid rgba(23, 33, 31, 0.16);
+  background: transparent;
+  color: #17211f;
+  cursor: pointer;
+  text-align: left;
+}
+.studio-library > button > span,
+.studio-evidence span,
+.studio-photo-editor > span,
+.studio-restore > span {
+  color: #c76542;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.studio-library b {
+  font:
+    normal 1rem Georgia,
+    serif;
+}
+.studio-library small,
+.studio-evidence small,
+.studio-photo-editor small {
+  color: #57615c;
+  font-size: 0.68rem;
+}
+.studio-evidence {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  border-top: 1px solid rgba(23, 33, 31, 0.24);
+  border-bottom: 1px solid rgba(23, 33, 31, 0.18);
+}
+.studio-evidence > div {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem 0;
+}
+.studio-evidence b {
+  font:
+    normal 1.08rem Georgia,
+    serif;
+}
+.studio-editor {
+  margin-top: 2.5rem;
+}
+.studio-editor > label {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  color: #46514c;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.studio-editor input,
+.studio-editor textarea,
+.studio-photo-editor input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(23, 33, 31, 0.22);
+  padding: 0.65rem;
+  background: rgba(255, 255, 255, 0.4);
+  color: #17211f;
+  font:
+    normal 0.95rem/1.45 Georgia,
+    serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.studio-editor textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+}
+.studio-chapter-editor,
+.studio-destination-editor {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 2rem;
+}
+.studio-chapter-editor > span,
+.studio-destination-editor > span {
+  color: #46514c;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.studio-chapter-editor > div {
+  display: grid;
+  gap: 0.45rem;
+}
+.studio-destination-editor button {
+  width: max-content;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #46514c;
+  cursor: pointer;
+  font-size: 0.66rem;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.studio-photo-editor {
+  display: grid;
+  gap: 0;
+  margin-top: 2rem;
+}
+.studio-photo-editor > span {
+  margin-bottom: 0.7rem;
+}
+.studio-photo-editor article {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-top: 1px solid rgba(23, 33, 31, 0.16);
+}
+.studio-photo-editor img {
+  width: 100%;
+  height: 4.1rem;
+  object-fit: cover;
+}
+.studio-photo-editor article > div {
+  display: grid;
+  gap: 0.35rem;
+}
+.studio-photo-actions {
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+}
+.studio-photo-actions button,
+.studio-restore button {
+  border: 0;
+  background: none;
+  color: #46514c;
+  cursor: pointer;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.studio-photo-actions button:disabled {
+  color: #9a9e99;
+  cursor: not-allowed;
+}
+.studio-restore {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.studio-restore button {
+  text-align: left;
+  color: #c76542;
+}
 .studio-footer {
   padding: 1.4rem clamp(1.5rem, 4vw, 4rem);
   display: flex;

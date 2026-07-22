@@ -9,7 +9,18 @@ export type StudioJobRequest = {
 };
 export type StudioProgress = { stage: string; progress: number; message: string; at: string };
 export type StudioSelection = { selected: string[]; rejected: Array<{ id: string; reason?: string }>; reasons: Record<string, string> };
-export type StudioJobResult = { path: string; summary: Record<string, unknown>; manifest: TripManifest; selection: StudioSelection };
+export type StudioReview = {
+  privacy: { passed: boolean; exportedFiles: number };
+  destinations: Array<{ id: string; name: string; confidence: number }>;
+  sourceCount: number;
+};
+export type StudioJobResult = {
+  path: string;
+  summary: Record<string, unknown>;
+  manifest: TripManifest;
+  selection: StudioSelection;
+  review?: StudioReview;
+};
 export type StudioJob = {
   id: string;
   status: "queued" | "running" | "building" | "complete" | "failed";
