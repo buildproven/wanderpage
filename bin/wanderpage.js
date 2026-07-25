@@ -16,7 +16,7 @@ const execute = promisify(execFile),
   targetArg = args.find(arg => !arg.startsWith("--")),
   targetDir = resolve(targetArg ?? "./wanderpage"),
   skipOpen = args.includes("--no-open"),
-  pnpmCommand = "pnpm";
+  pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 async function pathExists(path) {
   return stat(path)
@@ -31,7 +31,7 @@ async function isEmptyOrMissing(path) {
 }
 
 function checkCommand(command) {
-  return execute(command, ["--version"], { shell: true }).then(
+  return execute(command, ["--version"]).then(
     () => true,
     () => false
   );
@@ -41,14 +41,6 @@ async function scaffold() {
   if (!(await isEmptyOrMissing(targetDir))) {
     console.log(`Using existing Wanderpage project at ${targetDir}`);
     return;
-  }
-
-  const hasPnpm = await checkCommand(pnpmCommand);
-  if (!hasPnpm) {
-    console.log("\nWanderpage needs pnpm once before it can run.");
-    console.log("Install it with: npm install -g pnpm");
-    console.log(`Then run: npx wanderpage ${targetArg ?? ""}`);
-    process.exit(1);
   }
 
   console.log(`Creating a new Wanderpage project at ${targetDir}...`);
@@ -76,7 +68,7 @@ async function scaffold() {
   await mkdir(join(targetDir, "data/trips"), { recursive: true });
 
   console.log("Installing dependencies (this happens once)...");
-  await execute(pnpmCommand, ["install"], { cwd: targetDir, maxBuffer: 20_000_000, shell: true });
+  await execute(pnpmCommand, ["install"], { cwd: targetDir, maxBuffer: 20_000_000 });
 
   const envExample = join(targetDir, ".env.example"),
     envLocal = join(targetDir, ".env.local");
@@ -97,7 +89,6 @@ async function launchStudio() {
       cwd: targetDir,
       stdio: "inherit",
       env: process.env,
-      shell: true,
     });
     child.on("exit", (code, signal) => {
       if (code === 0 || signal === "SIGINT" || signal === "SIGTERM") {
@@ -110,6 +101,13 @@ async function launchStudio() {
 }
 
 try {
+  const hasPnpm = await checkCommand(pnpmCommand);
+  if (!hasPnpm) {
+    console.log("\nWanderpage needs pnpm once before it can run.");
+    console.log("Install it with: npm install -g pnpm");
+    console.log(`Then run: npx wanderpage ${targetArg ?? ""}`);
+    process.exit(1);
+  }
   await scaffold();
   await launchStudio();
 } catch (error) {
