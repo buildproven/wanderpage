@@ -1,9 +1,8 @@
 {
   "name": "wanderpage",
   "version": "0.1.0",
-  "private": true,
   "description": "Local-first travel photo editor that turns a photo folder into a curated static trip page.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "author": "buildproven",
   "homepage": "https://github.com/buildproven/wanderpage",
   "repository": {
@@ -26,6 +25,32 @@
   "engines": {
     "node": ">=20.9"
   },
+  "bin": {
+    "wanderpage": "./bin/wanderpage.js"
+  },
+  "files": [
+    "bin",
+    "app",
+    "components",
+    "lib",
+    "scripts",
+    "public",
+    "assets",
+    "data/trip.demo.json",
+    "data/trips/.gitkeep",
+    "next.config.ts",
+    "next-env.d.ts",
+    "postcss.config.mjs",
+    "tsconfig.json",
+    "eslint.config.mjs",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "pnpm-workspace.yaml",
+    ".env.example",
+    "Open Wanderpage.command",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "next dev",
     "studio": "tsx scripts/studio.ts",
