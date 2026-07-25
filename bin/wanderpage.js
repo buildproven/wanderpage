@@ -37,9 +37,24 @@ function checkCommand(command) {
   );
 }
 
+function pnpmInstall(cwd) {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(pnpmCommand, ["install"], { cwd, stdio: "inherit" });
+    child.on("exit", (code, signal) => {
+      if (code === 0) resolvePromise(undefined);
+      else reject(new Error(`pnpm install exited with code ${code ?? signal}`));
+    });
+  });
+}
+
 async function scaffold() {
-  if (!(await isEmptyOrMissing(targetDir))) {
+  const alreadyScaffolded = !(await isEmptyOrMissing(targetDir));
+  if (alreadyScaffolded) {
     console.log(`Using existing Wanderpage project at ${targetDir}`);
+    if (!(await pathExists(join(targetDir, "node_modules")))) {
+      console.log("Dependencies are missing — installing...");
+      await pnpmInstall(targetDir);
+    }
     return;
   }
 
@@ -68,7 +83,7 @@ async function scaffold() {
   await mkdir(join(targetDir, "data/trips"), { recursive: true });
 
   console.log("Installing dependencies (this happens once)...");
-  await execute(pnpmCommand, ["install"], { cwd: targetDir, maxBuffer: 20_000_000 });
+  await pnpmInstall(targetDir);
 
   const envExample = join(targetDir, ".env.example"),
     envLocal = join(targetDir, ".env.local");

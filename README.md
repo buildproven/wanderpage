@@ -4,7 +4,7 @@ Wanderpage is a free, local-first vacation story generator: point it at a photo 
 
 ## Quickstart
 
-Requirements: Node.js 20.9+, and macOS `sips` for HEIC fallback when Sharp/libvips cannot decode a file. (`npx` bootstraps `pnpm` for you if it isn't installed yet.)
+Requirements: Node.js 20.9+, [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`), and macOS `sips` for HEIC fallback when Sharp/libvips cannot decode a file. If pnpm is missing, `npx wanderpage` tells you so and exits — install it and re-run the same command.
 
 ```bash
 npx wanderpage
