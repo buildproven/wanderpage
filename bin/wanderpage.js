@@ -15,7 +15,8 @@ const execute = promisify(execFile),
   args = process.argv.slice(2),
   targetArg = args.find(arg => !arg.startsWith("--")),
   targetDir = resolve(targetArg ?? "./wanderpage"),
-  skipOpen = args.includes("--no-open");
+  skipOpen = args.includes("--no-open"),
+  pnpmCommand = "pnpm";
 
 async function pathExists(path) {
   return stat(path)
@@ -30,7 +31,7 @@ async function isEmptyOrMissing(path) {
 }
 
 function checkCommand(command) {
-  return execute(command, ["--version"]).then(
+  return execute(command, ["--version"], { shell: true }).then(
     () => true,
     () => false
   );
@@ -41,6 +42,15 @@ async function scaffold() {
     console.log(`Using existing Wanderpage project at ${targetDir}`);
     return;
   }
+
+  const hasPnpm = await checkCommand(pnpmCommand);
+  if (!hasPnpm) {
+    console.log("\nWanderpage needs pnpm once before it can run.");
+    console.log("Install it with: npm install -g pnpm");
+    console.log(`Then run: npx wanderpage ${targetArg ?? ""}`);
+    process.exit(1);
+  }
+
   console.log(`Creating a new Wanderpage project at ${targetDir}...`);
   await mkdir(targetDir, { recursive: true });
   const skip = new Set([
@@ -59,22 +69,14 @@ async function scaffold() {
   await cp(packageRoot, targetDir, {
     recursive: true,
     filter: source => {
-      const relativePath = source.slice(packageRoot.length + 1).split("/")[0];
-      return !skip.has(relativePath);
+      const relativePath = source.slice(packageRoot.length + 1);
+      return !relativePath.split(/[\\/]/).some(segment => skip.has(segment));
     },
   });
   await mkdir(join(targetDir, "data/trips"), { recursive: true });
 
-  const hasPnpm = await checkCommand("pnpm");
-  if (!hasPnpm) {
-    console.log("\nWanderpage needs pnpm once before it can run.");
-    console.log("Install it with: npm install -g pnpm");
-    console.log(`Then run: cd ${targetDir} && pnpm install && pnpm studio`);
-    process.exit(1);
-  }
-
   console.log("Installing dependencies (this happens once)...");
-  await execute("pnpm", ["install"], { cwd: targetDir, maxBuffer: 20_000_000 });
+  await execute(pnpmCommand, ["install"], { cwd: targetDir, maxBuffer: 20_000_000, shell: true });
 
   const envExample = join(targetDir, ".env.example"),
     envLocal = join(targetDir, ".env.local");
@@ -91,12 +93,19 @@ async function launchStudio() {
 
   const pnpmArgs = ["studio", ...(skipOpen ? ["--", "--no-open"] : [])];
   await new Promise((resolvePromise, reject) => {
-    const child = spawn(process.platform === "win32" ? "pnpm.cmd" : "pnpm", pnpmArgs, {
+    const child = spawn(pnpmCommand, pnpmArgs, {
       cwd: targetDir,
       stdio: "inherit",
       env: process.env,
+      shell: true,
     });
-    child.on("exit", code => (code === 0 ? resolvePromise(undefined) : reject(new Error(`Studio exited with code ${code}`))));
+    child.on("exit", (code, signal) => {
+      if (code === 0 || signal === "SIGINT" || signal === "SIGTERM") {
+        resolvePromise(undefined);
+      } else {
+        reject(new Error(`Studio exited with code ${code ?? signal}`));
+      }
+    });
   });
 }
 
