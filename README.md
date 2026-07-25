@@ -1,17 +1,29 @@
 # Wanderpage
 
-Wanderpage is a local-first vacation story generator: point it at a photo folder and it builds a private, static, cinematic travel story. Originals are never modified. Published images are resized WebP files with metadata removed; public route coordinates are rounded; low-confidence locations are omitted or broadened; people are never identified.
+Wanderpage is a free, local-first vacation story generator: point it at a photo folder and it builds a private, static, cinematic travel story. Originals are never modified. Published images are resized WebP files with metadata removed; public route coordinates are rounded; low-confidence locations are omitted or broadened; people are never identified.
 
-## Setup
+## Quickstart
 
-Requirements: Node.js 20.9+, pnpm, and macOS `sips` for HEIC fallback when Sharp/libvips cannot decode a file.
+Requirements: Node.js 20.9+, and macOS `sips` for HEIC fallback when Sharp/libvips cannot decode a file. (`npx` bootstraps `pnpm` for you if it isn't installed yet.)
 
 ```bash
+npx wanderpage
+```
+
+This creates a `./wanderpage` project folder, installs dependencies, and opens Studio in your browser — nothing runs anywhere but your machine. Pass a folder name to scaffold somewhere else (`npx wanderpage my-trips`), or re-run the same command later to relaunch Studio in an existing project.
+
+Set `OPENAI_API_KEY` for real vision analysis and narrative generation — add it to the generated project's `.env.local`. The model names and Wikimedia user agent are configurable in `.env.example`. Vercel may use an existing CLI login or `VERCEL_TOKEN`.
+
+## Cloning instead
+
+If you'd rather work from a git clone (for contributing, or to track the source directly):
+
+```bash
+git clone https://github.com/buildproven/wanderpage.git
+cd wanderpage
 pnpm install
 cp .env.example .env.local
 ```
-
-Set `OPENAI_API_KEY` for real vision analysis and narrative generation. The model names and Wikimedia user agent are configurable in `.env.example`. Vercel may use an existing CLI login or `VERCEL_TOKEN`.
 
 ## Open the local app
 
