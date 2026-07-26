@@ -34,7 +34,7 @@
     "components",
     "lib",
     "scripts",
-    "public",
+    "public/trip/demo",
     "assets",
     "data/trip.demo.json",
     "data/trips/.gitkeep",
