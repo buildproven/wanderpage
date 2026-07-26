@@ -4,7 +4,13 @@ function git(...args: string[]): string {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
 
-const branch = git("symbolic-ref", "--short", "HEAD");
+let branch: string;
+try {
+  branch = git("symbolic-ref", "--short", "HEAD");
+} catch {
+  console.error("Not on a branch (detached HEAD). Releases must be cut from main.");
+  process.exit(1);
+}
 if (branch !== "main") {
   console.error(`Releases must be cut from main (currently on "${branch}").`);
   process.exit(1);
