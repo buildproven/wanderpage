@@ -16,7 +16,12 @@ if (status) {
   process.exit(1);
 }
 
-git("fetch", "origin", "main");
+try {
+  git("fetch", "origin", "main");
+} catch {
+  console.error('Could not fetch "origin" — releases require an "origin" remote pointing at the canonical repo.');
+  process.exit(1);
+}
 const local = git("rev-parse", "main");
 const remote = git("rev-parse", "origin/main");
 if (local !== remote) {
