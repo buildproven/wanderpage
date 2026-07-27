@@ -1,5 +1,5 @@
 {
-  "name": "wanderpage",
+  "name": "@buildproven/wanderpage",
   "version": "0.1.0",
   "description": "Local-first travel photo editor that turns a photo folder into a curated static trip page.",
   "license": "MIT",
