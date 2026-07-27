@@ -1,43 +1,31 @@
 import { execFileSync } from "node:child_process";
+import { assertOnCleanUpToDateMain, git } from "./release-git";
 
-function git(...args: string[]): string {
-  return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trim();
-}
-
-let branch: string;
-try {
-  branch = git("symbolic-ref", "--short", "HEAD");
-} catch {
-  console.error("Not on a branch (detached HEAD). Tag from main after the release PR has merged.");
-  process.exit(1);
-}
-if (branch !== "main") {
-  console.error(`Tag from main after the release PR has merged (currently on "${branch}").`);
-  process.exit(1);
-}
-
-try {
-  git("fetch", "origin", "main");
-} catch {
-  console.error('Could not fetch "origin" — this needs an "origin" remote pointing at the canonical repo.');
-  process.exit(1);
-}
-const local = git("rev-parse", "main");
-const remote = git("rev-parse", "origin/main");
-if (local !== remote) {
-  console.error("Local main is not up to date with origin/main. Pull the merged release PR before tagging.");
-  process.exit(1);
-}
+assertOnCleanUpToDateMain("Tagging a release");
 
 const version = execFileSync("node", ["-p", "require('./package.json').version"], { encoding: "utf8" }).trim();
 const tag = `v${version}`;
 
-const existingTags = git("tag", "--list", tag);
-if (existingTags) {
-  console.error(`Tag ${tag} already exists.`);
+const localTags = git("tag", "--list", tag);
+if (localTags) {
+  console.error(`Tag ${tag} already exists locally.`);
+  process.exit(1);
+}
+
+const remoteTags = git("ls-remote", "--tags", "origin", tag);
+if (remoteTags) {
+  console.error(`Tag ${tag} already exists on origin.`);
   process.exit(1);
 }
 
 git("tag", tag);
-git("push", "origin", tag);
-console.log(`Tagged and pushed ${tag} from main (${local}). release.yml will publish it.`);
+try {
+  git("push", "origin", tag);
+} catch (error) {
+  console.error(`\nFailed to push tag ${tag}: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`The local tag was created — delete it with "git tag -d ${tag}" if you want to retry cleanly.`);
+  process.exit(1);
+}
+
+const head = git("rev-parse", "main");
+console.log(`Tagged and pushed ${tag} from main (${head}). release.yml will publish it.`);
