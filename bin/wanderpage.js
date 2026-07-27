@@ -120,7 +120,7 @@ try {
   if (!hasPnpm) {
     console.log("\nWanderpage needs pnpm once before it can run.");
     console.log("Install it with: npm install -g pnpm");
-    console.log(`Then run: npx wanderpage ${targetArg ?? ""}`);
+    console.log(`Then run: npx @buildproven/wanderpage ${targetArg ?? ""}`);
     process.exit(1);
   }
   await scaffold();

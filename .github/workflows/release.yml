@@ -64,7 +64,7 @@ jobs:
             ## Installation
 
             ```bash
-            npx wanderpage
+            npx @buildproven/wanderpage
             ```
           draft: false
           prerelease: false

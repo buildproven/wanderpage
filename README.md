@@ -4,13 +4,13 @@ Wanderpage is a free, local-first vacation story generator: point it at a photo 
 
 ## Quickstart
 
-Requirements: Node.js 20.9+, [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`), and macOS `sips` for HEIC fallback when Sharp/libvips cannot decode a file. If pnpm is missing, `npx wanderpage` tells you so and exits — install it and re-run the same command.
+Requirements: Node.js 20.9+, [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`), and macOS `sips` for HEIC fallback when Sharp/libvips cannot decode a file. If pnpm is missing, `npx @buildproven/wanderpage` tells you so and exits — install it and re-run the same command.
 
 ```bash
-npx wanderpage
+npx @buildproven/wanderpage
 ```
 
-This creates a `./wanderpage` project folder, installs dependencies, and opens Studio in your browser — nothing runs anywhere but your machine. Pass a folder name to scaffold somewhere else (`npx wanderpage my-trips`), or re-run the same command later to relaunch Studio in an existing project.
+This creates a `./wanderpage` project folder, installs dependencies, and opens Studio in your browser — nothing runs anywhere but your machine. Pass a folder name to scaffold somewhere else (`npx @buildproven/wanderpage my-trips`), or re-run the same command later to relaunch Studio in an existing project.
 
 Set `OPENAI_API_KEY` for real vision analysis and narrative generation — add it to the generated project's `.env.local`. The model names and Wikimedia user agent are configurable in `.env.example`. Vercel may use an existing CLI login or `VERCEL_TOKEN`.
 
