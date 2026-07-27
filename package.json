@@ -23,7 +23,7 @@
   "type": "module",
   "packageManager": "pnpm@11.13.1",
   "engines": {
-    "node": ">=20.9"
+    "node": ">=20"
   },
   "bin": {
     "wanderpage": "./bin/wanderpage.js"
@@ -64,11 +64,12 @@
     "deploy": "tsx scripts/deploy.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
-    "test": "vitest run",
+    "test": "pnpm test:unit && pnpm trip:demo && pnpm build && pnpm privacy && pnpm test:e2e",
+    "test:unit": "vitest run",
     "test:live": "WANDERPAGE_LIVE_TEST=1 vitest run tests/live/openai-photo-folder.test.ts",
     "test:e2e": "playwright test",
     "privacy": "tsx scripts/privacy-check.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm trip:demo && pnpm build && pnpm privacy && pnpm test:e2e",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
     "release:preflight": "tsx scripts/release-preflight.ts",
     "release:patch": "pnpm release:preflight && pnpm check && tsx scripts/release-open-pr.ts patch",
     "release:minor": "pnpm release:preflight && pnpm check && tsx scripts/release-open-pr.ts minor",
@@ -82,12 +83,26 @@
     "test:coverage": "vitest run --coverage",
     "test:fast": "vitest run --exclude tests/integration/** --exclude tests/live/**",
     "test:comprehensive": "pnpm check",
-    "security:audit": "pnpm audit --audit-level high",
+    "security:audit": "pnpm audit --audit-level high --prod",
     "security:config": "npx create-qa-architect@latest --security-config",
     "type-check": "tsc --noEmit",
     "type-check:all": "pnpm typecheck",
     "quality:check": "pnpm check",
-    "quality:ci": "pnpm check && pnpm security:audit"
+    "quality:ci": "pnpm check && pnpm security:audit",
+    "quality:lint": "eslint . --max-warnings=0 --ignore-pattern '.claude-kit/**'",
+    "security:secrets": "node -e \"const fs=require('fs');const content=fs.readFileSync('package.json','utf8');if(/[\\\"\\'][a-zA-Z0-9+/]{20,}[\\\"\\']/.test(content)){console.error('❌ Potential hardcoded secrets in package.json');process.exit(1)}else{console.log('✅ No secrets detected in package.json')}\"",
+    "lighthouse:ci": "lhci autorun",
+    "lighthouse:upload": "lhci upload",
+    "validate:docs": "npx create-qa-architect@latest --validate-docs",
+    "validate:comprehensive": "npx create-qa-architect@latest --comprehensive",
+    "validate:all": "pnpm run validate:comprehensive && pnpm run security:audit",
+    "validate:pre-push": "pnpm run quality:lint && pnpm run format:check && pnpm run test",
+    "type-check:tests": "tsc --noEmit --project tests/tsconfig.json",
+    "test:medium": "vitest run --reporter=dot --exclude 'tests/e2e/**' --exclude 'tests/integration/**'",
+    "test:smart": "bash scripts/smart-test-strategy.sh",
+    "size": "size-limit",
+    "size:why": "size-limit --why",
+    "test:coverage:check": "vitest run --coverage --coverage.thresholds.lines=70 --coverage.thresholds.functions=70"
   },
   "dependencies": {
     "commander": "latest",
@@ -119,16 +134,72 @@
     "@vitest/coverage-v8": "latest",
     "husky": "latest",
     "lint-staged": "^16.4.0",
-    "prettier": "latest"
+    "prettier": "latest",
+    "eslint-plugin-security": "^3.0.1",
+    "globals": "^15.9.0",
+    "stylelint": "^16.8.0",
+    "stylelint-config-standard": "^37.0.0",
+    "@lhci/cli": "^0.14.0",
+    "commitlint": "^20.4.1",
+    "@typescript-eslint/eslint-plugin": "^8.9.0",
+    "@typescript-eslint/parser": "^8.9.0",
+    "size-limit": "^11.0.0",
+    "@size-limit/file": "^11.0.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs}": [
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{css,json,md,yml,yaml}": "prettier --write"
+    "*.{css,json,md,yml,yaml}": "prettier --write",
+    "package.json": [
+      "prettier --write"
+    ],
+    "**/*.{js,jsx,ts,tsx,mjs,cjs,html}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ],
+    "app/**/*.{css,scss,sass,less,pcss}": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "out/**/*.{css,scss,sass,less,pcss}": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "**/*.{js,jsx,mjs,cjs,html}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{css,scss,sass,less,pcss}": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "**/*.{ts,tsx}": [
+      "tsc --noEmit --skipLibCheck",
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "tests/**/*.{ts,tsx,js,jsx}": [
+      "tsc --noEmit --project tests/tsconfig.json",
+      "eslint --fix",
+      "prettier --write"
+    ]
   },
   "volta": {
-    "node": "22.22.2"
-  }
+    "node": "20.11.1"
+  },
+  "size-limit": [
+    {
+      "path": ".next/**/*.js",
+      "limit": "250 kB"
+    },
+    {
+      "path": ".next/**/*.css",
+      "limit": "50 kB"
+    }
+  ]
 }

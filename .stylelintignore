@@ -1,0 +1,6 @@
+.claude-kit
+dist
+build
+coverage
+.next
+out

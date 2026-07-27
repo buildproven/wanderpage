@@ -1,1 +1,82 @@
-pnpm check
+echo "🔍 Running smart pre-push validation..."
+
+# Check if smart test strategy script exists
+if [ -f "scripts/smart-test-strategy.sh" ]; then
+  bash scripts/smart-test-strategy.sh
+else
+  # Fallback to basic validation
+  echo "📝 Linting..."
+  npm run lint || {
+    echo "❌ Lint failed! Fix errors before pushing."
+    exit 1
+  }
+
+  echo "✨ Checking formatting..."
+  npm run format:check || {
+    echo "❌ Format check failed! Run 'npm run format' to fix."
+    exit 1
+  }
+
+  # Run tests if they exist
+  if node -e "const pkg=require('./package.json');process.exit(pkg.scripts.test?0:1)" 2>/dev/null; then
+    echo "🧪 Running tests..."
+    npm test || {
+      echo "❌ Tests failed! Fix failing tests before pushing."
+      exit 1
+    }
+  fi
+
+  echo "✅ Pre-push validation passed!"
+fi
+
+# Security scans (runs after main validation)
+echo ""
+echo "🔐 Running security scans..."
+
+# 1. Secret scanning with gitleaks
+if command -v gitleaks &> /dev/null; then
+  echo "  → Scanning for secrets..."
+  gitleaks detect --no-git --verbose --exit-code=1 || {
+    echo "❌ Secrets detected! Remove them before pushing."
+    exit 1
+  }
+else
+  echo "  ⚠️  gitleaks not installed - skipping secret scan"
+  echo "     Install: brew install gitleaks (Mac) or npm install -g gitleaks"
+fi
+
+# 2. Dependency audit (production deps only)
+# Dev-tooling CVEs don't ship to users, and blocking on them stalls pushes on
+# advisories with no consumer-side fix. Matches quality.yml's blocking gate.
+echo "  → Checking production dependencies..."
+# Detect package manager and use appropriate audit command
+if [ -f "pnpm-lock.yaml" ]; then
+  pnpm audit --audit-level=high --prod || {
+    echo "❌ Vulnerable production dependencies found! Run 'pnpm audit --fix' to resolve."
+    exit 1
+  }
+elif [ -f "yarn.lock" ]; then
+  yarn audit --level high --groups dependencies || {
+    echo "❌ Vulnerable production dependencies found! Run 'yarn audit fix' to resolve."
+    exit 1
+  }
+else
+  npm audit --audit-level=high --omit=dev || {
+    echo "❌ Vulnerable production dependencies found! Run 'npm audit fix' to resolve."
+    exit 1
+  }
+fi
+
+# 3. XSS pattern detection
+echo "  → Scanning for XSS patterns..."
+if grep -rE "innerHTML.*\$\{" src/ app/ lib/ --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" 2>/dev/null; then
+  echo "❌ Potential XSS: innerHTML with interpolation found"
+  exit 1
+fi
+
+if grep -rE "eval\(.*\$\{" src/ app/ lib/ --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" 2>/dev/null; then
+  echo "❌ Potential code injection: eval with interpolation found"
+  exit 1
+fi
+
+echo "✅ Security scans passed!"
