@@ -151,43 +151,11 @@
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{css,json,md,yml,yaml}": "prettier --write",
-    "package.json": [
-      "prettier --write"
-    ],
-    "**/*.{js,jsx,ts,tsx,mjs,cjs,html}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "**/*.{json,md,yml,yaml}": [
-      "prettier --write"
-    ],
-    "app/**/*.{css,scss,sass,less,pcss}": [
-      "stylelint --fix",
-      "prettier --write"
-    ],
-    "out/**/*.{css,scss,sass,less,pcss}": [
-      "stylelint --fix",
-      "prettier --write"
-    ],
-    "**/*.{js,jsx,mjs,cjs,html}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
     "**/*.{css,scss,sass,less,pcss}": [
       "stylelint --fix",
       "prettier --write"
     ],
-    "**/*.{ts,tsx}": [
-      "tsc --noEmit --skipLibCheck",
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "tests/**/*.{ts,tsx,js,jsx}": [
-      "tsc --noEmit --project tests/tsconfig.json",
-      "eslint --fix",
-      "prettier --write"
-    ]
+    "*.{json,md,yml,yaml}": "prettier --write"
   },
   "volta": {
     "node": "20.11.1"

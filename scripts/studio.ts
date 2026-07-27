@@ -4,9 +4,11 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { createStudioServer } from "@/lib/studio/server";
+import { loadStudioEnvironment } from "@/lib/studio/environment";
 
+const root = process.cwd();
+await loadStudioEnvironment(root);
 const execute = promisify(execFile),
-  root = process.cwd(),
   port = Number(process.env.WANDERPAGE_PORT ?? 4317);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("WANDERPAGE_PORT must be a valid port number.");
 const existingBuild = await stat(join(root, "out/studio.html"))

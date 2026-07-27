@@ -16,6 +16,7 @@ const distanceKm = (a: { lat: number; lon: number }, b: { lat: number; lon: numb
     s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * p) * Math.cos(b.lat * p) * Math.sin(dLon / 2) ** 2;
   return 6371 * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
 };
+const maximumEntityDistanceMeters = 500;
 
 export async function inferDestinations(photos: PhotoRecord[], userAgent: string): Promise<DestinationEvidence[]> {
   const located = photos.filter((photo): photo is PhotoRecord & { gps: { lat: number; lon: number } } => photo.gps !== undefined);
@@ -31,8 +32,8 @@ export async function inferDestinations(photos: PhotoRecord[], userAgent: string
         lon = items.reduce((sum, p) => sum + p.gps.lon, 0) / items.length;
       const entity = await nearestEntity(lat, lon, userAgent).catch(() => undefined);
       const visual = items.flatMap(photo => photo.semantic?.possibleLocations ?? []).sort((a, b) => b.confidence - a.confidence)[0];
-      const name = entity?.title ?? (visual && visual.confidence >= 0.55 ? visual.label : `Region ${index + 1}`);
-      const confidence = entity?.title?.length ? Math.min(0.98, 0.82 + items.length * 0.02) : (visual?.confidence ?? 0.5);
+      const name = entity?.title ?? `Region ${index + 1}`;
+      const confidence = entity?.title?.length ? Math.min(0.98, 0.82 + items.length * 0.02) : 0.5;
       return {
         id: `destination-${index + 1}`,
         name,
@@ -53,20 +54,20 @@ async function nearestEntity(lat: number, lon: number, userAgent: string) {
   const url = new URL("https://en.wikipedia.org/w/api.php");
   url.search = new URLSearchParams({
     action: "query",
-    generator: "geosearch",
-    ggsprimary: "all",
-    ggsnamespace: "0",
-    ggsradius: "10000",
-    ggscoord: `${lat}|${lon}`,
-    prop: "coordinates",
+    list: "geosearch",
+    gsprimary: "all",
+    gsnamespace: "0",
+    gsradius: String(maximumEntityDistanceMeters),
+    gscoord: `${lat}|${lon}`,
     format: "json",
     origin: "*",
-    ggslimit: "5",
+    gslimit: "1",
   }).toString();
   const response = await fetch(url, { headers: { "User-Agent": userAgent } });
   if (!response.ok) throw new Error(`Wikipedia geosearch ${response.status}`);
-  const json = (await response.json()) as { query?: { pages?: Record<string, { title: string }> } };
-  return Object.values(json.query?.pages ?? {})[0];
+  const json = (await response.json()) as { query?: { geosearch?: Array<{ title: string; dist: number }> } };
+  const entity = json.query?.geosearch?.[0];
+  return entity && entity.dist <= maximumEntityDistanceMeters ? entity : undefined;
 }
 export function roundedCoordinate(value: number, privacy: "approximate" | "exact") {
   const precision = privacy === "exact" ? 2 : 1;
