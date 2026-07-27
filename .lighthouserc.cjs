@@ -3,8 +3,9 @@ module.exports = {
     collect: {
       // Collect URLs - default to localhost for most projects
       url: ["http://localhost:3000"],
-      // For static sites, you might want to build first
-      staticDistDir: "./dist",
+      // Next.js static export (output: "export" in next.config.ts) writes
+      // to ./out, not the qa-architect template's ./dist default.
+      staticDistDir: "./out",
       // Number of runs for more accurate results
       numberOfRuns: 3,
       // Wait for page to be ready

@@ -19,3 +19,4 @@ data/trips/*.json
 demo-photos/
 *.tsbuildinfo
 .vercel
+.lighthouseci/
