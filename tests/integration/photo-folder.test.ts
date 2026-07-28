@@ -157,7 +157,13 @@ describe("photo folder to deployed-site artifact", () => {
       expect(manifest.photos.length).toBeGreaterThan(0);
       expect(manifest.published).toBe(false);
       await setTripPublished(cliWorkspace, "cli-folder-test", true);
-      await expect(access(join(cliWorkspace, "public/trip/generated/cli-folder-test"))).resolves.toBeUndefined();
+      await execute("pnpm", ["exec", "next", "build", cliWorkspace], {
+        cwd: repoRoot,
+        env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", WANDERPAGE_WORKSPACE: cliWorkspace },
+        maxBuffer: 10_000_000,
+      });
+      const privacy = await validateStaticExport(join(cliWorkspace, "out"));
+      expect(privacy.errors).toEqual([]);
     } finally {
       await removeTempWorkspace(cliWorkspace);
     }
