@@ -41,4 +41,12 @@ describe("selection privacy and diversity", () => {
     expect(result.selected.filter(p => p.similarityCluster === "x")).toHaveLength(1);
     expect(result.reasons.c).toMatch(/people/i);
   });
+
+  it("fails closed when people-safety analysis is unavailable", () => {
+    const unclassified = photo("unclassified");
+    delete unclassified.semantic;
+    const result = selectPhotos([unclassified, ...Array.from({ length: 18 }, (_, index) => photo(`safe-${index}`))], "exclude", 36);
+    expect(result.selected.some(item => item.id === "unclassified")).toBe(false);
+    expect(result.reasons.unclassified).toMatch(/analysis is unavailable/i);
+  });
 });

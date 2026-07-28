@@ -29,3 +29,23 @@ export const PhotoSemanticAnalysisSchema = z.object({
 
 export const ContactSheetAnalysisSchema = z.object({ photos: z.array(PhotoSemanticAnalysisSchema) });
 export type PhotoSemanticAnalysis = z.infer<typeof PhotoSemanticAnalysisSchema>;
+
+export function requireCompleteContactSheetAnalysis(analysis: PhotoSemanticAnalysis[], photoIds: string[]) {
+  const expected = new Set(photoIds),
+    actual = new Set(analysis.map(item => item.photoId));
+  if (expected.size !== photoIds.length) throw new Error("Contact sheet contains duplicate photo IDs.");
+  const missing = photoIds.filter(photoId => !actual.has(photoId)),
+    unexpected = analysis.map(item => item.photoId).filter(photoId => !expected.has(photoId)),
+    duplicate = analysis.find((item, index) => analysis.findIndex(candidate => candidate.photoId === item.photoId) !== index)?.photoId;
+  if (missing.length || unexpected.length || duplicate) {
+    const details = [
+      missing.length ? `missing: ${missing.join(", ")}` : "",
+      unexpected.length ? `unexpected: ${unexpected.join(", ")}` : "",
+      duplicate ? `duplicate: ${duplicate}` : "",
+    ]
+      .filter(Boolean)
+      .join("; ");
+    throw new Error(`Contact-sheet analysis must return one result for every photo (${details}).`);
+  }
+  return analysis;
+}

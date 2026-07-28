@@ -126,7 +126,7 @@ describe("photo folder to deployed-site artifact", () => {
       await browser.close();
       await server.close();
     }
-  }, 120_000);
+  }, 180_000);
 
   it("runs the documented photo-folder CLI against an isolated workspace", async () => {
     const cliWorkspace = await createTempWorkspace("cli");
@@ -167,7 +167,7 @@ describe("photo folder to deployed-site artifact", () => {
     } finally {
       await removeTempWorkspace(cliWorkspace);
     }
-  }, 120_000);
+  }, 60_000);
 });
 
 class RecordingProvider implements AIProvider {

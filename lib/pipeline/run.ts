@@ -10,6 +10,7 @@ import { discoverPhotos, ingestPhotos } from "@/lib/photos/ingest";
 import { publishPhoto } from "@/lib/publishing/images";
 import { writeReports } from "@/lib/publishing/report";
 import { selectPhotos } from "@/lib/selection/select";
+import { requireCompleteContactSheetAnalysis } from "@/lib/schemas/analysis";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
 import { availableTripSlug } from "@/lib/trips/slug";
 import { syncPublishedAssets, tripAssetsDirectory } from "@/lib/trips/assets";
@@ -75,7 +76,7 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
       totalSheets = Math.ceil(candidates.length / 16),
       sheet = join(output, "contact-sheets", `sheet-${sheetNumber}.jpg`),
       cacheKey = createHash("sha256")
-        .update(`vision-v1:${process.env.OPENAI_VISION_MODEL ?? "mock"}:${sheetPhotos.map(p => p.hash).join(":")}`)
+        .update(`vision-v2:${process.env.OPENAI_VISION_MODEL ?? "mock"}:${sheetPhotos.map(p => p.hash).join(":")}`)
         .digest("hex"),
       analysisCache = join(cache, `${cacheKey}-vision.json`);
     dependencies.onProgress?.({
@@ -90,14 +91,21 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
           .catch(() => undefined);
     if (!analysis) {
       await buildContactSheet(sheetPhotos, sheet);
-      analysis = await provider.analyzeContactSheet(
-        sheet,
-        sheetPhotos.map(p => p.id)
+      analysis = requireCompleteContactSheetAnalysis(
+        await provider.analyzeContactSheet(
+          sheet,
+          sheetPhotos.map(p => p.id)
+        ),
+        sheetPhotos.map(photo => photo.id)
       );
       await writeFile(analysisCache, JSON.stringify(analysis));
       apiCalls++;
     }
-    for (const item of analysis) {
+    const completeAnalysis = requireCompleteContactSheetAnalysis(
+      analysis,
+      sheetPhotos.map(photo => photo.id)
+    );
+    for (const item of completeAnalysis) {
       const photo = photos.find(p => p.id === item.photoId);
       if (photo) photo.semantic = item;
     }

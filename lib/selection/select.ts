@@ -13,10 +13,18 @@ export function selectPhotos(photos: PhotoRecord[], people: "include" | "exclude
         reasons[photo.id] = photo.rejectionReasons.join("; ");
         return false;
       }
-      if (people === "exclude" && photo.semantic?.containsPeople) {
-        photo.rejectionReasons.push("Visible people excluded by privacy mode");
-        reasons[photo.id] = photo.rejectionReasons[0]!;
-        return false;
+      if (people === "exclude") {
+        const semantic = photo.semantic;
+        if (!semantic) {
+          photo.rejectionReasons.push("People-safety analysis is unavailable");
+          reasons[photo.id] = photo.rejectionReasons[0]!;
+          return false;
+        }
+        if (semantic.containsPeople) {
+          photo.rejectionReasons.push("Visible people excluded by privacy mode");
+          reasons[photo.id] = photo.rejectionReasons[0]!;
+          return false;
+        }
       }
       return true;
     })
