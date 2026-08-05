@@ -23,7 +23,7 @@
   "type": "module",
   "packageManager": "pnpm@11.13.1",
   "engines": {
-    "node": ">=20"
+    "node": ">=24.18.0 <25"
   },
   "bin": {
     "wanderpage": "./bin/wanderpage.js"
@@ -158,7 +158,7 @@
     "*.{json,md,yml,yaml}": "prettier --write"
   },
   "volta": {
-    "node": "20.11.1"
+    "node": "24.18.0"
   },
   "size-limit": [
     {
