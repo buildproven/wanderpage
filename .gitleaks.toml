@@ -18,8 +18,10 @@ id = "env-secret"
 regex = '''(?i)(api_key|secret|password|token)\s*=\s*['""][^'"\s]{10,}['""]'''
 tags = ["env", "secret"]
 
-# Allow only explicit placeholder values and generated dependency/build trees.
+# Allow only explicit placeholder values, generated dependency/build trees, and
+# the pinned third-party claude-kit submodule. First-party Wanderpage files
+# remain subject to every default and custom secret rule.
 [allowlist]
-description = "Placeholders and generated files"
+description = "Placeholders, generated files, and vendored tooling"
 regexes = ['''test_secret_.*|example_.*|dummy_.*|fake_.*|EXAMPLE_.*|your_.*_here|replace_with_.*''']
-paths = ['''(^|/)(\.gitleaksignore|node_modules/|dist/|build/|\.next/|coverage/)''']
+paths = ['''(^|/)(\.gitleaksignore|\.claude-kit/|node_modules/|dist/|build/|\.next/|coverage/)''']
