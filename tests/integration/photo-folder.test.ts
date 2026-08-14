@@ -91,10 +91,13 @@ describe("photo folder to deployed-site artifact", () => {
       maxBuffer: 10_000_000,
     });
     const exported = join(workspace, "public"),
-      privacy = await validateStaticExport(exported, ["integration-secret-that-must-not-leak"]);
-    expect(privacy.errors).toEqual([]);
+      manifestOutput = join(workspace, "data/trips"),
+      assetPrivacy = await validateStaticExport(exported, ["integration-secret-that-must-not-leak"]),
+      manifestPrivacy = await validateStaticExport(manifestOutput, ["integration-secret-that-must-not-leak"]);
+    expect([...assetPrivacy.errors, ...manifestPrivacy.errors]).toEqual([]);
     expect(await directoryBytes(exported)).toBeLessThan(90 * 1024 * 1024);
     await expectTextAbsent(exported, ["45.882", "-123.962", "Wanderpage Integration Camera"]);
+    await expectTextAbsent(manifestOutput, ["45.882", "-123.962", "Wanderpage Integration Camera"]);
 
     const server = await nextServer(workspace),
       browser = await chromium.launch({ headless: true });
@@ -161,8 +164,9 @@ describe("photo folder to deployed-site artifact", () => {
         env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", WANDERPAGE_WORKSPACE: cliWorkspace },
         maxBuffer: 10_000_000,
       });
-      const privacy = await validateStaticExport(join(cliWorkspace, "public"));
-      expect(privacy.errors).toEqual([]);
+      const assetPrivacy = await validateStaticExport(join(cliWorkspace, "public")),
+        manifestPrivacy = await validateStaticExport(join(cliWorkspace, "data/trips"));
+      expect([...assetPrivacy.errors, ...manifestPrivacy.errors]).toEqual([]);
     } finally {
       await removeTempWorkspace(cliWorkspace);
     }

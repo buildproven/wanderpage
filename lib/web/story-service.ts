@@ -261,22 +261,30 @@ export class StoryService {
     } catch {
       throw new StoryServiceError("INVALID_STATE", "This draft failed its final privacy validation and cannot be published.");
     }
-    return this.repository.saveStory(
-      {
-        ...story,
-        status: "published",
-        publicSlug: story.publicSlug ?? `${slug(story.title)}-${randomBytes(5).toString("hex")}`,
-        publishedAt: this.now(),
-        updatedAt: this.now(),
-      },
-      story.version
-    );
+    try {
+      return await this.repository.saveStory(
+        {
+          ...story,
+          status: "published",
+          publicSlug: story.publicSlug ?? `${slug(story.title)}-${randomBytes(5).toString("hex")}`,
+          publishedAt: this.now(),
+          updatedAt: this.now(),
+        },
+        story.version
+      );
+    } catch (error) {
+      throw publicationError(error);
+    }
   }
 
   async unpublish(rawSecret: string, storyId: string) {
     const story = await this.getOwnedStory(rawSecret, storyId);
     if (story.status !== "published") throw new StoryServiceError("INVALID_STATE", "Only a published story can be unpublished.");
-    return this.repository.saveStory({ ...story, status: "draft", updatedAt: this.now() }, story.version);
+    try {
+      return await this.repository.saveStory({ ...story, status: "draft", updatedAt: this.now() }, story.version);
+    } catch (error) {
+      throw publicationError(error);
+    }
   }
 
   async prepareDelete(rawSecret: string, storyId: string) {
@@ -319,6 +327,12 @@ function hostedRunId(story: Story) {
   if (!path) return undefined;
   const [, runId] = decodeURIComponent(path.split("/").at(-1) ?? "").split("--");
   return runId || undefined;
+}
+
+function publicationError(error: unknown) {
+  if (error instanceof Error && error.message === "STORY_VERSION_CONFLICT")
+    return new StoryServiceError("STORY_VERSION_CONFLICT", "This story changed in another tab. Reload and try again.");
+  return error;
 }
 
 function positiveInteger(value: string | undefined, fallback: number) {

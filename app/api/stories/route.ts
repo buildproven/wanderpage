@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiError, data, privateHeaders } from "@/lib/web/http";
 import { getStoryService } from "@/lib/web/runtime";
-import { admissionKey, assertInitialRequest, ownerSecret, setOwnerCookie } from "@/lib/web/session";
+import { admissionKey, assertInitialRequest, assertMutationRequest, ownerSecret, setOwnerCookie } from "@/lib/web/session";
 import { StoryServiceError } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes } from "@/lib/web/types";
 import { storyDto } from "@/lib/web/dto";
@@ -20,14 +20,16 @@ export async function POST(request: Request) {
     const input = createSchema.parse(await request.json()),
       stories = getStoryService();
     let secret = await ownerSecret(),
-      created;
+      created,
+      existingSession;
     try {
-      await stories.requireSession(secret);
+      existingSession = await stories.requireSession(secret);
     } catch (error) {
       if (!(error instanceof StoryServiceError) || error.code !== "AUTH_REQUIRED") throw error;
       created = await stories.createSessionWithStory(input, admissionKey(request));
       secret = created.rawSecret;
     }
+    if (existingSession) assertMutationRequest(request, existingSession);
     if (!secret) throw new Error("Owner session could not be established.");
     const story = created?.story ?? (await stories.createStory(secret, input, admissionKey(request))),
       session = await stories.requireSession(secret),
@@ -44,7 +46,10 @@ export async function GET() {
     const stories = getStoryService(),
       secret = await ownerSecret();
     if (!secret) throw new StoryServiceError("AUTH_REQUIRED", "Start a private Wanderpage story to see your drafts.");
-    return data({ stories: (await stories.listOwnedStories(secret)).map(storyDto) }, 200, { headers: privateHeaders() });
+    const session = await stories.requireSession(secret);
+    return data({ stories: (await stories.listOwnedStories(secret)).map(storyDto), csrfToken: session.csrfToken }, 200, {
+      headers: privateHeaders(),
+    });
   } catch (error) {
     return apiError(error);
   }

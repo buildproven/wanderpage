@@ -1,7 +1,7 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { currentDisclosureVersion } from "@/lib/consent";
 
 const termsVersion = currentDisclosureVersion;
@@ -18,6 +18,12 @@ export default function WebCreator() {
     [message, setMessage] = useState<string>(),
     [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    void request<{ csrfToken: string }>("/api/stories", { method: "GET" })
+      .then(result => setCsrfToken(result.csrfToken))
+      .catch(() => undefined);
+  }, []);
+
   async function createAndUpload() {
     if (!accepted || files.length < 6 || files.length > 60 || !title.trim()) return;
     setBusy(true);
@@ -25,6 +31,7 @@ export default function WebCreator() {
     try {
       const created = await request<{ story: Story; csrfToken: string }>("/api/stories", {
         method: "POST",
+        headers: csrfToken ? { "x-wanderpage-csrf": csrfToken } : undefined,
         body: JSON.stringify({ title, peopleMode, locationPrivacy, termsVersion, uploadConsentVersion: termsVersion }),
       });
       setStory(created.story);

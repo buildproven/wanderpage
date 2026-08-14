@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { OwnerSession } from "@/lib/web/types";
 
 export const ownerCookieName = "wanderpage_owner";
@@ -23,7 +24,7 @@ export function assertMutationRequest(request: Request, session: OwnerSession) {
     expectedOrigin = new URL(request.url).origin,
     csrf = request.headers.get(csrfHeaderName);
   if (origin && origin !== expectedOrigin) throw new Error("FORBIDDEN_ORIGIN");
-  if (!csrf || csrf !== session.csrfToken) throw new Error("CSRF_INVALID");
+  if (!csrf || !safeEqual(csrf, session.csrfToken)) throw new Error("CSRF_INVALID");
 }
 
 export function assertInitialRequest(request: Request) {
@@ -45,4 +46,9 @@ export function admissionKey(request: Request) {
 }
 
 export { csrfHeaderName };
-import { createHmac } from "node:crypto";
+
+function safeEqual(left: string, right: string) {
+  const a = Buffer.from(left),
+    b = Buffer.from(right);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
