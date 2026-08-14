@@ -4,7 +4,7 @@ Wanderpage turns travel photos into a private, cinematic story. The browser flow
 
 ## Hosted browser app
 
-Deploy the server-backed Next.js application to Vercel, connect a private Vercel Blob store and Neon Postgres database, apply [`db/migrations/0001_web_story_creator.sql`](db/migrations/0001_web_story_creator.sql), then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs.
+Deploy the server-backed Next.js application to Vercel, connect a private Vercel Blob store and Neon Postgres database, and apply every SQL file in [`db/migrations`](db/migrations) in numeric order inside one deployment transaction. Then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, `WANDERPAGE_GENERATION_ENABLED=true`, `WANDERPAGE_DAILY_GENERATION_LIMIT`, `CRON_SECRET`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs.
 
 This does not require Stripe, payments, a native app, or an Apple developer account. The detailed privacy, ownership, retention, and deployment decisions are recorded in [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
 
@@ -50,6 +50,7 @@ pnpm trip --input "/absolute/path/to/vacation-photos" --people include --title "
 pnpm trip:list
 pnpm trip:publish oregon-coast-2026
 pnpm build
+pnpm static:export
 pnpm preview
 ```
 
@@ -90,7 +91,7 @@ pnpm test:e2e
 
 `pnpm test` includes a fixture-driven integration test that creates a temporary nested photo folder with JPEG, WebP, duplicate, EXIF/GPS, and (on macOS) HEIC inputs. It runs the production pipeline, builds an isolated static Next.js export, applies the privacy and 90 MB budget checks, then opens the generated story in Chromium. Temporary originals and outputs are removed after the run.
 
-`pnpm privacy` validates an existing local static export under `out/`. The server-mode `pnpm build` does not create that directory, so the default test gate relies on the isolated static-export integration test instead of stale workspace output.
+`pnpm build` creates the hosted server application. `pnpm static:export` creates the local-only rollback site under `out/` in an isolated build workspace that excludes hosted API routes. `pnpm privacy` validates that exact artifact. The required `pnpm test` gate rebuilds and validates both server and static modes before browser tests.
 
 The external OpenAI path is an explicit paid/network smoke test rather than part of every local test run:
 

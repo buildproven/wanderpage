@@ -27,7 +27,7 @@ export async function processStory(story: Story, uploads: StoryUpload[]) {
         people: story.peopleMode,
         title: story.title,
         maxPhotos: 36,
-        privacy: "approximate",
+        privacy: story.locationPrivacy,
         force: true,
         dryRun: false,
         demo: false,
@@ -92,10 +92,19 @@ export function applyLocationPrivacy(manifest: TripManifest, privacy: Story["loc
   if (privacy === "hidden")
     return {
       ...manifest,
+      subtitle: "A private photographic story.",
+      opening: "The photographs are presented without location details.",
+      closing: "The story ends without disclosing where the photographs were made.",
+      stats: manifest.stats.filter(stat => !/place|destination|route|distance|location/i.test(stat.label)),
       destinations: [],
       route: [],
-      chapters: manifest.chapters.map(removeDestinationId),
-      photos: manifest.photos.map(removeDestinationId),
+      chapters: manifest.chapters.map(chapter => ({
+        ...removeDestinationId(chapter),
+        title: `Chapter ${manifest.chapters.indexOf(chapter) + 1}`,
+        narrative: "A sequence assembled from the selected photographs.",
+      })),
+      photos: manifest.photos.map(photo => ({ ...removeDestinationId(photo), alt: "Selected travel photograph.", caption: undefined })),
+      sources: [],
     };
   const destinations = manifest.destinations.map(destination => ({
     ...destination,
@@ -106,6 +115,7 @@ export function applyLocationPrivacy(manifest: TripManifest, privacy: Story["loc
     ...manifest,
     destinations,
     route: [],
+    sources: [],
   };
 }
 

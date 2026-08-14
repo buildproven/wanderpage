@@ -108,12 +108,32 @@ describe("web story service", () => {
   });
 
   it("fails closed before queueing when generation is disabled", async () => {
-    const { repository, service } = fixture({ enabled: false, dailyLimit: 25 }),
+    const policy = { enabled: true, dailyLimit: 25 },
+      { repository, service } = fixture(policy),
       owner = await service.createSession(input),
       story = await service.createStory(owner.rawSecret, input);
     await addConfirmedUploads(repository, story.id);
+    policy.enabled = false;
     await expect(service.queueGeneration(owner.rawSecret, story.id, "client-a")).rejects.toMatchObject({ code: "INVALID_STATE" });
     expect((await repository.findStory(story.id))?.status).toBe("uploading");
+  });
+
+  it("limits story creation per owner and renews active session expiry", async () => {
+    let now = new Date("2026-08-13T00:00:00Z");
+    const repository = new MemoryStoryRepository(),
+      service = new StoryService(
+        repository,
+        { start: async () => ({ workflowRunId: "workflow" }) },
+        () => now,
+        secret => hashSecret(secret, "test-pepper"),
+        () => ({ enabled: true, dailyLimit: 25 })
+      ),
+      owner = await service.createSession(input);
+    for (let index = 0; index < 3; index++) await service.createStory(owner.rawSecret, { ...input, title: `Story ${index}` }, "client-a");
+    await expect(service.createStory(owner.rawSecret, input, "client-a")).rejects.toMatchObject({ code: "INVALID_STATE" });
+    now = new Date("2026-09-10T00:00:00Z");
+    const renewed = await service.requireSession(owner.rawSecret);
+    expect(renewed.expiresAt.toISOString()).toBe("2026-10-10T00:00:00.000Z");
   });
 });
 

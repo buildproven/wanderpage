@@ -1,4 +1,13 @@
-import type { GenerationLimits, OwnerSession, Story, StoryRepository, StoryRun, StoryUpload, UploadLimits } from "@/lib/web/types";
+import type {
+  GenerationLimits,
+  OwnerSession,
+  Story,
+  StoryCreationLimits,
+  StoryRepository,
+  StoryRun,
+  StoryUpload,
+  UploadLimits,
+} from "@/lib/web/types";
 
 export class MemoryStoryRepository implements StoryRepository {
   private readonly sessions = new Map<string, OwnerSession>();
@@ -18,13 +27,23 @@ export class MemoryStoryRepository implements StoryRepository {
     return session ? clone(session) : undefined;
   }
 
-  async touchSession(id: string, lastSeenAt: Date) {
+  async touchSession(id: string, lastSeenAt: Date, expiresAt: Date) {
     const session = this.sessions.get(id);
     if (!session) return;
     session.lastSeenAt = new Date(lastSeenAt);
+    session.expiresAt = new Date(expiresAt);
   }
 
   async createStory(story: Story) {
+    this.stories.set(story.id, clone(story));
+  }
+
+  async createStoryAdmitted(story: Story, limits: StoryCreationLimits) {
+    const recent = [...this.stories.values()].filter(value => value.createdAt >= limits.since);
+    if (recent.filter(value => value.ownerSessionId === story.ownerSessionId).length >= limits.sessionStories)
+      throw new Error("SESSION_STORY_LIMIT");
+    if (story.admissionKey && recent.filter(value => value.admissionKey === story.admissionKey).length >= limits.clientStories)
+      throw new Error("CLIENT_STORY_LIMIT");
     this.stories.set(story.id, clone(story));
   }
 
@@ -84,6 +103,18 @@ export class MemoryStoryRepository implements StoryRepository {
     this.runs.set(run.id, clone(run));
   }
 
+  async completeRun(story: Story, run: StoryRun, manifest: Story["manifest"], now: Date) {
+    const currentStory = this.stories.get(story.id),
+      currentRun = this.runs.get(run.id);
+    if (!currentStory || !currentRun || currentStory.version !== story.version || currentStory.activeRunId !== run.id)
+      throw new Error("RUN_STATE_CONFLICT");
+    this.stories.set(
+      story.id,
+      clone({ ...story, status: "draft", manifest, activeRunId: undefined, updatedAt: now, version: story.version + 1 })
+    );
+    this.runs.set(run.id, clone({ ...run, status: "complete", stage: "complete", progress: 100, finishedAt: now, updatedAt: now }));
+  }
+
   async createUpload(upload: StoryUpload) {
     this.uploads.set(upload.id, clone(upload));
   }
@@ -113,7 +144,13 @@ export class MemoryStoryRepository implements StoryRepository {
     return [...this.uploads.values()]
       .filter(upload => {
         const story = this.stories.get(upload.storyId);
-        return (upload.status === "reserved" || upload.status === "confirmed") && !!story && story.sourceExpiresAt <= now;
+        return (
+          (upload.status === "reserved" || upload.status === "confirmed") &&
+          !!story &&
+          story.status !== "queued" &&
+          story.status !== "processing" &&
+          story.sourceExpiresAt <= now
+        );
       })
       .slice(0, limit)
       .map(upload => clone(upload));

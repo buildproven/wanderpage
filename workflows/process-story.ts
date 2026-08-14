@@ -66,8 +66,7 @@ async function completeProcessing(storyId: string, runId: string, manifest: Awai
   if (!story || !run || story.activeRunId !== runId || story.status !== "processing")
     throw new FatalError("Story run is no longer eligible for completion.");
   const now = new Date();
-  await repository.saveStory({ ...story, status: "draft", manifest, activeRunId: undefined, updatedAt: now }, story.version);
-  await repository.saveRun({ ...run, status: "complete", stage: "complete", progress: 100, finishedAt: now, updatedAt: now });
+  await repository.completeRun(story, run, manifest, now);
 }
 
 async function recordFailure(storyId: string, runId: string, error: unknown) {

@@ -6,17 +6,24 @@ export const ownerCookieName = "wanderpage_owner";
 const csrfHeaderName = "x-wanderpage-csrf";
 
 export async function ownerSecret() {
-  return (await cookies()).get(ownerCookieName)?.value;
+  const store = await cookies(),
+    value = store.get(ownerCookieName)?.value;
+  if (value)
+    try {
+      store.set(ownerCookieName, value, ownerCookieOptions());
+    } catch {
+      // Server components cannot renew response cookies; the next route request will.
+    }
+  return value;
 }
 
 export function setOwnerCookie(response: NextResponse, secret: string, session: OwnerSession) {
-  response.cookies.set(ownerCookieName, secret, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    expires: session.expiresAt,
-  });
+  void session;
+  response.cookies.set(ownerCookieName, secret, ownerCookieOptions());
+}
+
+function ownerCookieOptions() {
+  return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 30 * 24 * 60 * 60 };
 }
 
 export function assertMutationRequest(request: Request, session: OwnerSession) {

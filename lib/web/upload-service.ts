@@ -26,6 +26,7 @@ export class UploadService {
   ) {}
 
   async reserve(rawSecret: string, value: unknown) {
+    this.stories.assertGenerationOpen();
     const request = requestSchema.parse(value),
       story = await this.stories.getOwnedStory(rawSecret, request.storyId);
     if (story.status !== "uploading") throw new StoryServiceError("INVALID_STATE", "Photos can only be added before generation starts.");
@@ -76,6 +77,7 @@ export class UploadService {
   }
 
   async authorize(rawSecret: string, payload: unknown, pathname: string) {
+    this.stories.assertGenerationOpen();
     const token = tokenPayloadSchema.parse(payload),
       upload = await this.repository.findUpload(token.uploadId),
       story = await this.stories.getOwnedStory(rawSecret, token.storyId);

@@ -52,7 +52,7 @@ export class OpenAIProvider implements AIProvider {
           {
             role: "system",
             content:
-              "Write concise factual travel editorial copy using only supplied evidence. Never invent memories, feelings, people, activities, or locations. Avoid clichés including unforgettable journey, hidden gem, and breathtaking. Alt text must describe only visible content.",
+              "Write concise factual travel editorial copy using only supplied evidence. Never invent memories, feelings, people, activities, or locations. Obey locationPrivacy: hidden means never name or imply any place; broad means use only supplied broadened region labels and never infer a more precise place. Avoid clichés including unforgettable journey, hidden gem, and breathtaking. Alt text must describe only visible content.",
           },
           { role: "user", content: context },
         ],

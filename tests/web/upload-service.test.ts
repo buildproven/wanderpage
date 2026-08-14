@@ -93,6 +93,12 @@ describe("web upload service", () => {
 function fixture() {
   const repository = new MemoryStoryRepository(),
     runner: StoryRunner = { start: async () => ({ workflowRunId: "workflow" }) },
-    stories = new StoryService(repository, runner, undefined, secret => hashSecret(secret, "test-pepper"));
+    stories = new StoryService(
+      repository,
+      runner,
+      undefined,
+      secret => hashSecret(secret, "test-pepper"),
+      () => ({ enabled: true, dailyLimit: 25 })
+    );
   return { stories, repository, uploads: new UploadService(repository, stories, undefined, async () => "image/jpeg") };
 }

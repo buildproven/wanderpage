@@ -24,6 +24,7 @@ export type OwnerSession = {
 export type Story = {
   id: string;
   ownerSessionId: string;
+  admissionKey?: string;
   publicSlug?: string;
   status: StoryStatus;
   title: string;
@@ -83,8 +84,9 @@ export type CreateStoryInput = {
 export type StoryRepository = {
   createSession(session: OwnerSession): Promise<void>;
   findSessionBySecretHash(secretHash: string): Promise<OwnerSession | undefined>;
-  touchSession(id: string, lastSeenAt: Date): Promise<void>;
+  touchSession(id: string, lastSeenAt: Date, expiresAt: Date): Promise<void>;
   createStory(story: Story): Promise<void>;
+  createStoryAdmitted(story: Story, limits: StoryCreationLimits): Promise<void>;
   findStory(id: string): Promise<Story | undefined>;
   findPublishedStoryBySlug(slug: string): Promise<Story | undefined>;
   listStories(ownerSessionId: string): Promise<Story[]>;
@@ -93,6 +95,7 @@ export type StoryRepository = {
   createRun(run: StoryRun): Promise<void>;
   findRun(id: string): Promise<StoryRun | undefined>;
   saveRun(run: StoryRun): Promise<void>;
+  completeRun(story: Story, run: StoryRun, manifest: TripManifest, now: Date): Promise<void>;
   createUpload(upload: StoryUpload): Promise<void>;
   reserveUpload(upload: StoryUpload, limits: UploadLimits): Promise<void>;
   findUpload(id: string): Promise<StoryUpload | undefined>;
@@ -112,6 +115,12 @@ export type GenerationLimits = {
 export type UploadLimits = {
   maxPhotos: number;
   maxBytes: number;
+};
+
+export type StoryCreationLimits = {
+  sessionStories: number;
+  clientStories: number;
+  since: Date;
 };
 
 export type StoryRunner = {

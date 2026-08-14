@@ -63,13 +63,16 @@ export class StoryService {
     const session = await this.repository.findSessionBySecretHash(this.secretHasher(rawSecret));
     if (!session || session.revokedAt || session.expiresAt <= this.now())
       throw new StoryServiceError("AUTH_REQUIRED", "Your private Wanderpage session has expired.");
-    await this.repository.touchSession(session.id, this.now());
-    return session;
+    const now = this.now(),
+      renewed = { ...session, lastSeenAt: now, expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) };
+    await this.repository.touchSession(session.id, renewed.lastSeenAt, renewed.expiresAt);
+    return renewed;
   }
 
-  async createStory(rawSecret: string, input: CreateStoryInput) {
+  async createStory(rawSecret: string, input: CreateStoryInput, admissionKey = "test-client") {
     const session = await this.requireSession(rawSecret),
       parsed = createSchema.safeParse(input);
+    this.assertGenerationOpen();
     if (!parsed.success) throw new StoryServiceError("VALIDATION_ERROR", "Check the story title and privacy choices.");
     if (session.termsVersion !== parsed.data.termsVersion || session.uploadConsentVersion !== parsed.data.uploadConsentVersion)
       throw new StoryServiceError("VALIDATION_ERROR", "Please start a new session after accepting the current upload terms.");
@@ -77,6 +80,7 @@ export class StoryService {
       story: Story = {
         id: randomUUID(),
         ownerSessionId: session.id,
+        admissionKey,
         status: "uploading",
         title: parsed.data.title,
         peopleMode: parsed.data.peopleMode,
@@ -87,8 +91,22 @@ export class StoryService {
         updatedAt: now,
         version: 0,
       };
-    await this.repository.createStory(story);
+    try {
+      await this.repository.createStoryAdmitted(story, {
+        sessionStories: 3,
+        clientStories: 6,
+        since: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+      });
+    } catch (error) {
+      if (error instanceof Error && ["SESSION_STORY_LIMIT", "CLIENT_STORY_LIMIT"].includes(error.message))
+        throw new StoryServiceError("INVALID_STATE", "The private story creation limit has been reached. Try again after it resets.");
+      throw error;
+    }
     return story;
+  }
+
+  assertGenerationOpen() {
+    if (!this.generationPolicy().enabled) throw new StoryServiceError("INVALID_STATE", "Story creation is temporarily unavailable.");
   }
 
   async getOwnedStory(rawSecret: string, storyId: string) {
@@ -142,6 +160,8 @@ export class StoryService {
     if (story.status !== "uploading" && story.status !== "failed")
       throw new StoryServiceError("INVALID_STATE", "This story is already queued or cannot be generated.");
     const confirmedUploads = (await this.repository.listUploads(story.id)).filter(upload => upload.status === "confirmed");
+    if (story.sourceExpiresAt <= this.now())
+      throw new StoryServiceError("INVALID_STATE", "These source photos have expired. Start a new private story.");
     if (confirmedUploads.length < minStoryPhotos)
       throw new StoryServiceError("VALIDATION_ERROR", `Add at least ${minStoryPhotos} completed photos before generating a story.`);
     const now = this.now(),
@@ -151,7 +171,7 @@ export class StoryService {
       const policy = this.generationPolicy();
       if (!policy.enabled) throw new StoryServiceError("INVALID_STATE", "Story generation is temporarily unavailable.");
       queued = await this.repository.queueRun(
-        { ...story, updatedAt: now, processorRevision },
+        { ...story, sourceExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), updatedAt: now, processorRevision },
         {
           id: runId,
           storyId: story.id,
