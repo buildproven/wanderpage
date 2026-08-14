@@ -1,10 +1,10 @@
-import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { replaceStaticOutput } from "@/lib/static-output";
 
-const root = resolve(process.env.WANDERPAGE_WORKSPACE ?? process.cwd()),
-  buildRoot = await mkdtemp(join(tmpdir(), "wanderpage-static-")),
+const root = await realpath(resolve(process.env.WANDERPAGE_WORKSPACE ?? process.cwd())),
+  buildRoot = await realpath(await mkdtemp(join(tmpdir(), "wanderpage-static-"))),
   output = join(root, "out");
 
 try {
@@ -19,7 +19,7 @@ try {
   await cp(join(root, "assets/static-trip-page.tsx"), join(buildRoot, "app/trips/[slug]/page.tsx"));
   for (const file of ["next-env.d.ts", "package.json", "postcss.config.mjs", "tsconfig.json"])
     await cp(join(root, file), join(buildRoot, file));
-  await symlink(join(root, "node_modules"), join(buildRoot, "node_modules"), "dir");
+  await symlink(relative(buildRoot, join(root, "node_modules")), join(buildRoot, "node_modules"), "dir");
   await writeFile(
     join(buildRoot, "next.config.mjs"),
     "export default { output: 'export', images: { unoptimized: true }, poweredByHeader: false };\n"
