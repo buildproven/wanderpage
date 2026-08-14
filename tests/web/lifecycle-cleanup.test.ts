@@ -24,6 +24,7 @@ describe("hosted lifecycle cleanup", () => {
         id: crypto.randomUUID(),
         storyId: story.id,
         processorRevision: "web-v1",
+        admittedAt: now,
         status: "queued",
         stage: "queued",
         progress: 0,
@@ -49,6 +50,7 @@ describe("hosted lifecycle cleanup", () => {
         id: crypto.randomUUID(),
         storyId: story.id,
         processorRevision: "web-v1",
+        admittedAt: now,
         status: "queued",
         stage: "queued",
         progress: 0,
@@ -78,6 +80,7 @@ describe("hosted lifecycle cleanup", () => {
         id: crypto.randomUUID(),
         storyId: story.id,
         processorRevision: "web-v1",
+        admittedAt: now,
         status: "processing",
         stage: "curating",
         progress: 5,
@@ -105,6 +108,7 @@ describe("hosted lifecycle cleanup", () => {
         id: crypto.randomUUID(),
         storyId: story.id,
         processorRevision: "web-v1",
+        admittedAt: now,
         status: "queued",
         stage: "queued",
         progress: 0,
@@ -138,6 +142,7 @@ describe("hosted lifecycle cleanup", () => {
         id: crypto.randomUUID(),
         storyId: story.id,
         processorRevision: "web-v1",
+        admittedAt: now,
         status: "complete",
         stage: "complete",
         progress: 100,
@@ -211,6 +216,7 @@ describe("hosted lifecycle cleanup", () => {
         storyId: story.id,
         processorRevision: "web-v1",
         admissionKey: "client-address-hash",
+        admittedAt: created,
         status: "complete",
         stage: "complete",
         progress: 100,
@@ -222,6 +228,35 @@ describe("hosted lifecycle cleanup", () => {
     await repository.createStory({ ...story, status: "published" });
     await repository.createRun(run);
     await expect(repository.clearExpiredAdmissionKeys(new Date("2026-08-14T00:00:01Z"))).resolves.toBe(2);
+    expect((await repository.findStory(story.id))?.admissionKey).toBeUndefined();
+    expect((await repository.findRun(run.id))?.admissionKey).toBeUndefined();
+  });
+
+  it("expires admission identifiers before unrelated cleanup can fail", async () => {
+    const repository = new MemoryStoryRepository(),
+      admittedAt = new Date("2026-08-13T00:00:00Z"),
+      now = new Date("2026-08-14T00:00:01Z"),
+      { session, story } = records("independent-admission-expiry", "client-address-hash", admittedAt),
+      run: StoryRun = {
+        id: crypto.randomUUID(),
+        storyId: story.id,
+        processorRevision: "web-v1",
+        admissionKey: "client-address-hash",
+        admittedAt,
+        status: "processing",
+        stage: "curating",
+        progress: 50,
+        attempts: 1,
+        sourceUploadIds: [],
+        updatedAt: now,
+      };
+    await repository.createSession(session);
+    await repository.createStory(story);
+    await repository.createRun(run);
+    vi.spyOn(repository, "listStoriesReadyForDeletion").mockResolvedValueOnce([story]);
+    vi.spyOn(repository, "listUploads").mockRejectedValueOnce(new Error("storage cleanup unavailable"));
+
+    await expect(cleanupExpiredPrivateStories(repository, now)).rejects.toThrow("storage cleanup unavailable");
     expect((await repository.findStory(story.id))?.admissionKey).toBeUndefined();
     expect((await repository.findRun(run.id))?.admissionKey).toBeUndefined();
   });

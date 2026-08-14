@@ -93,6 +93,7 @@ describe("source cleanup", () => {
       id: runId,
       storyId: story.id,
       processorRevision: "web-v1",
+      admittedAt: createdAt,
       status: "processing",
       stage: "curating",
       progress: 5,

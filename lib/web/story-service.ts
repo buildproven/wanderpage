@@ -197,6 +197,7 @@ export class StoryService {
           storyId: story.id,
           processorRevision,
           admissionKey,
+          admittedAt: now,
           status: "queued",
           stage: "queued",
           progress: 0,

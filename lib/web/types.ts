@@ -48,6 +48,7 @@ export type StoryRun = {
   workflowRunId?: string;
   processorRevision: string;
   admissionKey?: string;
+  admittedAt: Date;
   status: "queued" | "processing" | "complete" | "failed" | "cancelled";
   stage: string;
   progress: number;

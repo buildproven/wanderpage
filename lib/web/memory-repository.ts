@@ -88,7 +88,7 @@ export class MemoryStoryRepository implements StoryRepository {
     if (!current || current.version !== story.version) throw new Error("STORY_VERSION_CONFLICT");
     const confirmed = [...this.uploads.values()].filter(value => value.storyId === story.id && value.status === "confirmed");
     if (story.sourceExpiresAt <= limits.now || confirmed.length < limits.minPhotos) throw new Error("SOURCE_NOT_READY");
-    const recent = [...this.runs.values()].filter(value => value.updatedAt >= limits.since),
+    const recent = [...this.runs.values()].filter(value => value.admittedAt >= limits.since),
       sessionStoryIds = new Set(
         [...this.stories.values()].filter(value => value.ownerSessionId === story.ownerSessionId).map(value => value.id)
       );
@@ -270,7 +270,7 @@ export class MemoryStoryRepository implements StoryRepository {
         cleared += 1;
       }
     for (const [id, run] of this.runs)
-      if (run.admissionKey && run.updatedAt < before) {
+      if (run.admissionKey && run.admittedAt < before) {
         this.runs.set(id, { ...run, admissionKey: undefined });
         cleared += 1;
       }

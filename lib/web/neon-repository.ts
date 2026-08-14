@@ -125,15 +125,15 @@ export class NeonStoryRepository implements StoryRepository {
         SELECT s.* FROM stories s WHERE s.id = ${value.id} AND s.version = ${value.version} FOR UPDATE
       ), admitted AS MATERIALIZED (
         SELECT target.id FROM target CROSS JOIN admission_lock
-        WHERE (SELECT count(*) FROM story_runs WHERE updated_at >= ${limits.since}) < ${limits.globalStarts}
+        WHERE (SELECT count(*) FROM story_runs WHERE admitted_at >= ${limits.since}) < ${limits.globalStarts}
           AND (SELECT count(*) FROM story_runs r JOIN stories owned ON owned.id = r.story_id
-               WHERE owned.owner_session_id = target.owner_session_id AND r.updated_at >= ${limits.since}) < ${limits.sessionStarts}
-          AND (SELECT count(*) FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND updated_at >= ${limits.since}) < ${limits.clientStarts}
+               WHERE owned.owner_session_id = target.owner_session_id AND r.admitted_at >= ${limits.since}) < ${limits.sessionStarts}
+          AND (SELECT count(*) FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND admitted_at >= ${limits.since}) < ${limits.clientStarts}
           AND target.source_expires_at > ${limits.now}
           AND (SELECT count(*) FROM story_uploads WHERE story_id = target.id AND status = 'confirmed') >= ${limits.minPhotos}
       ), inserted AS (
-        INSERT INTO story_runs (id, story_id, processor_revision, admission_key, status, stage, progress, attempts, source_upload_ids, updated_at)
-        SELECT ${run.id}, ${run.storyId}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts},
+        INSERT INTO story_runs (id, story_id, processor_revision, admission_key, admitted_at, status, stage, progress, attempts, source_upload_ids, updated_at)
+        SELECT ${run.id}, ${run.storyId}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.admittedAt}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts},
           ARRAY(SELECT id FROM story_uploads WHERE story_id = ${run.storyId} AND status = 'confirmed' ORDER BY created_at), ${run.updatedAt}
         FROM admitted RETURNING id
       )
@@ -146,11 +146,11 @@ export class NeonStoryRepository implements StoryRepository {
     if (row) return story(row);
     const [current] = await this.sql`SELECT version, owner_session_id FROM stories WHERE id = ${value.id}`;
     if (!current || number(current, "version") !== value.version) throw new Error("STORY_VERSION_CONFLICT");
-    const [globalCount] = await this.sql`SELECT count(*)::int AS count FROM story_runs WHERE updated_at >= ${limits.since}`;
+    const [globalCount] = await this.sql`SELECT count(*)::int AS count FROM story_runs WHERE admitted_at >= ${limits.since}`;
     if (!globalCount) throw new Error("Generation admission query returned no result.");
     if (number(globalCount, "count") >= limits.globalStarts) throw new Error("GLOBAL_GENERATION_LIMIT");
     const [clientCount] = await this.sql`
-      SELECT count(*)::int AS count FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND updated_at >= ${limits.since}
+      SELECT count(*)::int AS count FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND admitted_at >= ${limits.since}
     `;
     if (clientCount && number(clientCount, "count") >= limits.clientStarts) throw new Error("CLIENT_GENERATION_LIMIT");
     const [sources] = await this.sql`
@@ -165,8 +165,8 @@ export class NeonStoryRepository implements StoryRepository {
 
   async createRun(run: StoryRun) {
     await this.sql`
-      INSERT INTO story_runs (id, story_id, workflow_run_id, processor_revision, admission_key, status, stage, progress, attempts, error_code, error_message, started_at, finished_at, source_upload_ids, updated_at)
-      VALUES (${run.id}, ${run.storyId}, ${run.workflowRunId ?? null}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.errorCode ?? null}, ${run.errorMessage ?? null}, ${run.startedAt ?? null}, ${run.finishedAt ?? null}, ${run.sourceUploadIds}, ${run.updatedAt})
+      INSERT INTO story_runs (id, story_id, workflow_run_id, processor_revision, admission_key, admitted_at, status, stage, progress, attempts, error_code, error_message, started_at, finished_at, source_upload_ids, updated_at)
+      VALUES (${run.id}, ${run.storyId}, ${run.workflowRunId ?? null}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.admittedAt}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.errorCode ?? null}, ${run.errorMessage ?? null}, ${run.startedAt ?? null}, ${run.finishedAt ?? null}, ${run.sourceUploadIds}, ${run.updatedAt})
     `;
   }
 
@@ -354,7 +354,7 @@ export class NeonStoryRepository implements StoryRepository {
       WITH cleared_stories AS (
         UPDATE stories SET admission_key = NULL WHERE admission_key IS NOT NULL AND created_at < ${before} RETURNING id
       ), cleared_runs AS (
-        UPDATE story_runs SET admission_key = NULL WHERE admission_key IS NOT NULL AND updated_at < ${before} RETURNING id
+        UPDATE story_runs SET admission_key = NULL WHERE admission_key IS NOT NULL AND admitted_at < ${before} RETURNING id
       )
       SELECT ((SELECT count(*) FROM cleared_stories) + (SELECT count(*) FROM cleared_runs))::int AS count
     `;
@@ -512,6 +512,7 @@ function run(row: Row): StoryRun {
     workflowRunId: optionalString(row, "workflow_run_id"),
     processorRevision: string(row, "processor_revision"),
     admissionKey: optionalString(row, "admission_key"),
+    admittedAt: date(row, "admitted_at"),
     status: string(row, "status") as StoryRun["status"],
     stage: string(row, "stage"),
     progress: number(row, "progress"),
