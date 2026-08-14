@@ -1,7 +1,11 @@
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { get, put } from "@vercel/blob";
+import pLimit from "p-limit";
 import sharp from "sharp";
 import { runTrip } from "@/lib/pipeline/run";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
@@ -15,7 +19,8 @@ export async function processStory(story: Story, uploads: StoryUpload[]) {
     const input = join(root, "input");
     await mkdir(join(root, "data", "trips"), { recursive: true });
     await mkdir(input, { recursive: true });
-    await Promise.all(confirmed.map(upload => downloadUpload(upload, input)));
+    const limit = pLimit(2);
+    await Promise.all(confirmed.map(upload => limit(() => downloadUpload(upload, input))));
     const result = await runTrip(
       {
         input,
@@ -41,7 +46,7 @@ async function downloadUpload(upload: StoryUpload, input: string) {
   if (!object || object.statusCode !== 200) throw new Error(`Private upload ${upload.id} is unavailable.`);
   const extension = extensionFor(upload.declaredType),
     destination = join(input, `${upload.id}${extension}`);
-  await writeFile(destination, Buffer.from(await new Response(object.stream).arrayBuffer()));
+  await pipeline(Readable.fromWeb(object.stream as never), createWriteStream(destination, { flags: "wx" }));
   const metadata = await sharp(destination).metadata();
   if (!metadata.width || !metadata.height || metadata.width * metadata.height > 80_000_000)
     throw new Error("An uploaded image is unreadable or exceeds the 80 megapixel limit.");
@@ -53,15 +58,17 @@ async function uploadDerivatives(root: string, slug: string, manifest: TripManif
     byName = new Map<string, string>();
   await Promise.all(
     names.map(async name => {
-      const pathname = `derivatives/${story.id}/${name}`;
+      if (!story.activeRunId) throw new Error("A processing story must identify its active run.");
+      const objectName = `${story.processorRevision}--${story.activeRunId}--${name}`,
+        pathname = `derivatives/${story.id}/${story.processorRevision}/${story.activeRunId}/${name}`;
       await put(pathname, await readFile(join(directory, name)), {
         access: "private",
         addRandomSuffix: false,
-        allowOverwrite: false,
+        allowOverwrite: true,
         contentType: "image/webp",
         cacheControlMaxAge: 60 * 60 * 24 * 365,
       });
-      byName.set(name, pathname);
+      byName.set(name, objectName);
     })
   );
   return TripManifestSchema.parse({

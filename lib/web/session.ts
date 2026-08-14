@@ -27,4 +27,15 @@ export function assertMutationRequest(request: Request, session: OwnerSession) {
   if (!csrf || csrf !== session.csrfToken) throw new Error("CSRF_INVALID");
 }
 
+export function admissionKey(request: Request) {
+  const pepper = process.env.WANDERPAGE_SESSION_PEPPER,
+    forwarded =
+      request.headers.get("x-vercel-forwarded-for") ??
+      (process.env.NODE_ENV === "production" ? undefined : request.headers.get("x-forwarded-for")),
+    address = forwarded?.split(",")[0]?.trim();
+  if (!pepper || !address) throw new Error("WANDERPAGE_SESSION_PEPPER and a trusted client address are required for admission.");
+  return createHmac("sha256", pepper).update(`generation:${address}`).digest("base64url");
+}
+
 export { csrfHeaderName };
+import { createHmac } from "node:crypto";

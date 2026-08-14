@@ -37,7 +37,8 @@ export class StoryService {
     private readonly repository: StoryRepository,
     private readonly runner: StoryRunner,
     private readonly now: () => Date = () => new Date(),
-    private readonly secretHasher: (secret: string) => string
+    private readonly secretHasher: (secret: string) => string,
+    private readonly generationPolicy: () => { enabled: boolean; dailyLimit: number } = environmentGenerationPolicy
   ) {}
 
   async createSession({ termsVersion, uploadConsentVersion }: Pick<CreateStoryInput, "termsVersion" | "uploadConsentVersion">) {
@@ -118,7 +119,17 @@ export class StoryService {
     const parsed = createSchema.safeParse({ ...changes, termsVersion: "existing", uploadConsentVersion: "existing" });
     if (!parsed.success) throw new StoryServiceError("VALIDATION_ERROR", "Check the story title and privacy choices.");
     try {
-      return await this.repository.saveStory({ ...story, ...changes, updatedAt: this.now() }, expectedVersion);
+      const policyChanged = story.peopleMode !== changes.peopleMode || story.locationPrivacy !== changes.locationPrivacy;
+      return await this.repository.saveStory(
+        {
+          ...story,
+          ...changes,
+          status: policyChanged && story.status === "draft" ? "uploading" : story.status,
+          manifest: policyChanged ? undefined : story.manifest,
+          updatedAt: this.now(),
+        },
+        expectedVersion
+      );
     } catch (error) {
       if (error instanceof Error && error.message === "STORY_VERSION_CONFLICT")
         throw new StoryServiceError("STORY_VERSION_CONFLICT", "This story changed in another tab. Reload and try again.");
@@ -126,7 +137,7 @@ export class StoryService {
     }
   }
 
-  async queueGeneration(rawSecret: string, storyId: string) {
+  async queueGeneration(rawSecret: string, storyId: string, admissionKey: string) {
     const story = await this.getOwnedStory(rawSecret, storyId);
     if (story.status !== "uploading" && story.status !== "failed")
       throw new StoryServiceError("INVALID_STATE", "This story is already queued or cannot be generated.");
@@ -137,25 +148,33 @@ export class StoryService {
       runId = randomUUID();
     let queued: Story;
     try {
-      queued = await this.repository.saveStory(
-        { ...story, status: "queued", activeRunId: runId, updatedAt: now, processorRevision },
-        story.version
+      const policy = this.generationPolicy();
+      if (!policy.enabled) throw new StoryServiceError("INVALID_STATE", "Story generation is temporarily unavailable.");
+      queued = await this.repository.queueRun(
+        { ...story, updatedAt: now, processorRevision },
+        {
+          id: runId,
+          storyId: story.id,
+          processorRevision,
+          admissionKey,
+          status: "queued",
+          stage: "queued",
+          progress: 0,
+          attempts: 0,
+          updatedAt: now,
+        },
+        { sessionStarts: 3, clientStarts: 6, globalStarts: policy.dailyLimit, since: new Date(now.getTime() - 24 * 60 * 60 * 1000) }
       );
     } catch (error) {
       if (error instanceof Error && error.message === "STORY_VERSION_CONFLICT")
         throw new StoryServiceError("STORY_VERSION_CONFLICT", "This story changed in another tab. Reload and try again.");
+      if (
+        error instanceof Error &&
+        ["GLOBAL_GENERATION_LIMIT", "SESSION_GENERATION_LIMIT", "CLIENT_GENERATION_LIMIT"].includes(error.message)
+      )
+        throw new StoryServiceError("INVALID_STATE", "The story generation limit has been reached. Try again after the limit resets.");
       throw error;
     }
-    await this.repository.createRun({
-      id: runId,
-      storyId: queued.id,
-      processorRevision,
-      status: "queued",
-      stage: "queued",
-      progress: 0,
-      attempts: 0,
-      updatedAt: now,
-    });
     try {
       const started = await this.runner.start(queued.id, runId),
         run = await this.repository.findRun(runId);
@@ -221,6 +240,19 @@ function slug(value: string) {
       .replace(/^-+|-+$/g, "")
       .slice(0, 48) || "wanderpage"
   );
+}
+
+function positiveInteger(value: string | undefined, fallback: number) {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new Error("WANDERPAGE_DAILY_GENERATION_LIMIT must be a positive integer.");
+  return parsed;
+}
+
+function environmentGenerationPolicy() {
+  return {
+    enabled: process.env.WANDERPAGE_GENERATION_ENABLED === "true",
+    dailyLimit: positiveInteger(process.env.WANDERPAGE_DAILY_GENERATION_LIMIT, 25),
+  };
 }
 
 void StoryStatuses;

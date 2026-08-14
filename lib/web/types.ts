@@ -45,6 +45,7 @@ export type StoryRun = {
   storyId: string;
   workflowRunId?: string;
   processorRevision: string;
+  admissionKey?: string;
   status: "queued" | "processing" | "complete" | "failed" | "cancelled";
   stage: string;
   progress: number;
@@ -88,13 +89,29 @@ export type StoryRepository = {
   findPublishedStoryBySlug(slug: string): Promise<Story | undefined>;
   listStories(ownerSessionId: string): Promise<Story[]>;
   saveStory(story: Story, expectedVersion: number): Promise<Story>;
+  queueRun(story: Story, run: StoryRun, limits: GenerationLimits): Promise<Story>;
   createRun(run: StoryRun): Promise<void>;
   findRun(id: string): Promise<StoryRun | undefined>;
   saveRun(run: StoryRun): Promise<void>;
   createUpload(upload: StoryUpload): Promise<void>;
+  reserveUpload(upload: StoryUpload, limits: UploadLimits): Promise<void>;
   findUpload(id: string): Promise<StoryUpload | undefined>;
   listUploads(storyId: string): Promise<StoryUpload[]>;
+  listExpiredSourceUploads(now: Date, limit: number): Promise<StoryUpload[]>;
   saveUpload(upload: StoryUpload): Promise<void>;
+  confirmUpload(upload: StoryUpload): Promise<void>;
+};
+
+export type GenerationLimits = {
+  sessionStarts: number;
+  clientStarts: number;
+  globalStarts: number;
+  since: Date;
+};
+
+export type UploadLimits = {
+  maxPhotos: number;
+  maxBytes: number;
 };
 
 export type StoryRunner = {

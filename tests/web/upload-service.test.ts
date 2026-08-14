@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MemoryStoryRepository } from "@/lib/web/memory-repository";
 import { hashSecret, StoryService, StoryServiceError } from "@/lib/web/story-service";
 import type { StoryRunner } from "@/lib/web/types";
-import { maxStoryPhotos, UploadService } from "@/lib/web/upload-service";
+import { detectImageType, maxStoryPhotos, UploadService } from "@/lib/web/upload-service";
 
 const input = {
   title: "Olympic Coast",
@@ -64,11 +64,35 @@ describe("web upload service", () => {
       uploads.reserve(owner.rawSecret, { storyId: story.id, originalName: "one-too-many.jpg", contentType: "image/jpeg", byteSize: 1024 })
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" } satisfies Partial<StoryServiceError>);
   });
+
+  it("verifies image bytes and rejects confirmation after generation starts", async () => {
+    const { stories, uploads, repository } = fixture(),
+      owner = await stories.createSession(input),
+      story = await stories.createStory(owner.rawSecret, input),
+      upload = await uploads.reserve(owner.rawSecret, {
+        storyId: story.id,
+        originalName: "seaside.jpg",
+        contentType: "image/jpeg",
+        byteSize: 1024,
+      });
+    const current = await repository.findStory(story.id);
+    if (!current) throw new Error("Fixture story disappeared");
+    await repository.saveStory({ ...current, status: "queued" }, current.version);
+    await expect(
+      uploads.confirm(JSON.parse(uploads.payload(upload)), { pathname: upload.blobPath, contentType: "image/jpeg" })
+    ).rejects.toThrow("no longer accepts");
+  });
+
+  it("detects supported image signatures instead of trusting content-type metadata", () => {
+    expect(detectImageType(Uint8Array.from([0xff, 0xd8, 0xff]))).toBe("image/jpeg");
+    expect(detectImageType(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe("image/png");
+    expect(() => detectImageType(new TextEncoder().encode("not an image"))).toThrow("supported image");
+  });
 });
 
 function fixture() {
   const repository = new MemoryStoryRepository(),
     runner: StoryRunner = { start: async () => ({ workflowRunId: "workflow" }) },
     stories = new StoryService(repository, runner, undefined, secret => hashSecret(secret, "test-pepper"));
-  return { stories, uploads: new UploadService(repository, stories) };
+  return { stories, repository, uploads: new UploadService(repository, stories, undefined, async () => "image/jpeg") };
 }

@@ -19,7 +19,10 @@ export async function GET(_request: Request, context: { params: Promise<{ storyI
     const requestedPath = `/api/media/${storyId}/${safeName}`;
     if (!story.manifest || !story.manifest.photos.some(photo => [photo.srcLarge, photo.srcMedium, photo.srcThumb].includes(requestedPath)))
       return new Response("Not found", { status: 404 });
-    const object = await get(`derivatives/${storyId}/${safeName}`, { access: "private" });
+    const [revision, runId, ...nameParts] = safeName.split("--"),
+      name = nameParts.join("--");
+    if (!revision || !runId || !name) return new Response("Not found", { status: 404 });
+    const object = await get(`derivatives/${storyId}/${revision}/${runId}/${name}`, { access: "private" });
     if (!object || object.statusCode !== 200) return new Response("Not found", { status: 404 });
     return new Response(object.stream, {
       headers: {

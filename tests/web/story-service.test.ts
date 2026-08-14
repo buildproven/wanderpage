@@ -46,7 +46,7 @@ describe("web story service", () => {
       owner = await service.createSession(input),
       story = await service.createStory(owner.rawSecret, input);
 
-    await expect(service.queueGeneration(owner.rawSecret, story.id)).rejects.toMatchObject({
+    await expect(service.queueGeneration(owner.rawSecret, story.id, "client-a")).rejects.toMatchObject({
       code: "VALIDATION_ERROR",
     } satisfies Partial<StoryServiceError>);
     for (let index = 0; index < minStoryPhotos; index++)
@@ -61,12 +61,12 @@ describe("web story service", () => {
         createdAt: new Date(),
         confirmedAt: new Date(),
       });
-    const queued = await service.queueGeneration(owner.rawSecret, story.id);
+    const queued = await service.queueGeneration(owner.rawSecret, story.id, "client-a");
 
     expect(queued.status).toBe("queued");
     expect(queued.activeRunId).toBeDefined();
     expect(starts).toEqual([{ storyId: story.id, runId: queued.activeRunId }]);
-    await expect(service.queueGeneration(owner.rawSecret, story.id)).rejects.toMatchObject({
+    await expect(service.queueGeneration(owner.rawSecret, story.id, "client-a")).rejects.toMatchObject({
       code: "INVALID_STATE",
     } satisfies Partial<StoryServiceError>);
   });
@@ -90,9 +90,34 @@ describe("web story service", () => {
     expect(published.publicSlug).toMatch(/^oregon-coast-[a-f0-9]{10}$/);
     expect((await service.unpublish(owner.rawSecret, draft.id)).status).toBe("draft");
   });
+
+  it("invalidates generated output when an owner changes a privacy policy", async () => {
+    const { service, repository } = fixture(),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input),
+      current = await repository.findStory(story.id);
+    if (!current) throw new Error("Fixture story disappeared");
+    const draft = await repository.saveStory({ ...current, status: "draft", manifest: demoManifest() }, current.version),
+      changed = await service.updateStory(owner.rawSecret, draft.id, draft.version, {
+        title: draft.title,
+        peopleMode: draft.peopleMode,
+        locationPrivacy: "hidden",
+      });
+    expect(changed).toMatchObject({ status: "uploading", manifest: undefined, locationPrivacy: "hidden" });
+    await expect(service.publish(owner.rawSecret, story.id)).rejects.toMatchObject({ code: "INVALID_STATE" });
+  });
+
+  it("fails closed before queueing when generation is disabled", async () => {
+    const { repository, service } = fixture({ enabled: false, dailyLimit: 25 }),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input);
+    await addConfirmedUploads(repository, story.id);
+    await expect(service.queueGeneration(owner.rawSecret, story.id, "client-a")).rejects.toMatchObject({ code: "INVALID_STATE" });
+    expect((await repository.findStory(story.id))?.status).toBe("uploading");
+  });
 });
 
-function fixture() {
+function fixture(policy = { enabled: true, dailyLimit: 25 }) {
   const repository = new MemoryStoryRepository(),
     starts: Array<{ storyId: string; runId: string | undefined }> = [],
     runner: StoryRunner = {
@@ -101,7 +126,32 @@ function fixture() {
         return { workflowRunId: `workflow-${runId}` };
       },
     };
-  return { repository, starts, service: new StoryService(repository, runner, undefined, secret => hashSecret(secret, "test-pepper")) };
+  return {
+    repository,
+    starts,
+    service: new StoryService(
+      repository,
+      runner,
+      undefined,
+      secret => hashSecret(secret, "test-pepper"),
+      () => policy
+    ),
+  };
+}
+
+async function addConfirmedUploads(repository: MemoryStoryRepository, storyId: string) {
+  for (let index = 0; index < minStoryPhotos; index++)
+    await repository.createUpload({
+      id: `f70c4a98-ec74-42b0-a1a9-d90e22c19d8${index}`,
+      storyId,
+      blobPath: `sources/${storyId}/extra-${index}`,
+      originalName: `extra-${index}.jpg`,
+      declaredType: "image/jpeg",
+      byteSize: 1024,
+      status: "confirmed",
+      createdAt: new Date(),
+      confirmedAt: new Date(),
+    });
 }
 
 function demoManifest() {

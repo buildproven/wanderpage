@@ -19,8 +19,9 @@ export async function processStoryWorkflow(storyId: string, runId: string) {
 async function deleteOriginalUploads(storyId: string, runId: string) {
   "use step";
   const repository = NeonStoryRepository.fromEnvironment(),
-    story = await repository.findStory(storyId);
-  if (!story || story.activeRunId === runId || story.status !== "draft") return;
+    story = await repository.findStory(storyId),
+    run = await repository.findRun(runId);
+  if (!story || !run || run.status !== "complete") return;
   const uploads = (await repository.listUploads(story.id)).filter(upload => upload.status === "confirmed");
   await Promise.all(uploads.map(upload => del(upload.blobPath)));
   const now = new Date();

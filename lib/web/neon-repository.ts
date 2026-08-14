@@ -1,5 +1,5 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import type { OwnerSession, Story, StoryRepository, StoryRun, StoryUpload } from "@/lib/web/types";
+import type { GenerationLimits, OwnerSession, Story, StoryRepository, StoryRun, StoryUpload, UploadLimits } from "@/lib/web/types";
 
 type Row = Record<string, unknown>;
 
@@ -67,10 +67,46 @@ export class NeonStoryRepository implements StoryRepository {
     return story(row);
   }
 
+  async queueRun(value: Story, run: StoryRun, limits: GenerationLimits) {
+    const rows = await this.sql`
+      WITH admission_lock AS MATERIALIZED (
+        SELECT pg_advisory_xact_lock(hashtext('wanderpage-generation-admission'))
+      ), target AS MATERIALIZED (
+        SELECT s.* FROM stories s WHERE s.id = ${value.id} AND s.version = ${value.version} FOR UPDATE
+      ), admitted AS MATERIALIZED (
+        SELECT target.id FROM target CROSS JOIN admission_lock
+        WHERE (SELECT count(*) FROM story_runs WHERE updated_at >= ${limits.since}) < ${limits.globalStarts}
+          AND (SELECT count(*) FROM story_runs r JOIN stories owned ON owned.id = r.story_id
+               WHERE owned.owner_session_id = target.owner_session_id AND r.updated_at >= ${limits.since}) < ${limits.sessionStarts}
+          AND (SELECT count(*) FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND updated_at >= ${limits.since}) < ${limits.clientStarts}
+      ), inserted AS (
+        INSERT INTO story_runs (id, story_id, processor_revision, admission_key, status, stage, progress, attempts, updated_at)
+        SELECT ${run.id}, ${run.storyId}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.updatedAt}
+        FROM admitted RETURNING id
+      )
+      UPDATE stories SET status = 'queued', active_run_id = ${run.id}, processor_revision = ${value.processorRevision},
+        updated_at = ${value.updatedAt}, version = version + 1
+      WHERE id = ${value.id} AND EXISTS (SELECT 1 FROM inserted)
+      RETURNING *
+    `;
+    const [row] = rows;
+    if (row) return story(row);
+    const [current] = await this.sql`SELECT version, owner_session_id FROM stories WHERE id = ${value.id}`;
+    if (!current || number(current, "version") !== value.version) throw new Error("STORY_VERSION_CONFLICT");
+    const [globalCount] = await this.sql`SELECT count(*)::int AS count FROM story_runs WHERE updated_at >= ${limits.since}`;
+    if (!globalCount) throw new Error("Generation admission query returned no result.");
+    if (number(globalCount, "count") >= limits.globalStarts) throw new Error("GLOBAL_GENERATION_LIMIT");
+    const [clientCount] = await this.sql`
+      SELECT count(*)::int AS count FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND updated_at >= ${limits.since}
+    `;
+    if (clientCount && number(clientCount, "count") >= limits.clientStarts) throw new Error("CLIENT_GENERATION_LIMIT");
+    throw new Error("SESSION_GENERATION_LIMIT");
+  }
+
   async createRun(run: StoryRun) {
     await this.sql`
-      INSERT INTO story_runs (id, story_id, workflow_run_id, processor_revision, status, stage, progress, attempts, error_code, error_message, started_at, finished_at, updated_at)
-      VALUES (${run.id}, ${run.storyId}, ${run.workflowRunId ?? null}, ${run.processorRevision}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.errorCode ?? null}, ${run.errorMessage ?? null}, ${run.startedAt ?? null}, ${run.finishedAt ?? null}, ${run.updatedAt})
+      INSERT INTO story_runs (id, story_id, workflow_run_id, processor_revision, admission_key, status, stage, progress, attempts, error_code, error_message, started_at, finished_at, updated_at)
+      VALUES (${run.id}, ${run.storyId}, ${run.workflowRunId ?? null}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.errorCode ?? null}, ${run.errorMessage ?? null}, ${run.startedAt ?? null}, ${run.finishedAt ?? null}, ${run.updatedAt})
     `;
   }
 
@@ -96,6 +132,31 @@ export class NeonStoryRepository implements StoryRepository {
     `;
   }
 
+  async reserveUpload(upload: StoryUpload, limits: UploadLimits) {
+    const rows = await this.sql`
+      WITH target AS MATERIALIZED (
+        SELECT id FROM stories WHERE id = ${upload.storyId} AND status = 'uploading' FOR UPDATE
+      ), capacity AS MATERIALIZED (
+        SELECT target.id FROM target WHERE
+          (SELECT count(*) FROM story_uploads WHERE story_id = target.id AND status IN ('reserved', 'confirmed')) < ${limits.maxPhotos}
+          AND (SELECT coalesce(sum(byte_size), 0) FROM story_uploads WHERE story_id = target.id AND status IN ('reserved', 'confirmed')) + ${upload.byteSize ?? 0} <= ${limits.maxBytes}
+      )
+      INSERT INTO story_uploads (id, story_id, blob_path, original_name, declared_type, byte_size, status, created_at)
+      SELECT ${upload.id}, ${upload.storyId}, ${upload.blobPath}, ${upload.originalName}, ${upload.declaredType}, ${upload.byteSize ?? null}, ${upload.status}, ${upload.createdAt}
+      FROM capacity RETURNING id
+    `;
+    if (rows.length) return;
+    const [current] = await this.sql`SELECT status FROM stories WHERE id = ${upload.storyId}`;
+    if (!current || string(current, "status") !== "uploading") throw new Error("UPLOAD_STATE_CONFLICT");
+    const [usage] = await this.sql`
+      SELECT count(*)::int AS count, coalesce(sum(byte_size), 0)::float8 AS bytes FROM story_uploads
+      WHERE story_id = ${upload.storyId} AND status IN ('reserved', 'confirmed')
+    `;
+    if (!usage) throw new Error("Upload capacity query returned no result.");
+    if (number(usage, "count") >= limits.maxPhotos) throw new Error("UPLOAD_COUNT_LIMIT");
+    throw new Error("UPLOAD_BYTES_LIMIT");
+  }
+
   async findUpload(id: string) {
     const [row] = await this.sql`SELECT * FROM story_uploads WHERE id = ${id} LIMIT 1`;
     return row ? upload(row) : undefined;
@@ -106,6 +167,15 @@ export class NeonStoryRepository implements StoryRepository {
     return rows.map(upload);
   }
 
+  async listExpiredSourceUploads(now: Date, limit: number) {
+    const rows = await this.sql`
+      SELECT u.* FROM story_uploads u JOIN stories s ON s.id = u.story_id
+      WHERE u.status IN ('reserved', 'confirmed') AND s.source_expires_at <= ${now}
+      ORDER BY s.source_expires_at ASC LIMIT ${limit}
+    `;
+    return rows.map(upload);
+  }
+
   async saveUpload(value: StoryUpload) {
     await this.sql`
       UPDATE story_uploads
@@ -113,6 +183,18 @@ export class NeonStoryRepository implements StoryRepository {
           status = ${value.status}, confirmed_at = ${value.confirmedAt ?? null}, deleted_at = ${value.deletedAt ?? null}
       WHERE id = ${value.id}
     `;
+  }
+
+  async confirmUpload(value: StoryUpload) {
+    const rows = await this.sql`
+      WITH target AS MATERIALIZED (
+        SELECT id FROM stories WHERE id = ${value.storyId} AND status = 'uploading' FOR UPDATE
+      )
+      UPDATE story_uploads SET detected_type = ${value.detectedType ?? null}, status = 'confirmed', confirmed_at = ${value.confirmedAt ?? null}
+      WHERE id = ${value.id} AND story_id IN (SELECT id FROM target) AND status = 'reserved'
+      RETURNING id
+    `;
+    if (!rows.length) throw new Error("UPLOAD_STATE_CONFLICT");
   }
 }
 
@@ -157,6 +239,7 @@ function run(row: Row): StoryRun {
     storyId: string(row, "story_id"),
     workflowRunId: optionalString(row, "workflow_run_id"),
     processorRevision: string(row, "processor_revision"),
+    admissionKey: optionalString(row, "admission_key"),
     status: string(row, "status") as StoryRun["status"],
     stage: string(row, "stage"),
     progress: number(row, "progress"),

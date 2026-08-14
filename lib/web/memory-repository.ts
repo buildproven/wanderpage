@@ -1,4 +1,4 @@
-import type { OwnerSession, Story, StoryRepository, StoryRun, StoryUpload } from "@/lib/web/types";
+import type { GenerationLimits, OwnerSession, Story, StoryRepository, StoryRun, StoryUpload, UploadLimits } from "@/lib/web/types";
 
 export class MemoryStoryRepository implements StoryRepository {
   private readonly sessions = new Map<string, OwnerSession>();
@@ -53,6 +53,24 @@ export class MemoryStoryRepository implements StoryRepository {
     return clone(saved);
   }
 
+  async queueRun(story: Story, run: StoryRun, limits: GenerationLimits) {
+    const current = this.stories.get(story.id);
+    if (!current || current.version !== story.version) throw new Error("STORY_VERSION_CONFLICT");
+    const recent = [...this.runs.values()].filter(value => value.updatedAt >= limits.since),
+      sessionStoryIds = new Set(
+        [...this.stories.values()].filter(value => value.ownerSessionId === story.ownerSessionId).map(value => value.id)
+      );
+    if (recent.length >= limits.globalStarts) throw new Error("GLOBAL_GENERATION_LIMIT");
+    if (recent.filter(value => sessionStoryIds.has(value.storyId)).length >= limits.sessionStarts)
+      throw new Error("SESSION_GENERATION_LIMIT");
+    if (run.admissionKey && recent.filter(value => value.admissionKey === run.admissionKey).length >= limits.clientStarts)
+      throw new Error("CLIENT_GENERATION_LIMIT");
+    const queued = clone({ ...story, status: "queued" as const, activeRunId: run.id, version: story.version + 1 });
+    this.stories.set(queued.id, queued);
+    this.runs.set(run.id, clone(run));
+    return clone(queued);
+  }
+
   async createRun(run: StoryRun) {
     this.runs.set(run.id, clone(run));
   }
@@ -70,6 +88,18 @@ export class MemoryStoryRepository implements StoryRepository {
     this.uploads.set(upload.id, clone(upload));
   }
 
+  async reserveUpload(upload: StoryUpload, limits: UploadLimits) {
+    const story = this.stories.get(upload.storyId);
+    if (!story || story.status !== "uploading") throw new Error("UPLOAD_STATE_CONFLICT");
+    const active = [...this.uploads.values()].filter(
+      value => value.storyId === upload.storyId && (value.status === "reserved" || value.status === "confirmed")
+    );
+    if (active.length >= limits.maxPhotos) throw new Error("UPLOAD_COUNT_LIMIT");
+    if (active.reduce((sum, value) => sum + (value.byteSize ?? 0), 0) + (upload.byteSize ?? 0) > limits.maxBytes)
+      throw new Error("UPLOAD_BYTES_LIMIT");
+    this.uploads.set(upload.id, clone(upload));
+  }
+
   async findUpload(id: string) {
     const upload = this.uploads.get(id);
     return upload ? clone(upload) : undefined;
@@ -79,7 +109,24 @@ export class MemoryStoryRepository implements StoryRepository {
     return [...this.uploads.values()].filter(upload => upload.storyId === storyId).map(upload => clone(upload));
   }
 
+  async listExpiredSourceUploads(now: Date, limit: number) {
+    return [...this.uploads.values()]
+      .filter(upload => {
+        const story = this.stories.get(upload.storyId);
+        return (upload.status === "reserved" || upload.status === "confirmed") && !!story && story.sourceExpiresAt <= now;
+      })
+      .slice(0, limit)
+      .map(upload => clone(upload));
+  }
+
   async saveUpload(upload: StoryUpload) {
+    this.uploads.set(upload.id, clone(upload));
+  }
+
+  async confirmUpload(upload: StoryUpload) {
+    const story = this.stories.get(upload.storyId),
+      current = this.uploads.get(upload.id);
+    if (!story || story.status !== "uploading" || !current || current.status !== "reserved") throw new Error("UPLOAD_STATE_CONFLICT");
     this.uploads.set(upload.id, clone(upload));
   }
 }
