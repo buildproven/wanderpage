@@ -1,4 +1,4 @@
-import { cp, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { replaceStaticOutput } from "@/lib/static-output";
@@ -12,6 +12,9 @@ try {
     await cp(join(root, directory), join(buildRoot, directory), { recursive: true });
   for (const serverOnly of ["app/.well-known", "app/api", "app/create", "app/stories", "app/s"])
     await rm(join(buildRoot, serverOnly), { recursive: true, force: true });
+  const layoutPath = join(buildRoot, "app/layout.tsx"),
+    layout = await readFile(layoutPath, "utf8");
+  await writeFile(layoutPath, layout.replace('export const dynamic = "force-dynamic";\n', ""));
   await rm(join(buildRoot, "lib/web"), { recursive: true, force: true });
   await cp(join(root, "assets/static-trip-page.tsx"), join(buildRoot, "app/trips/[slug]/page.tsx"));
   for (const file of ["next-env.d.ts", "package.json", "postcss.config.mjs", "tsconfig.json"])

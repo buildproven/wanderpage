@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// Hosted pages must render per request so Next can apply the proxy-generated
+// CSP nonce to its scripts. The rollback exporter removes this declaration in
+// its isolated copy because that artifact has no server or authenticated data.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Wanderpage — Your trip, edited into a story",
   description: "Turn a folder of vacation photos into a cinematic travel story—kept local until you choose to share it.",
