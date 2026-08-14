@@ -54,7 +54,7 @@
   "scripts": {
     "dev": "next dev",
     "studio": "tsx scripts/studio.ts",
-    "build": "next build",
+    "build": "next build --webpack",
     "static:export": "tsx scripts/static-export.ts",
     "preview": "next start",
     "trip": "tsx scripts/trip.ts",
