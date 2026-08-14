@@ -21,3 +21,4 @@ demo-photos/
 .vercel
 .lighthouseci/
 /.swc
+next-env.d.ts
