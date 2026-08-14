@@ -24,7 +24,7 @@ try {
     join(buildRoot, "next.config.mjs"),
     "export default { output: 'export', images: { unoptimized: true }, poweredByHeader: false };\n"
   );
-  await run("pnpm", ["exec", "next", "build", "--webpack", buildRoot], buildRoot);
+  await run(join(root, "node_modules/.bin/next"), ["build", "--webpack", buildRoot], buildRoot);
   await replaceStaticOutput(root, join(buildRoot, "out"));
   console.log(`Static rollback artifact: ${output}`);
 } finally {
