@@ -10,7 +10,7 @@ const execute = promisify(execFile);
 export const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export async function createTempWorkspace(label: string) {
-  return mkdtemp(join(tmpdir(), `wanderpage-${label}-`));
+  return mkdtemp(join(repoRoot, `.wanderpage-test-${label}-`));
 }
 
 export async function removeTempWorkspace(path: string) {
