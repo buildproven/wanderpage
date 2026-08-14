@@ -393,7 +393,10 @@ path, object URL, stack, and secret details never enter browser error messages.
 ## Retention and deletion
 
 - Original uploads are deleted immediately after a successful draft is
-  finalized, or no later than 24 hours after upload for failed/abandoned runs.
+  finalized. For this Vercel Hobby proof of concept, failed or abandoned source
+  uploads expire after 24 hours and are deleted by the daily cleanup job no
+  later than 48 hours after upload. The upload consent records this temporary
+  bound; a production launch restores hourly cleanup and the 24-hour maximum.
 - Superseded and abandoned staged derivatives are deleted within 24 hours.
 - Draft derivatives and records expire after 30 days of owner inactivity in the
   public trial; the UI shows the date.

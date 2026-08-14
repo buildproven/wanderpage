@@ -1,4 +1,4 @@
 {
   "cleanUrls": true,
-  "crons": [{ "path": "/api/cron/source-cleanup", "schedule": "17 * * * *" }]
+  "crons": [{ "path": "/api/cron/source-cleanup", "schedule": "17 3 * * *" }]
 }

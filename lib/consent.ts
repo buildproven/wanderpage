@@ -1,1 +1,1 @@
-export const currentDisclosureVersion = "2026-08-14-openai-retention-v1";
+export const currentDisclosureVersion = "2026-08-14-hobby-retention-v2";
