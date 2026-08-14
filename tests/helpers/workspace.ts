@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { cp, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import sharp from "sharp";
@@ -61,7 +61,11 @@ export async function createPhotoFolder(
 }
 
 export async function copySiteScaffold(workspace: string) {
-  for (const directory of ["app", "components", "lib", "workflows"])
+  await cp(join(repoRoot, "app"), join(workspace, "app"), {
+    recursive: true,
+    filter: source => !source.split(sep).includes(".well-known"),
+  });
+  for (const directory of ["components", "lib", "workflows"])
     await cp(join(repoRoot, directory), join(workspace, directory), { recursive: true });
   await cp(join(repoRoot, "public/trip/demo"), join(workspace, "public/trip/demo"), { recursive: true });
   await cp(join(repoRoot, "data/trip.demo.json"), join(workspace, "data/trip.demo.json"));
