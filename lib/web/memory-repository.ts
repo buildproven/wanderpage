@@ -269,6 +269,8 @@ export class MemoryStoryRepository implements StoryRepository {
       })
       .slice(0, limit);
     for (const story of candidates) {
+      const session = this.sessions.get(story.ownerSessionId);
+      if (session) session.revokedAt = now;
       this.stories.set(story.id, {
         ...story,
         status: "deleting",

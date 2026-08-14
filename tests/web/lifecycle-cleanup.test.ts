@@ -306,6 +306,17 @@ describe("hosted lifecycle cleanup", () => {
     await expect(repository.claimExpiredPrivateStories(boundary, created, 50)).resolves.toEqual([]);
   });
 
+  it("prevents renewal after cleanup wins an expired-session claim", async () => {
+    const repository = new MemoryStoryRepository(),
+      created = new Date("2026-07-01T00:00:00Z"),
+      boundary = new Date("2026-08-01T00:00:00Z"),
+      { session, story } = records("cleanup-first", "client", created);
+    await repository.createSession({ ...session, expiresAt: boundary });
+    await repository.createStory({ ...story, status: "draft" });
+    await expect(repository.claimExpiredPrivateStories(boundary, created, 50)).resolves.toHaveLength(1);
+    await expect(repository.renewSession(session.secretHash, boundary, new Date("2026-09-01T00:00:00Z"))).resolves.toBeUndefined();
+  });
+
   it("lets an authenticated operator immediately revoke a published story", async () => {
     const repository = new MemoryStoryRepository(),
       now = new Date("2026-08-13T00:00:00Z"),

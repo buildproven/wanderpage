@@ -326,17 +326,24 @@ export class NeonStoryRepository implements StoryRepository {
     void staleBefore;
     const rows = await this.sql`
       WITH candidates AS MATERIALIZED (
-        SELECT s.id FROM stories s JOIN owner_sessions o ON o.id = s.owner_session_id
+        SELECT s.id AS story_id, o.id AS owner_session_id FROM stories s JOIN owner_sessions o ON o.id = s.owner_session_id
         WHERE s.status NOT IN ('published', 'deleting', 'deleted')
-          AND o.expires_at <= ${now}
+          AND o.expires_at <= ${now} AND o.revoked_at IS NULL
         ORDER BY s.updated_at ASC FOR UPDATE OF s, o SKIP LOCKED LIMIT ${limit}
+      ), claimed_sessions AS (
+        UPDATE owner_sessions SET revoked_at = ${now}
+        WHERE id IN (SELECT owner_session_id FROM candidates) AND revoked_at IS NULL AND expires_at <= ${now}
+        RETURNING id
       ), cancelled AS (
         UPDATE story_runs SET status = 'cancelled', stage = 'retention-expired', finished_at = ${now}, updated_at = ${now}
-        WHERE story_id IN (SELECT id FROM candidates) AND status IN ('queued', 'processing') RETURNING id
+        WHERE story_id IN (SELECT story_id FROM candidates)
+          AND EXISTS (SELECT 1 FROM claimed_sessions)
+          AND status IN ('queued', 'processing') RETURNING id
       )
       UPDATE stories SET status = 'deleting', public_slug = NULL, active_run_id = NULL, delete_after = ${now},
         manifest = NULL, updated_at = ${now}, version = version + 1
-      WHERE id IN (SELECT id FROM candidates) RETURNING *
+      WHERE id IN (SELECT story_id FROM candidates)
+        AND owner_session_id IN (SELECT id FROM claimed_sessions) RETURNING *
     `;
     return rows.map(story);
   }
