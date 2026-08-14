@@ -65,7 +65,7 @@
     "deploy": "tsx scripts/deploy.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
-    "test": "pnpm test:unit && pnpm trip:demo && pnpm build && pnpm static:export && pnpm privacy && pnpm test:e2e",
+    "test": "vitest run && tsx scripts/trip.ts --demo && next build --webpack && tsx scripts/static-export.ts && tsx scripts/privacy-check.ts && playwright test",
     "test:unit": "vitest run",
     "test:live": "WANDERPAGE_LIVE_TEST=1 vitest run tests/live/openai-photo-folder.test.ts",
     "test:e2e": "playwright test",
