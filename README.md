@@ -1,6 +1,12 @@
 # Wanderpage
 
-Wanderpage is a free, local-first vacation story generator: point it at a photo folder and it builds a private, static, cinematic travel story. Originals are never modified. Published images are resized WebP files with metadata removed; public route coordinates are rounded; low-confidence locations are omitted or broadened; people are never identified.
+Wanderpage turns travel photos into a private, cinematic story. The browser flow at `/create` uploads files directly to private storage, creates a private draft, and only shares a story after its owner explicitly publishes it. Originals are never modified; generated WebP derivatives remove metadata; people are never identified.
+
+## Hosted browser app
+
+Deploy the server-backed Next.js application to Vercel, connect a private Vercel Blob store and Neon Postgres database, apply [`db/migrations/0001_web_story_creator.sql`](db/migrations/0001_web_story_creator.sql), then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs.
+
+This does not require Stripe, payments, a native app, or an Apple developer account. The detailed privacy, ownership, retention, and deployment decisions are recorded in [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
 
 ## Quickstart
 
@@ -67,7 +73,7 @@ pnpm build
 pnpm preview
 ```
 
-The exact static output is `out/`. Local-only reports are written under `.trip-output/`; cache artifacts live under `.trip-cache/`. Neither directory is exported.
+Local-only reports are written under `.trip-output/`; cache artifacts live under `.trip-cache/`. Neither directory is exposed by the hosted app.
 
 ## Quality gates
 
@@ -95,6 +101,9 @@ It sends a small contact sheet through the configured vision model using Structu
 ## Environment
 
 - `OPENAI_API_KEY`: required for real AI-backed generation and strict people exclusion.
+- `DATABASE_URL`: required for hosted owner sessions, stories, and runs.
+- `BLOB_READ_WRITE_TOKEN`: required for private direct uploads and private derivative delivery.
+- `WANDERPAGE_SESSION_PEPPER`: required to hash anonymous owner-session cookies; use a long, random value.
 - `OPENAI_VISION_MODEL`: defaults to `gpt-5.6-luna`.
 - `OPENAI_WRITER_MODEL`: defaults to `gpt-5.6-terra`.
 - `WIKIMEDIA_USER_AGENT`: descriptive API user agent.

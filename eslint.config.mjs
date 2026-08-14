@@ -5,5 +5,5 @@ import nextTs from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores([".claude-kit/**", ".next/**", "out/**", ".trip-cache/**", ".trip-output/**", "public/trip/**"]),
+  globalIgnores([".claude-kit/**", ".next/**", "app/.well-known/**", "out/**", ".trip-cache/**", ".trip-output/**", "public/trip/**"]),
 ]);

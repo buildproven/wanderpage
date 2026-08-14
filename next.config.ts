@@ -1,9 +1,9 @@
+import { withWorkflow } from "workflow/next";
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
-  output: "export",
   images: { unoptimized: true },
   poweredByHeader: false,
 };
 
-export default config;
+export default withWorkflow(config);

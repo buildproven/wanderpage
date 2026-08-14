@@ -1,0 +1,102 @@
+import type { TripManifest } from "@/lib/schemas/trip";
+
+export const StoryStatuses = ["uploading", "queued", "processing", "draft", "published", "failed", "deleting", "deleted"] as const;
+export type StoryStatus = (typeof StoryStatuses)[number];
+
+export const PeopleModes = ["include", "exclude"] as const;
+export type PeopleMode = (typeof PeopleModes)[number];
+
+export const LocationPrivacyModes = ["broad", "approximate", "hidden"] as const;
+export type LocationPrivacyMode = (typeof LocationPrivacyModes)[number];
+
+export type OwnerSession = {
+  id: string;
+  secretHash: string;
+  csrfToken: string;
+  createdAt: Date;
+  lastSeenAt: Date;
+  expiresAt: Date;
+  revokedAt?: Date;
+  termsVersion: string;
+  uploadConsentVersion: string;
+};
+
+export type Story = {
+  id: string;
+  ownerSessionId: string;
+  publicSlug?: string;
+  status: StoryStatus;
+  title: string;
+  peopleMode: PeopleMode;
+  locationPrivacy: LocationPrivacyMode;
+  manifest?: TripManifest;
+  processorRevision: string;
+  activeRunId?: string;
+  sourceExpiresAt: Date;
+  publishedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
+  version: number;
+};
+
+export type StoryRun = {
+  id: string;
+  storyId: string;
+  workflowRunId?: string;
+  processorRevision: string;
+  status: "queued" | "processing" | "complete" | "failed" | "cancelled";
+  stage: string;
+  progress: number;
+  attempts: number;
+  errorCode?: string;
+  errorMessage?: string;
+  startedAt?: Date;
+  finishedAt?: Date;
+  updatedAt: Date;
+};
+
+export type StoryUpload = {
+  id: string;
+  storyId: string;
+  blobPath: string;
+  originalName: string;
+  declaredType: "image/jpeg" | "image/png" | "image/webp";
+  detectedType?: string;
+  byteSize?: number;
+  sha256?: string;
+  status: "reserved" | "confirmed" | "rejected" | "deleted";
+  createdAt: Date;
+  confirmedAt?: Date;
+  deletedAt?: Date;
+};
+
+export type CreateStoryInput = {
+  title: string;
+  peopleMode: PeopleMode;
+  locationPrivacy: LocationPrivacyMode;
+  termsVersion: string;
+  uploadConsentVersion: string;
+};
+
+export type StoryRepository = {
+  createSession(session: OwnerSession): Promise<void>;
+  findSessionBySecretHash(secretHash: string): Promise<OwnerSession | undefined>;
+  touchSession(id: string, lastSeenAt: Date): Promise<void>;
+  createStory(story: Story): Promise<void>;
+  findStory(id: string): Promise<Story | undefined>;
+  findPublishedStoryBySlug(slug: string): Promise<Story | undefined>;
+  listStories(ownerSessionId: string): Promise<Story[]>;
+  saveStory(story: Story, expectedVersion: number): Promise<Story>;
+  createRun(run: StoryRun): Promise<void>;
+  findRun(id: string): Promise<StoryRun | undefined>;
+  saveRun(run: StoryRun): Promise<void>;
+  createUpload(upload: StoryUpload): Promise<void>;
+  findUpload(id: string): Promise<StoryUpload | undefined>;
+  listUploads(storyId: string): Promise<StoryUpload[]>;
+  saveUpload(upload: StoryUpload): Promise<void>;
+};
+
+export type StoryRunner = {
+  start(storyId: string, runId: string): Promise<{ workflowRunId: string }>;
+};

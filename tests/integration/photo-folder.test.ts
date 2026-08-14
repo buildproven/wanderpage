@@ -1,9 +1,8 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
 import { access, readdir, readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
-import { extname, join, normalize, relative } from "node:path";
+import { extname, join, relative } from "node:path";
 import { promisify } from "node:util";
 import { chromium } from "@playwright/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -91,13 +90,13 @@ describe("photo folder to deployed-site artifact", () => {
       env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", WANDERPAGE_WORKSPACE: workspace },
       maxBuffer: 10_000_000,
     });
-    const exported = join(workspace, "out"),
+    const exported = join(workspace, "public"),
       privacy = await validateStaticExport(exported, ["integration-secret-that-must-not-leak"]);
     expect(privacy.errors).toEqual([]);
     expect(await directoryBytes(exported)).toBeLessThan(90 * 1024 * 1024);
     await expectTextAbsent(exported, ["45.882", "-123.962", "Wanderpage Integration Camera"]);
 
-    const server = await staticServer(exported),
+    const server = await nextServer(workspace),
       browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } }),
@@ -162,7 +161,7 @@ describe("photo folder to deployed-site artifact", () => {
         env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", WANDERPAGE_WORKSPACE: cliWorkspace },
         maxBuffer: 10_000_000,
       });
-      const privacy = await validateStaticExport(join(cliWorkspace, "out"));
+      const privacy = await validateStaticExport(join(cliWorkspace, "public"));
       expect(privacy.errors).toEqual([]);
     } finally {
       await removeTempWorkspace(cliWorkspace);
@@ -267,23 +266,9 @@ async function expectTextAbsent(path: string, values: string[]): Promise<void> {
   }
 }
 
-async function staticServer(root: string) {
-  const server = createServer(async (request, response) => {
-    const requested = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname),
-      relative = requested === "/" ? "index.html" : requested.replace(/^\/+|\/+$/g, "");
-    const file = normalize(join(root, extname(relative) ? relative : `${relative}.html`));
-    if (!file.startsWith(`${normalize(root)}/`)) {
-      response.writeHead(403).end();
-      return;
-    }
-    try {
-      const metadata = await stat(file);
-      if (!metadata.isFile()) throw new Error("Not a file");
-      response.writeHead(200, { "Content-Type": mime(file) });
-      createReadStream(file).pipe(response);
-    } catch {
-      response.writeHead(404).end("Not found");
-    }
+async function nextServer(root: string) {
+  const server = createServer(async (_request, response) => {
+    response.writeHead(204).end();
   });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -291,25 +276,30 @@ async function staticServer(root: string) {
   });
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Static test server did not bind a TCP port");
-  return {
-    url: `http://127.0.0.1:${address.port}`,
-    close: () => new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve()))),
-  };
-}
-
-function mime(path: string) {
-  return (
-    (
-      {
-        ".html": "text/html; charset=utf-8",
-        ".js": "text/javascript",
-        ".css": "text/css",
-        ".json": "application/json",
-        ".svg": "image/svg+xml",
-        ".webp": "image/webp",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-      } as Record<string, string>
-    )[extname(path)] ?? "application/octet-stream"
-  );
+  const port = address.port;
+  await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
+  const child = spawn("pnpm", ["exec", "next", "start", root, "--port", String(port)], {
+    cwd: repoRoot,
+    env: { ...process.env, WANDERPAGE_WORKSPACE: root },
+    stdio: "ignore",
+  });
+  const url = `http://127.0.0.1:${port}`;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try {
+      if ((await fetch(url)).ok)
+        return {
+          url,
+          close: () =>
+            new Promise<void>(resolve => {
+              child.once("exit", () => resolve());
+              child.kill("SIGTERM");
+            }),
+        };
+    } catch {
+      // The server is still starting.
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  child.kill("SIGTERM");
+  throw new Error("Next test server did not become ready.");
 }

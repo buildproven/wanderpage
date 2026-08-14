@@ -39,7 +39,8 @@ export type RunDependencies = {
 };
 
 export async function runTrip(options: RunOptions, dependencies: RunDependencies = {}) {
-  const root = resolve(dependencies.root ?? process.env.WANDERPAGE_WORKSPACE ?? process.cwd());
+  // The web processor passes an isolated temporary workspace; Turbopack must not trace that runtime path.
+  const root = resolve(/* turbopackIgnore: true */ dependencies.root ?? process.env.WANDERPAGE_WORKSPACE ?? process.cwd());
   const cache = join(root, ".trip-cache"),
     output = join(root, ".trip-output"),
     generated = join(root, ".trip-assets");
