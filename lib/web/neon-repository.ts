@@ -132,8 +132,9 @@ export class NeonStoryRepository implements StoryRepository {
           AND target.source_expires_at > ${limits.now}
           AND (SELECT count(*) FROM story_uploads WHERE story_id = target.id AND status = 'confirmed') >= ${limits.minPhotos}
       ), inserted AS (
-        INSERT INTO story_runs (id, story_id, processor_revision, admission_key, status, stage, progress, attempts, updated_at)
-        SELECT ${run.id}, ${run.storyId}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.updatedAt}
+        INSERT INTO story_runs (id, story_id, processor_revision, admission_key, status, stage, progress, attempts, source_upload_ids, updated_at)
+        SELECT ${run.id}, ${run.storyId}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts},
+          ARRAY(SELECT id FROM story_uploads WHERE story_id = ${run.storyId} AND status = 'confirmed' ORDER BY created_at), ${run.updatedAt}
         FROM admitted RETURNING id
       )
       UPDATE stories SET status = 'queued', active_run_id = ${run.id}, processor_revision = ${value.processorRevision},
@@ -164,8 +165,8 @@ export class NeonStoryRepository implements StoryRepository {
 
   async createRun(run: StoryRun) {
     await this.sql`
-      INSERT INTO story_runs (id, story_id, workflow_run_id, processor_revision, admission_key, status, stage, progress, attempts, error_code, error_message, started_at, finished_at, updated_at)
-      VALUES (${run.id}, ${run.storyId}, ${run.workflowRunId ?? null}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.errorCode ?? null}, ${run.errorMessage ?? null}, ${run.startedAt ?? null}, ${run.finishedAt ?? null}, ${run.updatedAt})
+      INSERT INTO story_runs (id, story_id, workflow_run_id, processor_revision, admission_key, status, stage, progress, attempts, error_code, error_message, started_at, finished_at, source_upload_ids, updated_at)
+      VALUES (${run.id}, ${run.storyId}, ${run.workflowRunId ?? null}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.errorCode ?? null}, ${run.errorMessage ?? null}, ${run.startedAt ?? null}, ${run.finishedAt ?? null}, ${run.sourceUploadIds}, ${run.updatedAt})
     `;
   }
 
@@ -191,10 +192,14 @@ export class NeonStoryRepository implements StoryRepository {
         WHERE s.id = ${value.id} AND s.version = ${value.version} AND s.active_run_id = r.id
           AND s.status = 'processing' AND r.status = 'processing'
         FOR UPDATE OF s, r
+      ), claimed_sources AS (
+        UPDATE story_uploads SET status = 'rejected', cleanup_claimed_at = ${now}
+        WHERE id = ANY(${run.sourceUploadIds}) AND story_id = ${value.id} AND status = 'confirmed'
+        RETURNING id
       ), completed_story AS (
         UPDATE stories SET status = 'draft', manifest = ${manifest ?? null}, active_run_id = NULL,
           updated_at = ${now}, version = version + 1
-        WHERE id IN (SELECT id FROM target)
+        WHERE id IN (SELECT id FROM target) AND (SELECT count(*) FROM claimed_sources) = cardinality(${run.sourceUploadIds})
         RETURNING id
       )
       UPDATE story_runs SET status = 'complete', stage = 'complete', progress = 100, finished_at = ${now}, updated_at = ${now}
@@ -235,7 +240,9 @@ export class NeonStoryRepository implements StoryRepository {
         UPDATE story_runs SET status = 'cancelled', stage = 'cancelled', finished_at = ${now}, updated_at = ${now}
         WHERE story_id IN (SELECT id FROM target) AND status IN ('queued', 'processing') RETURNING id
       )
-      UPDATE stories SET status = 'deleting', public_slug = NULL, active_run_id = NULL, updated_at = ${now}, version = version + 1
+      UPDATE stories SET status = 'deleting', public_slug = NULL, active_run_id = NULL,
+        delete_after = coalesce(delete_after, ${new Date(now.getTime() + 15 * 60 * 1000)}),
+        updated_at = ${now}, version = version + 1
       WHERE id IN (SELECT id FROM target) RETURNING *
     `;
     const [row] = rows;
@@ -247,7 +254,7 @@ export class NeonStoryRepository implements StoryRepository {
     const rows = await this.sql`
       WITH finished AS (
         UPDATE stories SET status = 'deleted', manifest = NULL, deleted_at = ${now}, updated_at = ${now}, version = version + 1
-        WHERE id = ${storyId} AND status = 'deleting' RETURNING id
+        WHERE id = ${storyId} AND status = 'deleting' AND delete_after <= ${now} RETURNING id
       )
       UPDATE story_uploads SET status = 'deleted', deleted_at = ${now}
       WHERE story_id IN (SELECT id FROM finished)
@@ -261,6 +268,57 @@ export class NeonStoryRepository implements StoryRepository {
   async listRuns(storyId: string) {
     const rows = await this.sql`SELECT * FROM story_runs WHERE story_id = ${storyId} ORDER BY updated_at ASC`;
     return rows.map(run);
+  }
+
+  async listUploadsByIds(ids: string[]) {
+    if (!ids.length) return [];
+    const rows = await this.sql`SELECT * FROM story_uploads WHERE id = ANY(${ids}) ORDER BY created_at ASC`;
+    return rows.map(upload);
+  }
+
+  async claimExpiredPrivateStories(now: Date, staleBefore: Date, limit: number) {
+    const rows = await this.sql`
+      WITH candidates AS MATERIALIZED (
+        SELECT s.id FROM stories s JOIN owner_sessions o ON o.id = s.owner_session_id
+        WHERE s.status NOT IN ('published', 'deleting', 'deleted')
+          AND (s.updated_at <= ${staleBefore} OR o.expires_at <= ${now})
+        ORDER BY s.updated_at ASC FOR UPDATE OF s SKIP LOCKED LIMIT ${limit}
+      ), cancelled AS (
+        UPDATE story_runs SET status = 'cancelled', stage = 'retention-expired', finished_at = ${now}, updated_at = ${now}
+        WHERE story_id IN (SELECT id FROM candidates) AND status IN ('queued', 'processing') RETURNING id
+      )
+      UPDATE stories SET status = 'deleting', public_slug = NULL, active_run_id = NULL, delete_after = ${now},
+        manifest = NULL, updated_at = ${now}, version = version + 1
+      WHERE id IN (SELECT id FROM candidates) RETURNING *
+    `;
+    return rows.map(story);
+  }
+
+  async listStoriesReadyForDeletion(now: Date, limit: number) {
+    const rows = await this.sql`
+      SELECT * FROM stories WHERE status = 'deleting' AND delete_after <= ${now} ORDER BY delete_after ASC LIMIT ${limit}
+    `;
+    return rows.map(story);
+  }
+
+  async purgeDeletedStories(deletedBefore: Date, limit: number) {
+    const rows = await this.sql`
+      WITH doomed AS MATERIALIZED (
+        SELECT id, owner_session_id FROM stories WHERE status = 'deleted' AND deleted_at <= ${deletedBefore}
+        ORDER BY deleted_at ASC LIMIT ${limit}
+      ), deleted_uploads AS (
+        DELETE FROM story_uploads WHERE story_id IN (SELECT id FROM doomed) RETURNING id
+      ), deleted_runs AS (
+        DELETE FROM story_runs WHERE story_id IN (SELECT id FROM doomed) RETURNING id
+      ), deleted_stories AS (
+        DELETE FROM stories WHERE id IN (SELECT id FROM doomed) RETURNING owner_session_id
+      ), deleted_sessions AS (
+        DELETE FROM owner_sessions o WHERE o.id IN (SELECT owner_session_id FROM deleted_stories)
+          AND NOT EXISTS (SELECT 1 FROM stories s WHERE s.owner_session_id = o.id) RETURNING id
+      )
+      SELECT count(*)::int AS count FROM deleted_stories
+    `;
+    return rows[0] ? number(rows[0], "count") : 0;
   }
 
   async expireStaleRuns(now: Date, staleBefore: Date, limit: number) {
@@ -338,10 +396,12 @@ export class NeonStoryRepository implements StoryRepository {
     const rows = await this.sql`
       WITH candidates AS MATERIALIZED (
         SELECT u.id FROM story_uploads u JOIN stories s ON s.id = u.story_id
-        WHERE u.status IN ('reserved', 'confirmed') AND s.status NOT IN ('queued', 'processing') AND s.source_expires_at <= ${now}
+        WHERE u.deleted_at IS NULL
+          AND (u.status IN ('reserved', 'confirmed') OR (u.status = 'rejected' AND u.cleanup_claimed_at <= ${new Date(now.getTime() - 15 * 60 * 1000)}))
+          AND s.status NOT IN ('queued', 'processing') AND s.source_expires_at <= ${now}
         ORDER BY s.source_expires_at ASC FOR UPDATE OF s, u SKIP LOCKED LIMIT ${limit}
       )
-      UPDATE story_uploads SET status = 'rejected' WHERE id IN (SELECT id FROM candidates) RETURNING *
+      UPDATE story_uploads SET status = 'rejected', cleanup_claimed_at = ${now} WHERE id IN (SELECT id FROM candidates) RETURNING *
     `;
     return rows.map(upload);
   }
@@ -350,7 +410,7 @@ export class NeonStoryRepository implements StoryRepository {
     await this.sql`
       UPDATE story_uploads
       SET detected_type = ${value.detectedType ?? null}, byte_size = ${value.byteSize ?? null}, sha256 = ${value.sha256 ?? null},
-          status = ${value.status}, confirmed_at = ${value.confirmedAt ?? null}, deleted_at = ${value.deletedAt ?? null}
+          status = ${value.status}, confirmed_at = ${value.confirmedAt ?? null}, cleanup_claimed_at = ${value.cleanupClaimedAt ?? null}, deleted_at = ${value.deletedAt ?? null}
       WHERE id = ${value.id}
     `;
   }
@@ -399,6 +459,7 @@ function story(row: Row): Story {
     publishedAt: optionalDate(row, "published_at"),
     createdAt: date(row, "created_at"),
     updatedAt: date(row, "updated_at"),
+    deleteAfter: optionalDate(row, "delete_after"),
     deletedAt: optionalDate(row, "deleted_at"),
     version: number(row, "version"),
   };
@@ -420,6 +481,7 @@ function run(row: Row): StoryRun {
     startedAt: optionalDate(row, "started_at"),
     finishedAt: optionalDate(row, "finished_at"),
     derivativesDeletedAt: optionalDate(row, "derivatives_deleted_at"),
+    sourceUploadIds: Array.isArray(row.source_upload_ids) ? row.source_upload_ids.map(value => String(value)) : [],
     updatedAt: date(row, "updated_at"),
   };
 }
@@ -440,6 +502,7 @@ function upload(row: Row): StoryUpload {
     status: string(row, "status") as StoryUpload["status"],
     createdAt: date(row, "created_at"),
     confirmedAt: optionalDate(row, "confirmed_at"),
+    cleanupClaimedAt: optionalDate(row, "cleanup_claimed_at"),
     deletedAt: optionalDate(row, "deleted_at"),
   };
 }

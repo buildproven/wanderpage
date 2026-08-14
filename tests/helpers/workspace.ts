@@ -67,6 +67,7 @@ export async function copySiteScaffold(workspace: string) {
   await cp(join(repoRoot, "data/trip.demo.json"), join(workspace, "data/trip.demo.json"));
   for (const file of ["next.config.ts", "next-env.d.ts", "package.json", "tsconfig.json"])
     await cp(join(repoRoot, file), join(workspace, file));
+  await cp(join(repoRoot, "assets/static-trip-page.tsx"), join(workspace, "app/trips/[slug]/page.tsx"));
 }
 
 function gpsExif(lat: number, lon: number) {

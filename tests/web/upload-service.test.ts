@@ -8,8 +8,8 @@ const input = {
   title: "Olympic Coast",
   peopleMode: "include" as const,
   locationPrivacy: "broad" as const,
-  termsVersion: "2026-08-13",
-  uploadConsentVersion: "2026-08-13",
+  termsVersion: "2026-08-14-openai-retention-v1",
+  uploadConsentVersion: "2026-08-14-openai-retention-v1",
 };
 
 describe("web upload service", () => {

@@ -1,4 +1,5 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { del } from "@vercel/blob";
 import { apiError, data, privateHeaders } from "@/lib/web/http";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { getStoryService } from "@/lib/web/runtime";
@@ -39,7 +40,12 @@ export async function POST(request: Request) {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        await uploads.confirm(tokenPayload ? JSON.parse(tokenPayload) : undefined, blob);
+        try {
+          await uploads.confirm(tokenPayload ? JSON.parse(tokenPayload) : undefined, blob);
+        } catch (error) {
+          await del(blob.pathname);
+          throw error;
+        }
       },
     });
     return data(result, 200, { headers: privateHeaders() });

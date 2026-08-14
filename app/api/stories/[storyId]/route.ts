@@ -50,7 +50,6 @@ export async function DELETE(request: Request, context: { params: Promise<{ stor
     const deletion = await stories.prepareDelete(secret!, storyId);
     if (!deletion.alreadyDeleted) {
       await cleanupStoryObjects(NeonStoryRepository.fromEnvironment(), storyId);
-      await stories.finishDelete(storyId);
     }
     return new Response(null, { status: 204, headers: privateHeaders() });
   } catch (error) {

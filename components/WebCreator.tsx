@@ -2,8 +2,9 @@
 
 import { upload } from "@vercel/blob/client";
 import { useState } from "react";
+import { currentDisclosureVersion } from "@/lib/consent";
 
-const termsVersion = "2026-08-13";
+const termsVersion = currentDisclosureVersion;
 type Story = { id: string; title: string; status: string; publicSlug?: string };
 
 export default function WebCreator() {
@@ -113,7 +114,8 @@ export default function WebCreator() {
         </label>
         <label>
           <input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} required /> I have the right to
-          upload these photos and consent to private processing for this draft.
+          upload these photos. I consent to private storage, derived contact-sheet processing by OpenAI, and automatic deletion of an
+          unpublished draft after 30 days of inactivity. I understand that losing this anonymous browser session means losing access.
         </label>
         <button className="product-cta" type="submit" disabled={busy || !accepted || files.length < 6 || files.length > 60}>
           {busy ? "Working…" : "Upload privately"}

@@ -15,7 +15,7 @@ export async function cleanupExpiredSources(
       await deleteObject(upload.blobPath);
       await repository.saveUpload(markDeleted(upload, now));
     } catch (error) {
-      await repository.saveUpload({ ...upload, status: upload.confirmedAt ? "confirmed" : "reserved" });
+      await repository.saveUpload({ ...upload, status: upload.confirmedAt ? "confirmed" : "reserved", cleanupClaimedAt: undefined });
       throw error;
     }
     deleted += 1;
@@ -24,5 +24,5 @@ export async function cleanupExpiredSources(
 }
 
 function markDeleted(upload: StoryUpload, now: Date): StoryUpload {
-  return { ...upload, status: "deleted", deletedAt: now };
+  return { ...upload, status: "deleted", cleanupClaimedAt: undefined, deletedAt: now };
 }

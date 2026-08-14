@@ -11,13 +11,14 @@ import {
   type StoryRunner,
 } from "@/lib/web/types";
 import { minStoryPhotos } from "@/lib/web/limits";
+import { currentDisclosureVersion } from "@/lib/consent";
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(120),
   peopleMode: z.enum(PeopleModes),
   locationPrivacy: z.enum(LocationPrivacyModes),
-  termsVersion: z.string().trim().min(1).max(64),
-  uploadConsentVersion: z.string().trim().min(1).max(64),
+  termsVersion: z.literal(currentDisclosureVersion),
+  uploadConsentVersion: z.literal(currentDisclosureVersion),
 });
 
 const editableStatuses = new Set(["uploading", "draft"]);
@@ -144,7 +145,11 @@ export class StoryService {
       throw new StoryServiceError("INVALID_STATE", "This story cannot be edited while it is processing or published.");
     if (story.version !== expectedVersion)
       throw new StoryServiceError("STORY_VERSION_CONFLICT", "This story changed in another tab. Reload and try again.");
-    const parsed = createSchema.safeParse({ ...changes, termsVersion: "existing", uploadConsentVersion: "existing" });
+    const parsed = createSchema.safeParse({
+      ...changes,
+      termsVersion: currentDisclosureVersion,
+      uploadConsentVersion: currentDisclosureVersion,
+    });
     if (!parsed.success) throw new StoryServiceError("VALIDATION_ERROR", "Check the story title and privacy choices.");
     try {
       const policyChanged = story.peopleMode !== changes.peopleMode || story.locationPrivacy !== changes.locationPrivacy;
@@ -191,6 +196,7 @@ export class StoryService {
           stage: "queued",
           progress: 0,
           attempts: 0,
+          sourceUploadIds: [],
           updatedAt: now,
         },
         {

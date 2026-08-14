@@ -37,6 +37,7 @@ export type Story = {
   publishedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  deleteAfter?: Date;
   deletedAt?: Date;
   version: number;
 };
@@ -56,6 +57,7 @@ export type StoryRun = {
   startedAt?: Date;
   finishedAt?: Date;
   derivativesDeletedAt?: Date;
+  sourceUploadIds: string[];
   updatedAt: Date;
 };
 
@@ -71,6 +73,7 @@ export type StoryUpload = {
   status: "reserved" | "confirmed" | "rejected" | "deleted";
   createdAt: Date;
   confirmedAt?: Date;
+  cleanupClaimedAt?: Date;
   deletedAt?: Date;
 };
 
@@ -102,7 +105,11 @@ export type StoryRepository = {
   beginDeleteStory(storyId: string, ownerSessionId: string, now: Date): Promise<Story>;
   finishDeleteStory(storyId: string, now: Date): Promise<void>;
   listRuns(storyId: string): Promise<StoryRun[]>;
+  listUploadsByIds(ids: string[]): Promise<StoryUpload[]>;
   expireStaleRuns(now: Date, staleBefore: Date, limit: number): Promise<StoryRun[]>;
+  claimExpiredPrivateStories(now: Date, staleBefore: Date, limit: number): Promise<Story[]>;
+  listStoriesReadyForDeletion(now: Date, limit: number): Promise<Story[]>;
+  purgeDeletedStories(deletedBefore: Date, limit: number): Promise<number>;
   listRunsForDerivativeCleanup(limit: number): Promise<StoryRun[]>;
   markRunDerivativesDeleted(runId: string, now: Date): Promise<void>;
   createUpload(upload: StoryUpload): Promise<void>;

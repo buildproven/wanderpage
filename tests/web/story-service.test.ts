@@ -8,8 +8,8 @@ const input = {
   title: "Oregon Coast",
   peopleMode: "exclude" as const,
   locationPrivacy: "approximate" as const,
-  termsVersion: "2026-08-13",
-  uploadConsentVersion: "2026-08-13",
+  termsVersion: "2026-08-14-openai-retention-v1",
+  uploadConsentVersion: "2026-08-14-openai-retention-v1",
 };
 
 describe("web story service", () => {
@@ -27,6 +27,20 @@ describe("web story service", () => {
       version: 0,
     });
     expect(story.sourceExpiresAt.getTime() - story.createdAt.getTime()).toBe(24 * 60 * 60 * 1000);
+  });
+
+  it("rejects creation without the current provider and retention disclosure", async () => {
+    const repository = new MemoryStoryRepository(),
+      service = new StoryService(
+        repository,
+        { start: async () => ({ workflowRunId: "workflow" }) },
+        undefined,
+        secret => hashSecret(secret, "test-pepper"),
+        () => ({ enabled: true, dailyLimit: 25 })
+      );
+    await expect(service.createSessionWithStory({ ...input, uploadConsentVersion: "stale" }, "client")).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
   });
 
   it("does not expose a private story across anonymous owner sessions", async () => {

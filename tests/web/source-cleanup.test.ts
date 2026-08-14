@@ -7,8 +7,8 @@ const input = {
   title: "Expired sources",
   peopleMode: "exclude" as const,
   locationPrivacy: "hidden" as const,
-  termsVersion: "2026-08-13",
-  uploadConsentVersion: "2026-08-13",
+  termsVersion: "2026-08-14-openai-retention-v1",
+  uploadConsentVersion: "2026-08-14-openai-retention-v1",
 };
 
 describe("source cleanup", () => {
@@ -96,6 +96,7 @@ describe("source cleanup", () => {
       stage: "curating",
       progress: 5,
       attempts: 1,
+      sourceUploadIds: [],
       updatedAt: createdAt,
     });
     await repository.saveStory({ ...story, status: "processing", activeRunId: runId }, story.version);
@@ -112,5 +113,43 @@ describe("source cleanup", () => {
     await expect(cleanupExpiredSources(repository, now, 100, remove)).resolves.toEqual({ deleted: 1, remaining: false });
     expect((await repository.findRun(runId))?.status).toBe("failed");
     expect((await repository.findStory(story.id))?.status).toBe("failed");
+  });
+
+  it("reclaims a cleanup lease after a worker terminates", async () => {
+    const repository = new MemoryStoryRepository(),
+      now = new Date("2026-08-15T00:00:00Z"),
+      { rawSecret } = await new StoryService(
+        repository,
+        { start: async () => ({ workflowRunId: "workflow" }) },
+        () => new Date("2026-08-13T00:00:00Z"),
+        secret => hashSecret(secret, "pepper"),
+        () => ({ enabled: true, dailyLimit: 1 })
+      ).createSession(input),
+      service = new StoryService(
+        repository,
+        { start: async () => ({ workflowRunId: "workflow" }) },
+        () => new Date("2026-08-13T00:00:00Z"),
+        secret => hashSecret(secret, "pepper"),
+        () => ({ enabled: true, dailyLimit: 1 })
+      ),
+      story = await service.createStory(rawSecret, input),
+      upload = {
+        id: crypto.randomUUID(),
+        storyId: story.id,
+        blobPath: `sources/${story.id}/crash`,
+        originalName: "crash.jpg",
+        declaredType: "image/jpeg" as const,
+        status: "confirmed" as const,
+        confirmedAt: new Date("2026-08-13T00:00:00Z"),
+        createdAt: new Date("2026-08-13T00:00:00Z"),
+      };
+    await repository.createUpload(upload);
+    await repository.claimExpiredSourceUploads(now, 1);
+
+    const remove = vi.fn(async () => undefined);
+    await expect(cleanupExpiredSources(repository, new Date(now.getTime() + 16 * 60 * 1000), 100, remove)).resolves.toMatchObject({
+      deleted: 1,
+    });
+    expect(remove).toHaveBeenCalledWith(upload.blobPath);
   });
 });

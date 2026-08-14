@@ -7,10 +7,13 @@ import { cleanupRunDerivatives } from "@/lib/web/object-cleanup";
 export async function processStoryWorkflow(storyId: string, runId: string) {
   "use workflow";
   try {
-    await claimProcessing(storyId, runId);
+    const state = await claimProcessing(storyId, runId);
+    if (state === "complete") {
+      await deleteOriginalUploads(storyId, runId);
+      return;
+    }
     const result = await runCurationPipeline(storyId, runId);
     await completeProcessing(storyId, runId, result.manifest);
-    await deleteOriginalUploads(storyId, runId);
   } catch (error) {
     let cleanupError: unknown;
     try {
@@ -22,6 +25,7 @@ export async function processStoryWorkflow(storyId: string, runId: string) {
     if (cleanupError) throw new AggregateError([error, cleanupError], "Story processing and derivative cleanup both failed.");
     throw error;
   }
+  await deleteOriginalUploads(storyId, runId);
 }
 
 async function deleteFailedDerivatives(storyId: string, runId: string) {
@@ -37,7 +41,7 @@ async function deleteOriginalUploads(storyId: string, runId: string) {
     story = await repository.findStory(storyId),
     run = await repository.findRun(runId);
   if (!story || !run || run.status !== "complete") return;
-  const uploads = (await repository.listUploads(story.id)).filter(upload => upload.status === "confirmed");
+  const uploads = await repository.listUploadsByIds(run.sourceUploadIds);
   await Promise.all(uploads.map(upload => del(upload.blobPath)));
   const now = new Date();
   await Promise.all(uploads.map(upload => repository.saveUpload({ ...upload, status: "deleted", deletedAt: now })));
@@ -46,9 +50,13 @@ async function deleteOriginalUploads(storyId: string, runId: string) {
 async function claimProcessing(storyId: string, runId: string) {
   "use step";
   const repository = NeonStoryRepository.fromEnvironment(),
-    now = new Date();
+    now = new Date(),
+    story = await repository.findStory(storyId),
+    run = await repository.findRun(runId);
+  if (story?.status === "draft" && !story.activeRunId && run?.status === "complete") return "complete" as const;
   try {
     await repository.claimRun(storyId, runId, now);
+    return "processing" as const;
   } catch {
     throw new FatalError("Story run is no longer eligible for processing.");
   }
@@ -62,7 +70,7 @@ async function runCurationPipeline(storyId: string, runId: string) {
   if (!story || !run || story.activeRunId !== runId || story.status !== "processing")
     throw new FatalError("Story run is no longer eligible for processing.");
   await repository.saveRun({ ...run, stage: "curating", progress: 12, updatedAt: new Date() });
-  return processStory(story, await repository.listUploads(story.id));
+  return processStory(story, await repository.listUploadsByIds(run.sourceUploadIds));
 }
 
 async function completeProcessing(storyId: string, runId: string, manifest: Awaited<ReturnType<typeof processStory>>["manifest"]) {
@@ -70,6 +78,7 @@ async function completeProcessing(storyId: string, runId: string, manifest: Awai
   const repository = NeonStoryRepository.fromEnvironment(),
     story = await repository.findStory(storyId),
     run = await repository.findRun(runId);
+  if (story?.status === "draft" && !story.activeRunId && run?.status === "complete") return;
   if (!story || !run || story.activeRunId !== runId || story.status !== "processing")
     throw new FatalError("Story run is no longer eligible for completion.");
   const now = new Date();

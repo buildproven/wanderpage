@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { MemoryStoryRepository } from "@/lib/web/memory-repository";
 import { cleanupStoryObjects } from "@/lib/web/object-cleanup";
+import { cleanupExpiredPrivateStories } from "@/lib/web/story-retention";
 import type { OwnerSession, Story, StoryRun } from "@/lib/web/types";
 
 describe("hosted lifecycle cleanup", () => {
@@ -27,6 +28,7 @@ describe("hosted lifecycle cleanup", () => {
         stage: "queued",
         progress: 0,
         attempts: 0,
+        sourceUploadIds: [],
         updatedAt: now,
       };
     await repository.createSession(session);
@@ -37,6 +39,41 @@ describe("hosted lifecycle cleanup", () => {
     expect(first.story.status).toBe("processing");
     expect(first.run.attempts).toBe(1);
     expect(resumed.run.attempts).toBe(1);
+  });
+
+  it("binds a run to its admitted source set and excludes later uploads", async () => {
+    const repository = new MemoryStoryRepository(),
+      now = new Date("2026-08-13T00:00:00Z"),
+      { session, story } = records("sources", "client", now),
+      firstUpload = uploadFor(story.id, "first", now),
+      laterUpload = uploadFor(story.id, "later", now),
+      run: StoryRun = {
+        id: crypto.randomUUID(),
+        storyId: story.id,
+        processorRevision: "web-v1",
+        status: "queued",
+        stage: "queued",
+        progress: 0,
+        attempts: 0,
+        sourceUploadIds: [],
+        updatedAt: now,
+      };
+    await repository.createSession(session);
+    await repository.createStory(story);
+    await repository.createUpload(firstUpload);
+    await repository.queueRun(story, run, {
+      sessionStarts: 3,
+      clientStarts: 6,
+      globalStarts: 25,
+      since: new Date(now.getTime() - 1),
+      now,
+      minPhotos: 1,
+    });
+    await repository.createUpload(laterUpload);
+
+    const persisted = await repository.findRun(run.id);
+    expect(persisted?.sourceUploadIds).toEqual([firstUpload.id]);
+    expect((await repository.listUploadsByIds(persisted!.sourceUploadIds)).map(upload => upload.id)).toEqual([firstUpload.id]);
   });
 
   it("tombstones a story and deletes every source and run-specific derivative prefix", async () => {
@@ -51,6 +88,7 @@ describe("hosted lifecycle cleanup", () => {
         stage: "complete",
         progress: 100,
         attempts: 1,
+        sourceUploadIds: [],
         updatedAt: now,
       },
       remove = vi.fn(async () => undefined),
@@ -70,12 +108,41 @@ describe("hosted lifecycle cleanup", () => {
       status: "confirmed",
       createdAt: now,
     });
-    await repository.beginDeleteStory(story.id, session.id, now);
+    await repository.beginDeleteStory(story.id, session.id, new Date(now.getTime() - 16 * 60 * 1000));
     await cleanupStoryObjects(repository, story.id, now, storage);
     await repository.finishDeleteStory(story.id, now);
     expect((await repository.findStory(story.id))?.status).toBe("deleted");
     expect(storage.list).toHaveBeenCalledWith(`derivatives/${story.id}/web-v1/${run.id}/`, undefined);
     expect(remove).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps deletion retryable until upload tokens expire", async () => {
+    const repository = new MemoryStoryRepository(),
+      now = new Date("2026-08-13T00:00:00Z"),
+      { session, story } = records("delayed-delete", "client", now);
+    await repository.createSession(session);
+    await repository.createStory(story);
+    await repository.beginDeleteStory(story.id, session.id, now);
+    await expect(repository.finishDeleteStory(story.id, now)).rejects.toThrow("STORY_NOT_DELETING");
+    expect((await repository.findStory(story.id))?.status).toBe("deleting");
+    await repository.finishDeleteStory(story.id, new Date(now.getTime() + 15 * 60 * 1000));
+    expect((await repository.findStory(story.id))?.status).toBe("deleted");
+  });
+
+  it("expires abandoned private drafts and purges their owner records", async () => {
+    const repository = new MemoryStoryRepository(),
+      created = new Date("2026-06-01T00:00:00Z"),
+      now = new Date("2026-08-13T00:00:00Z"),
+      { session, story } = records("retention", "client-address", created);
+    await repository.createSession(session);
+    await repository.createStory({ ...story, status: "draft" });
+
+    await expect(cleanupExpiredPrivateStories(repository, now)).resolves.toMatchObject({ expired: 1, deleted: 1 });
+    await expect(cleanupExpiredPrivateStories(repository, new Date(now.getTime() + 25 * 60 * 60 * 1000))).resolves.toMatchObject({
+      purged: 1,
+    });
+    await expect(repository.findStory(story.id)).resolves.toBeUndefined();
+    await expect(repository.findSessionBySecretHash(session.secretHash)).resolves.toBeUndefined();
   });
 });
 
@@ -106,5 +173,18 @@ function records(label: string, admissionKey: string, now: Date): { session: Own
       updatedAt: now,
       version: 0,
     },
+  };
+}
+
+function uploadFor(storyId: string, label: string, now: Date) {
+  return {
+    id: crypto.randomUUID(),
+    storyId,
+    blobPath: `sources/${storyId}/${label}`,
+    originalName: `${label}.jpg`,
+    declaredType: "image/jpeg" as const,
+    status: "confirmed" as const,
+    confirmedAt: now,
+    createdAt: now,
   };
 }

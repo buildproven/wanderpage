@@ -99,7 +99,7 @@ export class MemoryStoryRepository implements StoryRepository {
       throw new Error("CLIENT_GENERATION_LIMIT");
     const queued = clone({ ...story, status: "queued" as const, activeRunId: run.id, version: story.version + 1 });
     this.stories.set(queued.id, queued);
-    this.runs.set(run.id, clone(run));
+    this.runs.set(run.id, clone({ ...run, sourceUploadIds: confirmed.map(upload => upload.id) }));
     return clone(queued);
   }
 
@@ -126,6 +126,10 @@ export class MemoryStoryRepository implements StoryRepository {
       clone({ ...story, status: "draft", manifest, activeRunId: undefined, updatedAt: now, version: story.version + 1 })
     );
     this.runs.set(run.id, clone({ ...run, status: "complete", stage: "complete", progress: 100, finishedAt: now, updatedAt: now }));
+    for (const id of run.sourceUploadIds) {
+      const upload = this.uploads.get(id);
+      if (upload?.status === "confirmed") this.uploads.set(id, { ...upload, status: "rejected", cleanupClaimedAt: now });
+    }
   }
 
   async claimRun(storyId: string, runId: string, now: Date) {
@@ -157,6 +161,7 @@ export class MemoryStoryRepository implements StoryRepository {
       status: "deleting" as const,
       publicSlug: undefined,
       activeRunId: undefined,
+      deleteAfter: story.deleteAfter ?? new Date(now.getTime() + 15 * 60 * 1000),
       updatedAt: now,
       version: story.version + 1,
     });
@@ -169,7 +174,7 @@ export class MemoryStoryRepository implements StoryRepository {
 
   async finishDeleteStory(storyId: string, now: Date) {
     const story = this.stories.get(storyId);
-    if (!story || story.status !== "deleting") throw new Error("STORY_NOT_DELETING");
+    if (!story || story.status !== "deleting" || !story.deleteAfter || story.deleteAfter > now) throw new Error("STORY_NOT_DELETING");
     this.stories.set(
       storyId,
       clone({ ...story, status: "deleted", manifest: undefined, deletedAt: now, updatedAt: now, version: story.version + 1 })
@@ -180,6 +185,62 @@ export class MemoryStoryRepository implements StoryRepository {
 
   async listRuns(storyId: string) {
     return [...this.runs.values()].filter(value => value.storyId === storyId).map(value => clone(value));
+  }
+
+  async listUploadsByIds(ids: string[]) {
+    const selected = new Set(ids);
+    return [...this.uploads.values()].filter(upload => selected.has(upload.id)).map(upload => clone(upload));
+  }
+
+  async claimExpiredPrivateStories(now: Date, staleBefore: Date, limit: number) {
+    const candidates = [...this.stories.values()]
+      .filter(story => {
+        const session = this.sessions.get(story.ownerSessionId);
+        return (
+          story.status !== "published" &&
+          story.status !== "deleting" &&
+          story.status !== "deleted" &&
+          (story.updatedAt <= staleBefore || (!!session && session.expiresAt <= now))
+        );
+      })
+      .slice(0, limit);
+    for (const story of candidates) {
+      this.stories.set(story.id, {
+        ...story,
+        status: "deleting",
+        publicSlug: undefined,
+        manifest: undefined,
+        activeRunId: undefined,
+        deleteAfter: now,
+        updatedAt: now,
+        version: story.version + 1,
+      });
+    }
+    return candidates.map(story => clone(this.stories.get(story.id)!));
+  }
+
+  async listStoriesReadyForDeletion(now: Date, limit: number) {
+    return [...this.stories.values()]
+      .filter(story => story.status === "deleting" && !!story.deleteAfter && story.deleteAfter <= now)
+      .slice(0, limit)
+      .map(story => clone(story));
+  }
+
+  async purgeDeletedStories(deletedBefore: Date, limit: number) {
+    const doomed = [...this.stories.values()]
+      .filter(story => story.status === "deleted" && !!story.deletedAt && story.deletedAt <= deletedBefore)
+      .slice(0, limit);
+    for (const story of doomed) {
+      this.stories.delete(story.id);
+      for (const [id, upload] of this.uploads) if (upload.storyId === story.id) this.uploads.delete(id);
+      for (const [id, run] of this.runs) if (run.storyId === story.id) this.runs.delete(id);
+      if (![...this.stories.values()].some(value => value.ownerSessionId === story.ownerSessionId)) {
+        const session = this.sessions.get(story.ownerSessionId);
+        if (session) this.sessionsByHash.delete(session.secretHash);
+        this.sessions.delete(story.ownerSessionId);
+      }
+    }
+    return doomed.length;
   }
 
   async expireStaleRuns(now: Date, staleBefore: Date, limit: number) {
@@ -245,7 +306,11 @@ export class MemoryStoryRepository implements StoryRepository {
       .filter(upload => {
         const story = this.stories.get(upload.storyId);
         return (
-          (upload.status === "reserved" || upload.status === "confirmed") &&
+          (upload.status === "reserved" ||
+            upload.status === "confirmed" ||
+            (upload.status === "rejected" &&
+              !!upload.cleanupClaimedAt &&
+              upload.cleanupClaimedAt <= new Date(now.getTime() - 15 * 60 * 1000))) &&
           !!story &&
           story.status !== "queued" &&
           story.status !== "processing" &&
@@ -254,8 +319,8 @@ export class MemoryStoryRepository implements StoryRepository {
       })
       .slice(0, limit)
       .map(upload => clone(upload));
-    for (const upload of claimed) this.uploads.set(upload.id, { ...clone(upload), status: "rejected" });
-    return claimed.map(upload => ({ ...upload, status: "rejected" as const }));
+    for (const upload of claimed) this.uploads.set(upload.id, { ...clone(upload), status: "rejected", cleanupClaimedAt: now });
+    return claimed.map(upload => ({ ...upload, status: "rejected" as const, cleanupClaimedAt: now }));
   }
 
   async saveUpload(upload: StoryUpload) {
