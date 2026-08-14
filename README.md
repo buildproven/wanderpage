@@ -90,6 +90,8 @@ pnpm test:e2e
 
 `pnpm test` includes a fixture-driven integration test that creates a temporary nested photo folder with JPEG, WebP, duplicate, EXIF/GPS, and (on macOS) HEIC inputs. It runs the production pipeline, builds an isolated static Next.js export, applies the privacy and 90 MB budget checks, then opens the generated story in Chromium. Temporary originals and outputs are removed after the run.
 
+`pnpm privacy` validates an existing local static export under `out/`. The server-mode `pnpm build` does not create that directory, so the default test gate relies on the isolated static-export integration test instead of stale workspace output.
+
 The external OpenAI path is an explicit paid/network smoke test rather than part of every local test run:
 
 ```bash
