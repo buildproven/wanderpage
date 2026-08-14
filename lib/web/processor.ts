@@ -108,13 +108,29 @@ export function applyLocationPrivacy(manifest: TripManifest, privacy: Story["loc
     };
   const destinations = manifest.destinations.map(destination => ({
     ...destination,
-    name: destination.name.split(",").at(-1)?.trim() || "the surrounding region",
+    name: destination.name.includes(",")
+      ? destination.name.split(",").at(-1)?.trim() || "the surrounding region"
+      : "the surrounding region",
     approximateCoordinate: undefined,
+    introduction: "",
+    facts: [],
   }));
+  const regions = [...new Set(destinations.map(destination => destination.name))],
+    regionText = regions.length ? regions.join(" and ") : "the surrounding region";
   return {
     ...manifest,
+    subtitle: `A photographic story from ${regionText}.`,
+    opening: `The selected photographs trace a story through ${regionText}.`,
+    closing: "The final frame closes the story without disclosing a precise location.",
+    stats: manifest.stats.filter(stat => !/place|destination|route|distance|location/i.test(stat.label)),
     destinations,
     route: [],
+    chapters: manifest.chapters.map(chapter => ({
+      ...chapter,
+      title: destinations.find(destination => destination.id === chapter.destinationId)?.name ?? "The surrounding region",
+      narrative: "A sequence assembled from the selected photographs.",
+    })),
+    photos: manifest.photos.map(photo => ({ ...photo, alt: "Selected travel photograph.", caption: undefined })),
     sources: [],
   };
 }

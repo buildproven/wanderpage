@@ -100,7 +100,7 @@ export type StoryRepository = {
   reserveUpload(upload: StoryUpload, limits: UploadLimits): Promise<void>;
   findUpload(id: string): Promise<StoryUpload | undefined>;
   listUploads(storyId: string): Promise<StoryUpload[]>;
-  listExpiredSourceUploads(now: Date, limit: number): Promise<StoryUpload[]>;
+  claimExpiredSourceUploads(now: Date, limit: number): Promise<StoryUpload[]>;
   saveUpload(upload: StoryUpload): Promise<void>;
   confirmUpload(upload: StoryUpload): Promise<void>;
 };
@@ -110,6 +110,8 @@ export type GenerationLimits = {
   clientStarts: number;
   globalStarts: number;
   since: Date;
+  now: Date;
+  minPhotos: number;
 };
 
 export type UploadLimits = {

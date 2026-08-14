@@ -75,6 +75,8 @@ export class MemoryStoryRepository implements StoryRepository {
   async queueRun(story: Story, run: StoryRun, limits: GenerationLimits) {
     const current = this.stories.get(story.id);
     if (!current || current.version !== story.version) throw new Error("STORY_VERSION_CONFLICT");
+    const confirmed = [...this.uploads.values()].filter(value => value.storyId === story.id && value.status === "confirmed");
+    if (story.sourceExpiresAt <= limits.now || confirmed.length < limits.minPhotos) throw new Error("SOURCE_NOT_READY");
     const recent = [...this.runs.values()].filter(value => value.updatedAt >= limits.since),
       sessionStoryIds = new Set(
         [...this.stories.values()].filter(value => value.ownerSessionId === story.ownerSessionId).map(value => value.id)
@@ -140,8 +142,8 @@ export class MemoryStoryRepository implements StoryRepository {
     return [...this.uploads.values()].filter(upload => upload.storyId === storyId).map(upload => clone(upload));
   }
 
-  async listExpiredSourceUploads(now: Date, limit: number) {
-    return [...this.uploads.values()]
+  async claimExpiredSourceUploads(now: Date, limit: number) {
+    const claimed = [...this.uploads.values()]
       .filter(upload => {
         const story = this.stories.get(upload.storyId);
         return (
@@ -154,6 +156,8 @@ export class MemoryStoryRepository implements StoryRepository {
       })
       .slice(0, limit)
       .map(upload => clone(upload));
+    for (const upload of claimed) this.uploads.set(upload.id, { ...clone(upload), status: "rejected" });
+    return claimed.map(upload => ({ ...upload, status: "rejected" as const }));
   }
 
   async saveUpload(upload: StoryUpload) {

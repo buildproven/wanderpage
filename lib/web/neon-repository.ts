@@ -110,6 +110,8 @@ export class NeonStoryRepository implements StoryRepository {
           AND (SELECT count(*) FROM story_runs r JOIN stories owned ON owned.id = r.story_id
                WHERE owned.owner_session_id = target.owner_session_id AND r.updated_at >= ${limits.since}) < ${limits.sessionStarts}
           AND (SELECT count(*) FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND updated_at >= ${limits.since}) < ${limits.clientStarts}
+          AND target.source_expires_at > ${limits.now}
+          AND (SELECT count(*) FROM story_uploads WHERE story_id = target.id AND status = 'confirmed') >= ${limits.minPhotos}
       ), inserted AS (
         INSERT INTO story_runs (id, story_id, processor_revision, admission_key, status, stage, progress, attempts, updated_at)
         SELECT ${run.id}, ${run.storyId}, ${run.processorRevision}, ${run.admissionKey ?? null}, ${run.status}, ${run.stage}, ${run.progress}, ${run.attempts}, ${run.updatedAt}
@@ -131,6 +133,13 @@ export class NeonStoryRepository implements StoryRepository {
       SELECT count(*)::int AS count FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND updated_at >= ${limits.since}
     `;
     if (clientCount && number(clientCount, "count") >= limits.clientStarts) throw new Error("CLIENT_GENERATION_LIMIT");
+    const [sources] = await this.sql`
+      SELECT source_expires_at,
+        (SELECT count(*)::int FROM story_uploads WHERE story_id = stories.id AND status = 'confirmed') AS confirmed
+      FROM stories WHERE id = ${value.id}
+    `;
+    if (!sources || date(sources, "source_expires_at") <= limits.now || number(sources, "confirmed") < limits.minPhotos)
+      throw new Error("SOURCE_NOT_READY");
     throw new Error("SESSION_GENERATION_LIMIT");
   }
 
@@ -218,11 +227,14 @@ export class NeonStoryRepository implements StoryRepository {
     return rows.map(upload);
   }
 
-  async listExpiredSourceUploads(now: Date, limit: number) {
+  async claimExpiredSourceUploads(now: Date, limit: number) {
     const rows = await this.sql`
-      SELECT u.* FROM story_uploads u JOIN stories s ON s.id = u.story_id
-      WHERE u.status IN ('reserved', 'confirmed') AND s.status NOT IN ('queued', 'processing') AND s.source_expires_at <= ${now}
-      ORDER BY s.source_expires_at ASC LIMIT ${limit}
+      WITH candidates AS MATERIALIZED (
+        SELECT u.id FROM story_uploads u JOIN stories s ON s.id = u.story_id
+        WHERE u.status IN ('reserved', 'confirmed') AND s.status NOT IN ('queued', 'processing') AND s.source_expires_at <= ${now}
+        ORDER BY s.source_expires_at ASC FOR UPDATE OF s, u SKIP LOCKED LIMIT ${limit}
+      )
+      UPDATE story_uploads SET status = 'rejected' WHERE id IN (SELECT id FROM candidates) RETURNING *
     `;
     return rows.map(upload);
   }

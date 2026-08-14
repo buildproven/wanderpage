@@ -183,7 +183,14 @@ export class StoryService {
           attempts: 0,
           updatedAt: now,
         },
-        { sessionStarts: 3, clientStarts: 6, globalStarts: policy.dailyLimit, since: new Date(now.getTime() - 24 * 60 * 60 * 1000) }
+        {
+          sessionStarts: 3,
+          clientStarts: 6,
+          globalStarts: policy.dailyLimit,
+          since: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+          now,
+          minPhotos: minStoryPhotos,
+        }
       );
     } catch (error) {
       if (error instanceof Error && error.message === "STORY_VERSION_CONFLICT")
@@ -193,6 +200,8 @@ export class StoryService {
         ["GLOBAL_GENERATION_LIMIT", "SESSION_GENERATION_LIMIT", "CLIENT_GENERATION_LIMIT"].includes(error.message)
       )
         throw new StoryServiceError("INVALID_STATE", "The story generation limit has been reached. Try again after the limit resets.");
+      if (error instanceof Error && error.message === "SOURCE_NOT_READY")
+        throw new StoryServiceError("INVALID_STATE", "The source photos are incomplete or expired. Start a new private story.");
       throw error;
     }
     try {

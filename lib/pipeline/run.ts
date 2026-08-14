@@ -126,7 +126,7 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
       ? []
       : destinations.map(destination => ({
           ...destination,
-          name: options.privacy === "broad" ? broaden(destination.name) : destination.name,
+          name: options.privacy === "broad" ? broadRegion(destination.name) : destination.name,
         }));
   const narrative = await provider.generateNarrative(
     JSON.stringify({
@@ -136,14 +136,14 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
       photos: selection.selected.map(p => ({
         id: p.id,
         captureTime: p.captureTime,
-        categories: p.semantic?.categories,
+        categories: options.privacy === "broad" || options.privacy === "hidden" ? undefined : p.semantic?.categories,
         captionSeed: options.privacy === "approximate" || options.privacy === "exact" ? p.semantic?.captionSeed : undefined,
         locationClues: options.privacy === "approximate" || options.privacy === "exact" ? p.semantic?.possibleLocations : undefined,
       })),
       destinations: safeDestinations.map(d => ({
         name: d.confidence >= 0.55 ? d.name : undefined,
         confidence: d.confidence,
-        evidence: d.evidence,
+        evidence: options.privacy === "broad" ? undefined : d.evidence,
       })),
     })
   );
@@ -225,7 +225,7 @@ async function makeManifest(
       id: destination.id,
       name:
         options.privacy === "broad"
-          ? broaden(destination.name)
+          ? broadRegion(destination.name)
           : destination.confidence >= 0.8
             ? destination.name
             : broaden(destination.name),
@@ -314,6 +314,9 @@ async function makeManifest(
 function broaden(name: string) {
   const parts = name.split(",");
   return parts.at(-1)?.trim() || "the surrounding region";
+}
+function broadRegion(name: string) {
+  return name.includes(",") ? broaden(name) : "the surrounding region";
 }
 function routeDistance(destinations: Awaited<ReturnType<typeof inferDestinations>>) {
   let total = 0;

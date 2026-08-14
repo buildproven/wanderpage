@@ -16,6 +16,7 @@ describe("hosted manifest privacy", () => {
     expect(broad.destinations[0]).toMatchObject({ name: "Oregon", approximateCoordinate: undefined });
     expect(broad.route).toEqual([]);
     expect(broad.sources).toEqual([]);
+    expect(JSON.stringify(broad)).not.toContain("Secret Cove");
   });
 });
 

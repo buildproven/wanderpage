@@ -7,11 +7,16 @@ export async function cleanupExpiredSources(
   limit = 100,
   deleteObject: (pathname: string) => Promise<unknown> = pathname => del(pathname)
 ) {
-  const uploads = await repository.listExpiredSourceUploads(now, limit);
+  const uploads = await repository.claimExpiredSourceUploads(now, limit);
   let deleted = 0;
   for (const upload of uploads) {
-    await deleteObject(upload.blobPath);
-    await repository.saveUpload(markDeleted(upload, now));
+    try {
+      await deleteObject(upload.blobPath);
+      await repository.saveUpload(markDeleted(upload, now));
+    } catch (error) {
+      await repository.saveUpload({ ...upload, status: upload.confirmedAt ? "confirmed" : "reserved" });
+      throw error;
+    }
     deleted += 1;
   }
   return { deleted, remaining: uploads.length === limit };
