@@ -50,6 +50,8 @@ export class UploadService {
         throw new StoryServiceError("VALIDATION_ERROR", "This story would exceed the 500 MiB upload limit.");
       if (error instanceof Error && error.message === "UPLOAD_STATE_CONFLICT")
         throw new StoryServiceError("INVALID_STATE", "Photos can only be added before generation starts.");
+      if (error instanceof Error && error.message === "SESSION_UPLOAD_LIMIT")
+        throw new StoryServiceError("INVALID_STATE", "Finish or delete the other active upload before adding photos to this story.");
       throw error;
     }
     return upload;

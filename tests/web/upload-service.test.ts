@@ -65,6 +65,27 @@ describe("web upload service", () => {
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" } satisfies Partial<StoryServiceError>);
   });
 
+  it("allows active uploads in only one story per owner session", async () => {
+    const { stories, uploads } = fixture(),
+      owner = await stories.createSession(input),
+      first = await stories.createStory(owner.rawSecret, { ...input, title: "First" }),
+      second = await stories.createStory(owner.rawSecret, { ...input, title: "Second" });
+    await uploads.reserve(owner.rawSecret, {
+      storyId: first.id,
+      originalName: "first.jpg",
+      contentType: "image/jpeg",
+      byteSize: 1024,
+    });
+    await expect(
+      uploads.reserve(owner.rawSecret, {
+        storyId: second.id,
+        originalName: "second.jpg",
+        contentType: "image/jpeg",
+        byteSize: 1024,
+      })
+    ).rejects.toMatchObject({ code: "INVALID_STATE" });
+  });
+
   it("verifies image bytes and rejects confirmation after generation starts", async () => {
     const { stories, uploads, repository } = fixture(),
       owner = await stories.createSession(input),

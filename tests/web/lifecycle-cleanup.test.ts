@@ -170,7 +170,21 @@ describe("hosted lifecycle cleanup", () => {
     await repository.beginDeleteStory(story.id, session.id, new Date(now.getTime() - 16 * 60 * 1000));
     await cleanupStoryObjects(repository, story.id, now, storage);
     await repository.finishDeleteStory(story.id, now);
-    expect((await repository.findStory(story.id))?.status).toBe("deleted");
+    expect(await repository.findStory(story.id)).toMatchObject({
+      status: "deleted",
+      title: "Deleted story",
+      processorRevision: "deleted",
+      manifest: undefined,
+      admissionKey: undefined,
+    });
+    expect(await repository.listUploads(story.id)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ originalName: "deleted", sha256: undefined, blobPath: expect.stringMatching(/^deleted\//) }),
+      ])
+    );
+    expect(await repository.listRuns(story.id)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ processorRevision: "deleted", sourceUploadIds: [], admissionKey: undefined })])
+    );
     expect(storage.list).toHaveBeenCalledWith(`derivatives/${story.id}/web-v1/${run.id}/`, undefined);
     expect(remove).toHaveBeenCalledTimes(2);
   });
@@ -185,7 +199,15 @@ describe("hosted lifecycle cleanup", () => {
     await expect(repository.finishDeleteStory(story.id, now)).rejects.toThrow("STORY_NOT_DELETING");
     expect((await repository.findStory(story.id))?.status).toBe("deleting");
     await repository.finishDeleteStory(story.id, new Date(now.getTime() + 15 * 60 * 1000));
-    expect((await repository.findStory(story.id))?.status).toBe("deleted");
+    expect(await repository.findStory(story.id)).toMatchObject({
+      status: "deleted",
+      title: "Deleted story",
+      peopleMode: "exclude",
+      locationPrivacy: "hidden",
+      processorRevision: "deleted",
+      manifest: undefined,
+      admissionKey: undefined,
+    });
   });
 
   it("expires abandoned private drafts and purges their owner records", async () => {
@@ -271,6 +293,17 @@ describe("hosted lifecycle cleanup", () => {
     await repository.createStory({ ...recordsValue.story, ownerSessionId: session.id, status: "draft" });
     await expect(cleanupExpiredPrivateStories(repository, now)).resolves.toMatchObject({ expired: 0, deleted: 0 });
     expect((await repository.findStory(recordsValue.story.id))?.status).toBe("draft");
+  });
+
+  it("uses atomic renewal state when retention claims an expiring session", async () => {
+    const repository = new MemoryStoryRepository(),
+      created = new Date("2026-07-01T00:00:00Z"),
+      boundary = new Date("2026-08-01T00:00:00Z"),
+      { session, story } = records("renewal-race", "client", created);
+    await repository.createSession({ ...session, expiresAt: new Date(boundary.getTime() + 1) });
+    await repository.createStory({ ...story, status: "draft" });
+    await expect(repository.renewSession(session.secretHash, boundary, new Date("2026-09-01T00:00:00Z"))).resolves.toBeDefined();
+    await expect(repository.claimExpiredPrivateStories(boundary, created, 50)).resolves.toEqual([]);
   });
 
   it("lets an authenticated operator immediately revoke a published story", async () => {

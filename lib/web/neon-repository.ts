@@ -52,9 +52,13 @@ export class NeonStoryRepository implements StoryRepository {
     return row ? session(row) : undefined;
   }
 
-  async touchSession(id: string, lastSeenAt: Date, expiresAt: Date) {
-    await this
-      .sql`UPDATE owner_sessions SET last_seen_at = ${lastSeenAt}, expires_at = ${expiresAt} WHERE id = ${id} AND revoked_at IS NULL`;
+  async renewSession(secretHash: string, now: Date, expiresAt: Date) {
+    const [row] = await this.sql`
+      UPDATE owner_sessions SET last_seen_at = ${now}, expires_at = ${expiresAt}
+      WHERE secret_hash = ${secretHash} AND revoked_at IS NULL AND expires_at > ${now}
+      RETURNING *
+    `;
+    return row ? session(row) : undefined;
   }
 
   async createStory(story: Story) {
@@ -267,7 +271,7 @@ export class NeonStoryRepository implements StoryRepository {
         UPDATE story_runs SET status = 'cancelled', stage = 'cancelled', finished_at = ${now}, updated_at = ${now}
         WHERE story_id IN (SELECT id FROM target) AND status IN ('queued', 'processing') RETURNING id
       )
-      UPDATE stories SET status = 'deleting', public_slug = NULL, active_run_id = NULL,
+      UPDATE stories SET status = 'deleting', public_slug = NULL, active_run_id = NULL, manifest = NULL,
         delete_after = coalesce(delete_after, ${new Date(now.getTime() + 15 * 60 * 1000)}),
         updated_at = ${now}, version = version + 1
       WHERE id IN (SELECT id FROM target) RETURNING *
@@ -286,10 +290,19 @@ export class NeonStoryRepository implements StoryRepository {
   async finishDeleteStory(storyId: string, now: Date) {
     const rows = await this.sql`
       WITH finished AS (
-        UPDATE stories SET status = 'deleted', manifest = NULL, deleted_at = ${now}, updated_at = ${now}, version = version + 1
+        UPDATE stories SET status = 'deleted', admission_key = NULL, public_slug = NULL, title = 'Deleted story',
+          people_mode = 'exclude', location_privacy = 'hidden', manifest = NULL, processor_revision = 'deleted',
+          active_run_id = NULL, source_expires_at = ${now}, published_at = NULL, deleted_at = ${now}, updated_at = ${now},
+          version = version + 1
         WHERE id = ${storyId} AND status = 'deleting' AND delete_after <= ${now} RETURNING id
+      ), scrubbed_uploads AS (
+        UPDATE story_uploads SET blob_path = 'deleted/' || id::text, original_name = 'deleted', declared_type = 'image/webp',
+          detected_type = NULL, byte_size = NULL, sha256 = NULL, status = 'deleted', confirmed_at = NULL,
+          cleanup_claimed_at = NULL, deleted_at = ${now}
+        WHERE story_id IN (SELECT id FROM finished) RETURNING id
       )
-      UPDATE story_uploads SET status = 'deleted', deleted_at = ${now}
+      UPDATE story_runs SET workflow_run_id = NULL, processor_revision = 'deleted', admission_key = NULL,
+        stage = 'deleted', error_code = NULL, error_message = NULL, source_upload_ids = '{}', updated_at = ${now}
       WHERE story_id IN (SELECT id FROM finished)
       RETURNING id
     `;
@@ -316,7 +329,7 @@ export class NeonStoryRepository implements StoryRepository {
         SELECT s.id FROM stories s JOIN owner_sessions o ON o.id = s.owner_session_id
         WHERE s.status NOT IN ('published', 'deleting', 'deleted')
           AND o.expires_at <= ${now}
-        ORDER BY s.updated_at ASC FOR UPDATE OF s SKIP LOCKED LIMIT ${limit}
+        ORDER BY s.updated_at ASC FOR UPDATE OF s, o SKIP LOCKED LIMIT ${limit}
       ), cancelled AS (
         UPDATE story_runs SET status = 'cancelled', stage = 'retention-expired', finished_at = ${now}, updated_at = ${now}
         WHERE story_id IN (SELECT id FROM candidates) AND status IN ('queued', 'processing') RETURNING id
@@ -406,10 +419,16 @@ export class NeonStoryRepository implements StoryRepository {
   async reserveUpload(upload: StoryUpload, limits: UploadLimits) {
     const rows = await this.sql`
       WITH target AS MATERIALIZED (
-        SELECT id FROM stories WHERE id = ${upload.storyId} AND status = 'uploading' FOR UPDATE
+        SELECT s.id, s.owner_session_id FROM stories s JOIN owner_sessions o ON o.id = s.owner_session_id
+        WHERE s.id = ${upload.storyId} AND s.status = 'uploading' FOR UPDATE OF s, o
       ), capacity AS MATERIALIZED (
         SELECT target.id FROM target WHERE
-          (SELECT count(*) FROM story_uploads WHERE story_id = target.id AND status IN ('reserved', 'confirmed')) < ${limits.maxPhotos}
+          NOT EXISTS (
+            SELECT 1 FROM story_uploads active JOIN stories owned ON owned.id = active.story_id
+            WHERE owned.owner_session_id = target.owner_session_id AND active.story_id <> target.id
+              AND active.status IN ('reserved', 'confirmed')
+          )
+          AND (SELECT count(*) FROM story_uploads WHERE story_id = target.id AND status IN ('reserved', 'confirmed')) < ${limits.maxPhotos}
           AND (SELECT coalesce(sum(byte_size), 0) FROM story_uploads WHERE story_id = target.id AND status IN ('reserved', 'confirmed')) + ${upload.byteSize ?? 0} <= ${limits.maxBytes}
       )
       INSERT INTO story_uploads (id, story_id, blob_path, original_name, declared_type, byte_size, status, created_at)
@@ -417,8 +436,14 @@ export class NeonStoryRepository implements StoryRepository {
       FROM capacity RETURNING id
     `;
     if (rows.length) return;
-    const [current] = await this.sql`SELECT status FROM stories WHERE id = ${upload.storyId}`;
+    const [current] = await this.sql`SELECT status, owner_session_id FROM stories WHERE id = ${upload.storyId}`;
     if (!current || string(current, "status") !== "uploading") throw new Error("UPLOAD_STATE_CONFLICT");
+    const [otherActive] = await this.sql`
+      SELECT 1 FROM story_uploads active JOIN stories owned ON owned.id = active.story_id
+      WHERE owned.owner_session_id = ${string(current, "owner_session_id")} AND active.story_id <> ${upload.storyId}
+        AND active.status IN ('reserved', 'confirmed') LIMIT 1
+    `;
+    if (otherActive) throw new Error("SESSION_UPLOAD_LIMIT");
     const [usage] = await this.sql`
       SELECT count(*)::int AS count, coalesce(sum(byte_size), 0)::float8 AS bytes FROM story_uploads
       WHERE story_id = ${upload.storyId} AND status IN ('reserved', 'confirmed')

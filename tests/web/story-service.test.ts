@@ -122,6 +122,30 @@ describe("web story service", () => {
     expect(await repository.findStory(draft.id)).toMatchObject({ status: "draft", manifest: demoManifest() });
   });
 
+  it("rejects public-manifest edits that violate privacy policy", async () => {
+    const { service, repository } = fixture(),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input),
+      draft = await repository.saveStory({ ...story, status: "draft", manifest: demoManifest() }, story.version);
+
+    await expect(
+      service.updateStory(owner.rawSecret, draft.id, draft.version, {
+        title: "api_key=credential-shaped-test-value",
+        peopleMode: draft.peopleMode,
+        locationPrivacy: draft.locationPrivacy,
+      })
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect((await repository.findStory(draft.id))?.title).toBe("Oregon Coast");
+  });
+
+  it("denies owner reads as soon as deletion begins", async () => {
+    const { service } = fixture(),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input);
+    await service.prepareDelete(owner.rawSecret, story.id);
+    await expect(service.getOwnedStory(owner.rawSecret, story.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
   it("fails closed before queueing when generation is disabled", async () => {
     const policy = { enabled: true, dailyLimit: 25 },
       { repository, service } = fixture(policy),
@@ -169,7 +193,8 @@ function fixture(policy = { enabled: true, dailyLimit: 25 }) {
       runner,
       undefined,
       secret => hashSecret(secret, "test-pepper"),
-      () => policy
+      () => policy,
+      async () => undefined
     ),
   };
 }
@@ -205,7 +230,19 @@ function demoManifest() {
     destinations: [],
     route: [],
     chapters: [],
-    photos: [],
+    photos: [
+      {
+        id: "photo-1",
+        srcLarge: "/api/media/story/web-v1--test-run--large.webp",
+        srcMedium: "/api/media/story/web-v1--test-run--medium.webp",
+        srcThumb: "/api/media/story/web-v1--test-run--thumb.webp",
+        width: 100,
+        height: 100,
+        alt: "Selected photograph",
+        containsPeople: false,
+        source: "user" as const,
+      },
+    ],
     sources: [],
   };
 }

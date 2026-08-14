@@ -12,6 +12,7 @@ import {
 } from "@/lib/web/types";
 import { minStoryPhotos } from "@/lib/web/limits";
 import { currentDisclosureVersion } from "@/lib/consent";
+import { validateHostedManifestPolicy, validateHostedStoryOutput } from "@/lib/web/processor";
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -39,7 +40,8 @@ export class StoryService {
     private readonly runner: StoryRunner,
     private readonly now: () => Date = () => new Date(),
     private readonly secretHasher: (secret: string) => string,
-    private readonly generationPolicy: () => { enabled: boolean; dailyLimit: number } = environmentGenerationPolicy
+    private readonly generationPolicy: () => { enabled: boolean; dailyLimit: number } = environmentGenerationPolicy,
+    private readonly hostedValidator: typeof validateHostedStoryOutput = validateHostedStoryOutput
   ) {}
 
   async createSession({ termsVersion, uploadConsentVersion }: Pick<CreateStoryInput, "termsVersion" | "uploadConsentVersion">) {
@@ -88,12 +90,9 @@ export class StoryService {
 
   async requireSession(rawSecret: string | undefined) {
     if (!rawSecret) throw new StoryServiceError("AUTH_REQUIRED", "Your private Wanderpage session is missing.");
-    const session = await this.repository.findSessionBySecretHash(this.secretHasher(rawSecret));
-    if (!session || session.revokedAt || session.expiresAt <= this.now())
-      throw new StoryServiceError("AUTH_REQUIRED", "Your private Wanderpage session has expired.");
     const now = this.now(),
-      renewed = { ...session, lastSeenAt: now, expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) };
-    await this.repository.touchSession(session.id, renewed.lastSeenAt, renewed.expiresAt);
+      renewed = await this.repository.renewSession(this.secretHasher(rawSecret), now, new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000));
+    if (!renewed) throw new StoryServiceError("AUTH_REQUIRED", "Your private Wanderpage session has expired.");
     return renewed;
   }
 
@@ -123,7 +122,8 @@ export class StoryService {
   async getOwnedStory(rawSecret: string, storyId: string) {
     const session = await this.requireSession(rawSecret),
       story = await this.repository.findStory(storyId);
-    if (!story || story.deletedAt) throw new StoryServiceError("NOT_FOUND", "Story not found.");
+    if (!story || story.deletedAt || story.status === "deleting" || story.status === "deleted")
+      throw new StoryServiceError("NOT_FOUND", "Story not found.");
     if (!safeEqual(story.ownerSessionId, session.id))
       throw new StoryServiceError("FORBIDDEN", "This story belongs to another private session.");
     return story;
@@ -131,7 +131,7 @@ export class StoryService {
 
   async listOwnedStories(rawSecret: string) {
     const session = await this.requireSession(rawSecret);
-    return this.repository.listStories(session.id);
+    return (await this.repository.listStories(session.id)).filter(story => story.status !== "deleting" && story.status !== "deleted");
   }
 
   async updateStory(
@@ -158,16 +158,18 @@ export class StoryService {
           "INVALID_STATE",
           "A completed draft cannot change its privacy policy after source deletion. Start a new private story with the new policy."
         );
-      return await this.repository.saveStory(
-        {
-          ...story,
-          ...changes,
-          status: story.status,
-          manifest: policyChanged ? undefined : story.manifest ? { ...story.manifest, title: changes.title } : undefined,
-          updatedAt: this.now(),
-        },
-        expectedVersion
-      );
+      const candidate = {
+        ...story,
+        ...changes,
+        status: story.status,
+        manifest: policyChanged ? undefined : story.manifest ? { ...story.manifest, title: changes.title } : undefined,
+        updatedAt: this.now(),
+      };
+      if (candidate.manifest) {
+        const errors = validateHostedManifestPolicy(candidate.manifest, candidate.locationPrivacy);
+        if (errors.length) throw new StoryServiceError("VALIDATION_ERROR", "The edited story does not satisfy its privacy policy.");
+      }
+      return await this.repository.saveStory(candidate, expectedVersion);
     } catch (error) {
       if (error instanceof Error && error.message === "STORY_VERSION_CONFLICT")
         throw new StoryServiceError("STORY_VERSION_CONFLICT", "This story changed in another tab. Reload and try again.");
@@ -252,6 +254,13 @@ export class StoryService {
     const story = await this.getOwnedStory(rawSecret, storyId);
     if (story.status !== "draft" || !story.manifest)
       throw new StoryServiceError("INVALID_STATE", "Finish a private draft before publishing.");
+    const runId = hostedRunId(story);
+    if (!runId) throw new StoryServiceError("INVALID_STATE", "This draft does not have valid hosted media.");
+    try {
+      await this.hostedValidator(story.id, runId, story.manifest, story.locationPrivacy);
+    } catch {
+      throw new StoryServiceError("INVALID_STATE", "This draft failed its final privacy validation and cannot be published.");
+    }
     return this.repository.saveStory(
       {
         ...story,
@@ -303,6 +312,13 @@ function slug(value: string) {
       .replace(/^-+|-+$/g, "")
       .slice(0, 48) || "wanderpage"
   );
+}
+
+function hostedRunId(story: Story) {
+  const path = story.manifest?.photos[0]?.srcLarge;
+  if (!path) return undefined;
+  const [, runId] = decodeURIComponent(path.split("/").at(-1) ?? "").split("--");
+  return runId || undefined;
 }
 
 function positiveInteger(value: string | undefined, fallback: number) {

@@ -46,26 +46,9 @@ export async function processStory(story: Story, uploads: StoryUpload[]) {
 
 export async function validateHostedStoryOutput(storyId: string, runId: string, manifest: TripManifest, privacy: Story["locationPrivacy"]) {
   const parsed = TripManifestSchema.parse(manifest),
-    serialized = JSON.stringify(parsed),
-    errors = forbiddenHostedValue.filter(pattern => pattern.test(serialized)).map(pattern => `manifest matched ${pattern}`),
+    errors = validateHostedManifestPolicy(parsed, privacy),
     paths = [...new Set(parsed.photos.flatMap(photo => [photo.srcLarge, photo.srcMedium, photo.srcThumb]))],
     expectedPrefix = `/api/media/${storyId}/`;
-  if (credentialPattern.test(serialized)) errors.push("manifest contains a credential-like value");
-  for (const [name, value] of Object.entries(process.env))
-    if (/(?:KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL)$/i.test(name) && value && value.length > 8 && serialized.includes(value))
-      errors.push(`manifest contains configured secret ${name}`);
-  if (privacy === "hidden" || privacy === "broad") {
-    if (parsed.route.length || parsed.destinations.some(destination => destination.approximateCoordinate))
-      errors.push(`${privacy} manifests must not contain coordinates`);
-  } else if (
-    parsed.route.some(point => hasMoreThanOneDecimal(point.lat) || hasMoreThanOneDecimal(point.lon)) ||
-    parsed.destinations.some(
-      destination =>
-        destination.approximateCoordinate &&
-        (hasMoreThanOneDecimal(destination.approximateCoordinate.lat) || hasMoreThanOneDecimal(destination.approximateCoordinate.lon))
-    )
-  )
-    errors.push("approximate manifests must not contain raw coordinate precision");
   if (errors.length) throw new Error(`PRIVACY_FAILED: ${errors.join("; ")}`);
   for (const path of paths) {
     if (!path.startsWith(expectedPrefix)) {
@@ -87,6 +70,29 @@ export async function validateHostedStoryOutput(storyId: string, runId: string, 
     errors.push(...(await validateHostedDerivative(bytes)).map(error => `${path}: ${error}`));
   }
   if (errors.length) throw new Error(`PRIVACY_FAILED: ${errors.join("; ")}`);
+}
+
+export function validateHostedManifestPolicy(manifest: TripManifest, privacy: Story["locationPrivacy"]) {
+  const parsed = TripManifestSchema.parse(manifest),
+    serialized = JSON.stringify(parsed),
+    errors = forbiddenHostedValue.filter(pattern => pattern.test(serialized)).map(pattern => `manifest matched ${pattern}`);
+  if (credentialPattern.test(serialized)) errors.push("manifest contains a credential-like value");
+  for (const [name, value] of Object.entries(process.env))
+    if (/(?:KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL)$/i.test(name) && value && value.length > 8 && serialized.includes(value))
+      errors.push(`manifest contains configured secret ${name}`);
+  if (privacy === "hidden" || privacy === "broad") {
+    if (parsed.route.length || parsed.destinations.some(destination => destination.approximateCoordinate))
+      errors.push(`${privacy} manifests must not contain coordinates`);
+  } else if (
+    parsed.route.some(point => hasMoreThanOneDecimal(point.lat) || hasMoreThanOneDecimal(point.lon)) ||
+    parsed.destinations.some(
+      destination =>
+        destination.approximateCoordinate &&
+        (hasMoreThanOneDecimal(destination.approximateCoordinate.lat) || hasMoreThanOneDecimal(destination.approximateCoordinate.lon))
+    )
+  )
+    errors.push("approximate manifests must not contain raw coordinate precision");
+  return errors;
 }
 
 export async function validateHostedDerivative(bytes: Buffer) {

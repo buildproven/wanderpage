@@ -34,11 +34,13 @@ export class MemoryStoryRepository implements StoryRepository {
     return session ? clone(session) : undefined;
   }
 
-  async touchSession(id: string, lastSeenAt: Date, expiresAt: Date) {
-    const session = this.sessions.get(id);
-    if (!session) return;
-    session.lastSeenAt = new Date(lastSeenAt);
+  async renewSession(secretHash: string, now: Date, expiresAt: Date) {
+    const id = this.sessionsByHash.get(secretHash),
+      session = id ? this.sessions.get(id) : undefined;
+    if (!session || session.revokedAt || session.expiresAt <= now) return undefined;
+    session.lastSeenAt = new Date(now);
     session.expiresAt = new Date(expiresAt);
+    return clone(session);
   }
 
   async createStory(story: Story) {
@@ -175,6 +177,7 @@ export class MemoryStoryRepository implements StoryRepository {
       ...story,
       status: "deleting" as const,
       publicSlug: undefined,
+      manifest: undefined,
       activeRunId: undefined,
       deleteAfter: story.deleteAfter ?? new Date(now.getTime() + 15 * 60 * 1000),
       updatedAt: now,
@@ -198,10 +201,52 @@ export class MemoryStoryRepository implements StoryRepository {
     if (!story || story.status !== "deleting" || !story.deleteAfter || story.deleteAfter > now) throw new Error("STORY_NOT_DELETING");
     this.stories.set(
       storyId,
-      clone({ ...story, status: "deleted", manifest: undefined, deletedAt: now, updatedAt: now, version: story.version + 1 })
+      clone({
+        ...story,
+        status: "deleted",
+        admissionKey: undefined,
+        publicSlug: undefined,
+        title: "Deleted story",
+        peopleMode: "exclude",
+        locationPrivacy: "hidden",
+        manifest: undefined,
+        processorRevision: "deleted",
+        activeRunId: undefined,
+        sourceExpiresAt: now,
+        publishedAt: undefined,
+        deletedAt: now,
+        updatedAt: now,
+        version: story.version + 1,
+      })
     );
     for (const [id, upload] of this.uploads)
-      if (upload.storyId === storyId) this.uploads.set(id, { ...upload, status: "deleted", deletedAt: now });
+      if (upload.storyId === storyId)
+        this.uploads.set(id, {
+          ...upload,
+          blobPath: `deleted/${id}`,
+          originalName: "deleted",
+          declaredType: "image/webp",
+          detectedType: undefined,
+          byteSize: undefined,
+          sha256: undefined,
+          status: "deleted",
+          confirmedAt: undefined,
+          cleanupClaimedAt: undefined,
+          deletedAt: now,
+        });
+    for (const [id, run] of this.runs)
+      if (run.storyId === storyId)
+        this.runs.set(id, {
+          ...run,
+          workflowRunId: undefined,
+          processorRevision: "deleted",
+          admissionKey: undefined,
+          stage: "deleted",
+          errorCode: undefined,
+          errorMessage: undefined,
+          sourceUploadIds: [],
+          updatedAt: now,
+        });
   }
 
   async listRuns(storyId: string) {
@@ -317,6 +362,11 @@ export class MemoryStoryRepository implements StoryRepository {
   async reserveUpload(upload: StoryUpload, limits: UploadLimits) {
     const story = this.stories.get(upload.storyId);
     if (!story || story.status !== "uploading") throw new Error("UPLOAD_STATE_CONFLICT");
+    const otherActive = [...this.uploads.values()].some(value => {
+      const owner = this.stories.get(value.storyId)?.ownerSessionId;
+      return owner === story.ownerSessionId && value.storyId !== story.id && (value.status === "reserved" || value.status === "confirmed");
+    });
+    if (otherActive) throw new Error("SESSION_UPLOAD_LIMIT");
     const active = [...this.uploads.values()].filter(
       value => value.storyId === upload.storyId && (value.status === "reserved" || value.status === "confirmed")
     );

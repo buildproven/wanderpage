@@ -90,7 +90,7 @@ export type StoryRepository = {
   createSession(session: OwnerSession): Promise<void>;
   createSessionAndStoryAdmitted(session: OwnerSession, story: Story, limits: StoryCreationLimits): Promise<void>;
   findSessionBySecretHash(secretHash: string): Promise<OwnerSession | undefined>;
-  touchSession(id: string, lastSeenAt: Date, expiresAt: Date): Promise<void>;
+  renewSession(secretHash: string, now: Date, expiresAt: Date): Promise<OwnerSession | undefined>;
   createStory(story: Story): Promise<void>;
   createStoryAdmitted(story: Story, limits: StoryCreationLimits): Promise<void>;
   findStory(id: string): Promise<Story | undefined>;
