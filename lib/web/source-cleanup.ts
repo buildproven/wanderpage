@@ -10,17 +10,19 @@ export async function cleanupExpiredSources(
   await repository.expireStaleRuns(now, new Date(now.getTime() - 6 * 60 * 60 * 1000), limit);
   const uploads = await repository.claimExpiredSourceUploads(now, limit);
   let deleted = 0;
+  const failures: Array<{ uploadId: string; error: string }> = [];
   for (const upload of uploads) {
     try {
       await deleteObject(upload.blobPath);
       await repository.saveUpload(markDeleted(upload, now));
     } catch (error) {
       await repository.saveUpload({ ...upload, status: upload.confirmedAt ? "confirmed" : "reserved", cleanupClaimedAt: undefined });
-      throw error;
+      failures.push({ uploadId: upload.id, error: error instanceof Error ? error.message : "Object deletion failed." });
+      continue;
     }
     deleted += 1;
   }
-  return { deleted, remaining: uploads.length === limit };
+  return { deleted, failures, remaining: uploads.length === limit };
 }
 
 function markDeleted(upload: StoryUpload, now: Date): StoryUpload {

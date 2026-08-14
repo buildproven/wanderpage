@@ -37,7 +37,7 @@ describe("source cleanup", () => {
         createdAt: new Date("2026-08-13T00:00:00Z"),
       });
 
-    await expect(cleanupExpiredSources(repository, now, 100, remove)).resolves.toEqual({ deleted: 2, remaining: false });
+    await expect(cleanupExpiredSources(repository, now, 100, remove)).resolves.toEqual({ deleted: 2, failures: [], remaining: false });
     expect(remove).toHaveBeenCalledTimes(2);
     expect((await repository.listUploads(story.id)).map(upload => upload.status)).toEqual(["deleted", "deleted"]);
   });
@@ -68,6 +68,7 @@ describe("source cleanup", () => {
     await repository.saveStory({ ...story, status: "processing", activeRunId: crypto.randomUUID() }, story.version);
     await expect(cleanupExpiredSources(repository, new Date("2026-08-15T00:00:00Z"), 100, remove)).resolves.toEqual({
       deleted: 0,
+      failures: [],
       remaining: false,
     });
     expect(remove).not.toHaveBeenCalled();
@@ -110,7 +111,7 @@ describe("source cleanup", () => {
       confirmedAt: createdAt,
       createdAt,
     });
-    await expect(cleanupExpiredSources(repository, now, 100, remove)).resolves.toEqual({ deleted: 1, remaining: false });
+    await expect(cleanupExpiredSources(repository, now, 100, remove)).resolves.toEqual({ deleted: 1, failures: [], remaining: false });
     expect((await repository.findRun(runId))?.status).toBe("failed");
     expect((await repository.findStory(story.id))?.status).toBe("failed");
   });
@@ -151,5 +152,38 @@ describe("source cleanup", () => {
       deleted: 1,
     });
     expect(remove).toHaveBeenCalledWith(upload.blobPath);
+  });
+
+  it("continues the batch and reports an object deletion failure", async () => {
+    const repository = new MemoryStoryRepository(),
+      now = new Date("2026-08-15T00:00:00Z"),
+      service = new StoryService(
+        repository,
+        { start: async () => ({ workflowRunId: "workflow" }) },
+        () => new Date("2026-08-13T00:00:00Z"),
+        secret => hashSecret(secret, "pepper"),
+        () => ({ enabled: true, dailyLimit: 1 })
+      ),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input),
+      failed = crypto.randomUUID(),
+      succeeded = crypto.randomUUID();
+    for (const id of [failed, succeeded])
+      await repository.createUpload({
+        id,
+        storyId: story.id,
+        blobPath: `sources/${story.id}/${id}`,
+        originalName: `${id}.jpg`,
+        declaredType: "image/jpeg",
+        status: "confirmed",
+        confirmedAt: new Date("2026-08-13T00:00:00Z"),
+        createdAt: new Date("2026-08-13T00:00:00Z"),
+      });
+    const remove = vi.fn(async (path: string) => {
+      if (path.endsWith(failed)) throw new Error("storage unavailable");
+    });
+    const result = await cleanupExpiredSources(repository, now, 100, remove);
+    expect(result).toEqual({ deleted: 1, failures: [{ uploadId: failed, error: "storage unavailable" }], remaining: false });
+    expect(remove).toHaveBeenCalledTimes(2);
   });
 });

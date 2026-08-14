@@ -1,9 +1,13 @@
-import { cp, mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const root = resolve(process.env.WANDERPAGE_WORKSPACE ?? process.cwd()),
-  buildRoot = await mkdtemp(join(tmpdir(), "wanderpage-static-"));
+  buildRoot = await mkdtemp(join(tmpdir(), "wanderpage-static-")),
+  output = join(root, "out"),
+  stagedOutput = join(root, `.out-next-${randomUUID()}`),
+  priorOutput = join(root, `.out-prior-${randomUUID()}`);
 
 try {
   for (const directory of ["app", "components", "lib", "public", "data"])
@@ -20,11 +24,24 @@ try {
     "export default { output: 'export', images: { unoptimized: true }, poweredByHeader: false };\n"
   );
   await run("pnpm", ["exec", "next", "build", "--webpack", buildRoot], buildRoot);
-  await rm(join(root, "out"), { recursive: true, force: true });
-  await mkdir(join(root, "out"), { recursive: true });
-  await cp(join(buildRoot, "out"), join(root, "out"), { recursive: true });
-  console.log(`Static rollback artifact: ${join(root, "out")}`);
+  await cp(join(buildRoot, "out"), stagedOutput, { recursive: true });
+  let preservedPrior = false;
+  try {
+    await rename(output, priorOutput);
+    preservedPrior = true;
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+  }
+  try {
+    await rename(stagedOutput, output);
+  } catch (error) {
+    if (preservedPrior) await rename(priorOutput, output);
+    throw error;
+  }
+  if (preservedPrior) await rm(priorOutput, { recursive: true, force: true });
+  console.log(`Static rollback artifact: ${output}`);
 } finally {
+  await rm(stagedOutput, { recursive: true, force: true });
   await rm(buildRoot, { recursive: true, force: true });
 }
 

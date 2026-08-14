@@ -153,12 +153,17 @@ export class StoryService {
     if (!parsed.success) throw new StoryServiceError("VALIDATION_ERROR", "Check the story title and privacy choices.");
     try {
       const policyChanged = story.peopleMode !== changes.peopleMode || story.locationPrivacy !== changes.locationPrivacy;
+      if (policyChanged && story.status === "draft")
+        throw new StoryServiceError(
+          "INVALID_STATE",
+          "A completed draft cannot change its privacy policy after source deletion. Start a new private story with the new policy."
+        );
       return await this.repository.saveStory(
         {
           ...story,
           ...changes,
-          status: policyChanged && story.status === "draft" ? "uploading" : story.status,
-          manifest: policyChanged ? undefined : story.manifest,
+          status: story.status,
+          manifest: policyChanged ? undefined : story.manifest ? { ...story.manifest, title: changes.title } : undefined,
           updatedAt: this.now(),
         },
         expectedVersion
@@ -223,7 +228,7 @@ export class StoryService {
     try {
       const started = await this.runner.start(queued.id, runId),
         run = await this.repository.findRun(runId);
-      if (run) await this.repository.saveRun({ ...run, workflowRunId: started.workflowRunId, updatedAt: this.now() });
+      if (run) await this.repository.setWorkflowRunId(run.id, started.workflowRunId, this.now());
     } catch (error) {
       const run = await this.repository.findRun(runId);
       if (run)

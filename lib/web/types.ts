@@ -100,9 +100,11 @@ export type StoryRepository = {
   createRun(run: StoryRun): Promise<void>;
   findRun(id: string): Promise<StoryRun | undefined>;
   saveRun(run: StoryRun): Promise<void>;
+  setWorkflowRunId(runId: string, workflowRunId: string, now: Date): Promise<void>;
   completeRun(story: Story, run: StoryRun, manifest: TripManifest, now: Date): Promise<void>;
   claimRun(storyId: string, runId: string, now: Date): Promise<{ story: Story; run: StoryRun }>;
   beginDeleteStory(storyId: string, ownerSessionId: string, now: Date): Promise<Story>;
+  beginOperatorDeleteStory(storyId: string, now: Date): Promise<Story>;
   finishDeleteStory(storyId: string, now: Date): Promise<void>;
   listRuns(storyId: string): Promise<StoryRun[]>;
   listUploadsByIds(ids: string[]): Promise<StoryUpload[]>;

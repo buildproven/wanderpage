@@ -116,6 +116,13 @@ export class MemoryStoryRepository implements StoryRepository {
     this.runs.set(run.id, clone(run));
   }
 
+  async setWorkflowRunId(runId: string, workflowRunId: string, now: Date) {
+    const run = this.runs.get(runId);
+    if (!run) throw new Error("RUN_STATE_CONFLICT");
+    if (run.workflowRunId && run.workflowRunId !== workflowRunId) throw new Error("RUN_STATE_CONFLICT");
+    this.runs.set(runId, { ...run, workflowRunId, updatedAt: now });
+  }
+
   async completeRun(story: Story, run: StoryRun, manifest: Story["manifest"], now: Date) {
     const currentStory = this.stories.get(story.id),
       currentRun = this.runs.get(run.id);
@@ -172,6 +179,12 @@ export class MemoryStoryRepository implements StoryRepository {
     return clone(deleting);
   }
 
+  async beginOperatorDeleteStory(storyId: string, now: Date) {
+    const story = this.stories.get(storyId);
+    if (!story) throw new Error("STORY_NOT_FOUND");
+    return this.beginDeleteStory(storyId, story.ownerSessionId, now);
+  }
+
   async finishDeleteStory(storyId: string, now: Date) {
     const story = this.stories.get(storyId);
     if (!story || story.status !== "deleting" || !story.deleteAfter || story.deleteAfter > now) throw new Error("STORY_NOT_DELETING");
@@ -193,14 +206,12 @@ export class MemoryStoryRepository implements StoryRepository {
   }
 
   async claimExpiredPrivateStories(now: Date, staleBefore: Date, limit: number) {
+    void staleBefore;
     const candidates = [...this.stories.values()]
       .filter(story => {
         const session = this.sessions.get(story.ownerSessionId);
         return (
-          story.status !== "published" &&
-          story.status !== "deleting" &&
-          story.status !== "deleted" &&
-          (story.updatedAt <= staleBefore || (!!session && session.expiresAt <= now))
+          story.status !== "published" && story.status !== "deleting" && story.status !== "deleted" && !!session && session.expiresAt <= now
         );
       })
       .slice(0, limit);

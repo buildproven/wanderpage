@@ -10,10 +10,19 @@ export async function GET(request: Request) {
     expected = secret ? `Bearer ${secret}` : "";
   if (!secret || !authorization || !safeEqual(authorization, expected)) return new Response("Unauthorized", { status: 401 });
   const repository = NeonStoryRepository.fromEnvironment(),
-    sources = await cleanupExpiredSources(repository),
-    derivatives = await cleanupFailedDerivatives(repository),
-    stories = await cleanupExpiredPrivateStories(repository);
-  return Response.json({ sources, derivatives, stories }, { headers: { "Cache-Control": "no-store" } });
+    sources = await settle(() => cleanupExpiredSources(repository)),
+    derivatives = await settle(() => cleanupFailedDerivatives(repository)),
+    stories = await settle(() => cleanupExpiredPrivateStories(repository)),
+    failed = [sources, derivatives, stories].some(result => !result.ok) || (sources.ok && sources.value.failures.length > 0);
+  return Response.json({ sources, derivatives, stories }, { status: failed ? 207 : 200, headers: { "Cache-Control": "no-store" } });
+}
+
+async function settle<T>(operation: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
+  try {
+    return { ok: true, value: await operation() };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Cleanup operation failed." };
+  }
 }
 
 function safeEqual(left: string, right: string) {

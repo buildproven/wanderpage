@@ -4,7 +4,7 @@ Wanderpage turns travel photos into a private, cinematic story. The browser flow
 
 ## Hosted browser app
 
-Deploy the server-backed Next.js application to Vercel, connect a private Vercel Blob store and Neon Postgres database, and apply every SQL file in [`db/migrations`](db/migrations) in numeric order inside one deployment transaction. Then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, `WANDERPAGE_GENERATION_ENABLED=true`, `WANDERPAGE_DAILY_GENERATION_LIMIT`, `CRON_SECRET`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs.
+Deploy the server-backed Next.js application to Vercel, connect a private Vercel Blob store and Neon Postgres database, and apply every SQL file in [`db/migrations`](db/migrations) in numeric order inside one deployment transaction. Then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, `WANDERPAGE_GENERATION_ENABLED=true`, `WANDERPAGE_DAILY_GENERATION_LIMIT`, `CRON_SECRET`, `WANDERPAGE_OPERATOR_SECRET`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs.
 
 This does not require Stripe, payments, a native app, or an Apple developer account. The detailed privacy, ownership, retention, and deployment decisions are recorded in [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
 
@@ -105,6 +105,7 @@ It sends a small contact sheet through the configured vision model using Structu
 
 - `OPENAI_API_KEY`: required for real AI-backed generation and strict people exclusion.
 - `DATABASE_URL`: required for hosted owner sessions, stories, and runs.
+- `WANDERPAGE_OPERATOR_SECRET`: separate bearer credential for emergency revocation through `DELETE /api/operator/stories/{storyId}`. The route immediately removes public visibility and starts idempotent object cleanup.
 - `BLOB_READ_WRITE_TOKEN`: required for private direct uploads and private derivative delivery.
 - `WANDERPAGE_SESSION_PEPPER`: required to hash anonymous owner-session cookies; use a long, random value.
 - `OPENAI_VISION_MODEL`: defaults to `gpt-5.6-luna`.

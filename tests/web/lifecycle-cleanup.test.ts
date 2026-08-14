@@ -41,6 +41,35 @@ describe("hosted lifecycle cleanup", () => {
     expect(resumed.run.attempts).toBe(1);
   });
 
+  it("persists a workflow id without overwriting concurrent run progress", async () => {
+    const repository = new MemoryStoryRepository(),
+      now = new Date("2026-08-13T00:00:00Z"),
+      { session, story } = records("workflow-id", "client", now),
+      run: StoryRun = {
+        id: crypto.randomUUID(),
+        storyId: story.id,
+        processorRevision: "web-v1",
+        status: "queued",
+        stage: "queued",
+        progress: 0,
+        attempts: 0,
+        sourceUploadIds: [],
+        updatedAt: now,
+      };
+    await repository.createSession(session);
+    await repository.createStory({ ...story, status: "queued", activeRunId: run.id });
+    await repository.createRun(run);
+    await repository.claimRun(story.id, run.id, new Date(now.getTime() + 1000));
+    await repository.setWorkflowRunId(run.id, "workflow-1", new Date(now.getTime() + 2000));
+    expect(await repository.findRun(run.id)).toMatchObject({
+      workflowRunId: "workflow-1",
+      status: "processing",
+      stage: "curating",
+      progress: 5,
+      attempts: 1,
+    });
+  });
+
   it("binds a run to its admitted source set and excludes later uploads", async () => {
     const repository = new MemoryStoryRepository(),
       now = new Date("2026-08-13T00:00:00Z"),
@@ -143,6 +172,29 @@ describe("hosted lifecycle cleanup", () => {
     });
     await expect(repository.findStory(story.id)).resolves.toBeUndefined();
     await expect(repository.findSessionBySecretHash(session.secretHash)).resolves.toBeUndefined();
+  });
+
+  it("retains an old draft while its owner session is active", async () => {
+    const repository = new MemoryStoryRepository(),
+      created = new Date("2026-06-01T00:00:00Z"),
+      now = new Date("2026-08-13T00:00:00Z"),
+      recordsValue = records("active-owner", "client", created),
+      session = { ...recordsValue.session, lastSeenAt: now, expiresAt: new Date("2026-09-12T00:00:00Z") };
+    await repository.createSession(session);
+    await repository.createStory({ ...recordsValue.story, ownerSessionId: session.id, status: "draft" });
+    await expect(cleanupExpiredPrivateStories(repository, now)).resolves.toMatchObject({ expired: 0, deleted: 0 });
+    expect((await repository.findStory(recordsValue.story.id))?.status).toBe("draft");
+  });
+
+  it("lets an authenticated operator immediately revoke a published story", async () => {
+    const repository = new MemoryStoryRepository(),
+      now = new Date("2026-08-13T00:00:00Z"),
+      { session, story } = records("operator", "client", now);
+    await repository.createSession(session);
+    await repository.createStory({ ...story, status: "published", publicSlug: "public-story" });
+    await repository.beginOperatorDeleteStory(story.id, now);
+    expect(await repository.findPublishedStoryBySlug("public-story")).toBeUndefined();
+    expect((await repository.findStory(story.id))?.status).toBe("deleting");
   });
 });
 

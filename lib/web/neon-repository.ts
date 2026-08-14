@@ -138,7 +138,7 @@ export class NeonStoryRepository implements StoryRepository {
         FROM admitted RETURNING id
       )
       UPDATE stories SET status = 'queued', active_run_id = ${run.id}, processor_revision = ${value.processorRevision},
-        updated_at = ${value.updatedAt}, version = version + 1
+        source_expires_at = ${value.sourceExpiresAt}, updated_at = ${value.updatedAt}, version = version + 1
       WHERE id = ${value.id} AND EXISTS (SELECT 1 FROM inserted)
       RETURNING *
     `;
@@ -185,6 +185,17 @@ export class NeonStoryRepository implements StoryRepository {
     `;
   }
 
+  async setWorkflowRunId(runId: string, workflowRunId: string, now: Date) {
+    const rows = await this.sql`
+      UPDATE story_runs SET workflow_run_id = ${workflowRunId}, updated_at = ${now}
+      WHERE id = ${runId} AND workflow_run_id IS NULL RETURNING id
+    `;
+    if (!rows.length) {
+      const [current] = await this.sql`SELECT workflow_run_id FROM story_runs WHERE id = ${runId}`;
+      if (!current || optionalString(current, "workflow_run_id") !== workflowRunId) throw new Error("RUN_STATE_CONFLICT");
+    }
+  }
+
   async completeRun(value: Story, run: StoryRun, manifest: Story["manifest"], now: Date) {
     const rows = await this.sql`
       WITH target AS MATERIALIZED (
@@ -194,7 +205,7 @@ export class NeonStoryRepository implements StoryRepository {
         FOR UPDATE OF s, r
       ), claimed_sources AS (
         UPDATE story_uploads SET status = 'rejected', cleanup_claimed_at = ${now}
-        WHERE id = ANY(${run.sourceUploadIds}) AND story_id = ${value.id} AND status = 'confirmed'
+        WHERE id = ANY(${run.sourceUploadIds}) AND story_id IN (SELECT id FROM target) AND status = 'confirmed'
         RETURNING id
       ), completed_story AS (
         UPDATE stories SET status = 'draft', manifest = ${manifest ?? null}, active_run_id = NULL,
@@ -250,6 +261,12 @@ export class NeonStoryRepository implements StoryRepository {
     return story(row);
   }
 
+  async beginOperatorDeleteStory(storyId: string, now: Date) {
+    const [target] = await this.sql`SELECT owner_session_id FROM stories WHERE id = ${storyId} AND status <> 'deleted'`;
+    if (!target) throw new Error("STORY_NOT_FOUND");
+    return this.beginDeleteStory(storyId, string(target, "owner_session_id"), now);
+  }
+
   async finishDeleteStory(storyId: string, now: Date) {
     const rows = await this.sql`
       WITH finished AS (
@@ -277,11 +294,12 @@ export class NeonStoryRepository implements StoryRepository {
   }
 
   async claimExpiredPrivateStories(now: Date, staleBefore: Date, limit: number) {
+    void staleBefore;
     const rows = await this.sql`
       WITH candidates AS MATERIALIZED (
         SELECT s.id FROM stories s JOIN owner_sessions o ON o.id = s.owner_session_id
         WHERE s.status NOT IN ('published', 'deleting', 'deleted')
-          AND (s.updated_at <= ${staleBefore} OR o.expires_at <= ${now})
+          AND o.expires_at <= ${now}
         ORDER BY s.updated_at ASC FOR UPDATE OF s SKIP LOCKED LIMIT ${limit}
       ), cancelled AS (
         UPDATE story_runs SET status = 'cancelled', stage = 'retention-expired', finished_at = ${now}, updated_at = ${now}

@@ -105,20 +105,21 @@ describe("web story service", () => {
     expect((await service.unpublish(owner.rawSecret, draft.id)).status).toBe("draft");
   });
 
-  it("invalidates generated output when an owner changes a privacy policy", async () => {
+  it("rejects privacy-policy changes after source deletion without destroying the draft", async () => {
     const { service, repository } = fixture(),
       owner = await service.createSession(input),
       story = await service.createStory(owner.rawSecret, input),
       current = await repository.findStory(story.id);
     if (!current) throw new Error("Fixture story disappeared");
-    const draft = await repository.saveStory({ ...current, status: "draft", manifest: demoManifest() }, current.version),
-      changed = await service.updateStory(owner.rawSecret, draft.id, draft.version, {
+    const draft = await repository.saveStory({ ...current, status: "draft", manifest: demoManifest() }, current.version);
+    await expect(
+      service.updateStory(owner.rawSecret, draft.id, draft.version, {
         title: draft.title,
         peopleMode: draft.peopleMode,
         locationPrivacy: "hidden",
-      });
-    expect(changed).toMatchObject({ status: "uploading", manifest: undefined, locationPrivacy: "hidden" });
-    await expect(service.publish(owner.rawSecret, story.id)).rejects.toMatchObject({ code: "INVALID_STATE" });
+      })
+    ).rejects.toMatchObject({ code: "INVALID_STATE" });
+    expect(await repository.findStory(draft.id)).toMatchObject({ status: "draft", manifest: demoManifest() });
   });
 
   it("fails closed before queueing when generation is disabled", async () => {
