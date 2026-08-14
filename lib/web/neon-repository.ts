@@ -390,7 +390,10 @@ export class NeonStoryRepository implements StoryRepository {
         DELETE FROM stories WHERE id IN (SELECT id FROM doomed) RETURNING owner_session_id
       ), deleted_sessions AS (
         DELETE FROM owner_sessions o WHERE o.id IN (SELECT owner_session_id FROM deleted_stories)
-          AND NOT EXISTS (SELECT 1 FROM stories s WHERE s.owner_session_id = o.id) RETURNING id
+          AND NOT EXISTS (
+            SELECT 1 FROM stories s
+            WHERE s.owner_session_id = o.id AND s.id NOT IN (SELECT id FROM doomed)
+          ) RETURNING id
       )
       SELECT count(*)::int AS count FROM deleted_stories
     `;
@@ -598,7 +601,7 @@ function upload(row: Row): StoryUpload {
     originalName: string(row, "original_name"),
     declaredType,
     detectedType: optionalString(row, "detected_type"),
-    byteSize: row.byte_size == null ? undefined : number(row, "byte_size"),
+    byteSize: row.byte_size == null ? undefined : safeInteger(row, "byte_size"),
     sha256: optionalString(row, "sha256"),
     status: string(row, "status") as StoryUpload["status"],
     createdAt: date(row, "created_at"),
@@ -621,6 +624,12 @@ function number(row: Row, key: string) {
   const value = row[key];
   if (typeof value !== "number") throw new Error(`Database value ${key} is invalid.`);
   return value;
+}
+function safeInteger(row: Row, key: string) {
+  const value = row[key],
+    parsed = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(parsed)) throw new Error(`Database value ${key} is invalid.`);
+  return parsed;
 }
 function date(row: Row, key: string) {
   const value = row[key];

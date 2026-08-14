@@ -85,6 +85,24 @@ describe("web story service", () => {
     } satisfies Partial<StoryServiceError>);
   });
 
+  it("does not extend source-photo retention when generation starts", async () => {
+    let now = new Date("2026-08-14T00:00:00Z");
+    const repository = new MemoryStoryRepository(),
+      service = new StoryService(
+        repository,
+        { start: async () => ({ workflowRunId: "workflow" }) },
+        () => now,
+        secret => hashSecret(secret, "test-pepper"),
+        () => ({ enabled: true, dailyLimit: 25 })
+      ),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input);
+    await addConfirmedUploads(repository, story.id);
+    now = new Date("2026-08-14T23:00:00Z");
+    const queued = await service.queueGeneration(owner.rawSecret, story.id, "client-a");
+    expect(queued.sourceExpiresAt).toEqual(story.sourceExpiresAt);
+  });
+
   it("requires a finalized private draft before explicit publication", async () => {
     const { service, repository } = fixture(),
       owner = await service.createSession(input),

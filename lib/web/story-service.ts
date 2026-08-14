@@ -193,7 +193,7 @@ export class StoryService {
       const policy = this.generationPolicy();
       if (!policy.enabled) throw new StoryServiceError("INVALID_STATE", "Story generation is temporarily unavailable.");
       queued = await this.repository.queueRun(
-        { ...story, sourceExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), updatedAt: now, processorRevision },
+        { ...story, updatedAt: now, processorRevision },
         {
           id: runId,
           storyId: story.id,
