@@ -12,6 +12,7 @@ import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
 import type { Story, StoryUpload } from "@/lib/web/types";
 
 const forbiddenHostedValue = [/\/Users\//, /\\Users\\/i, /\.trip-output/i, /\.trip-cache/i, /blob:/i, /file:\/\//i];
+const credentialPattern = /(?:sk-[a-z0-9_-]{16,}|(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s"']{8,}|postgres(?:ql)?:\/\/)/i;
 
 export async function processStory(story: Story, uploads: StoryUpload[]) {
   const confirmed = uploads.filter(upload => upload.status === "confirmed");
@@ -43,12 +44,29 @@ export async function processStory(story: Story, uploads: StoryUpload[]) {
   }
 }
 
-export async function validateHostedStoryOutput(storyId: string, runId: string, manifest: TripManifest) {
+export async function validateHostedStoryOutput(storyId: string, runId: string, manifest: TripManifest, privacy: Story["locationPrivacy"]) {
   const parsed = TripManifestSchema.parse(manifest),
     serialized = JSON.stringify(parsed),
     errors = forbiddenHostedValue.filter(pattern => pattern.test(serialized)).map(pattern => `manifest matched ${pattern}`),
     paths = [...new Set(parsed.photos.flatMap(photo => [photo.srcLarge, photo.srcMedium, photo.srcThumb]))],
     expectedPrefix = `/api/media/${storyId}/`;
+  if (credentialPattern.test(serialized)) errors.push("manifest contains a credential-like value");
+  for (const [name, value] of Object.entries(process.env))
+    if (/(?:KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL)$/i.test(name) && value && value.length > 8 && serialized.includes(value))
+      errors.push(`manifest contains configured secret ${name}`);
+  if (privacy === "hidden" || privacy === "broad") {
+    if (parsed.route.length || parsed.destinations.some(destination => destination.approximateCoordinate))
+      errors.push(`${privacy} manifests must not contain coordinates`);
+  } else if (
+    parsed.route.some(point => hasMoreThanOneDecimal(point.lat) || hasMoreThanOneDecimal(point.lon)) ||
+    parsed.destinations.some(
+      destination =>
+        destination.approximateCoordinate &&
+        (hasMoreThanOneDecimal(destination.approximateCoordinate.lat) || hasMoreThanOneDecimal(destination.approximateCoordinate.lon))
+    )
+  )
+    errors.push("approximate manifests must not contain raw coordinate precision");
+  if (errors.length) throw new Error(`PRIVACY_FAILED: ${errors.join("; ")}`);
   for (const path of paths) {
     if (!path.startsWith(expectedPrefix)) {
       errors.push(`manifest contains an unowned media path: ${path}`);
@@ -77,6 +95,10 @@ export async function validateHostedDerivative(bytes: Buffer) {
   if (metadata.format !== "webp") errors.push("derivative is not WebP");
   if (metadata.exif || metadata.xmp || metadata.iptc) errors.push("derivative contains embedded metadata");
   return errors;
+}
+
+function hasMoreThanOneDecimal(value: number) {
+  return Math.abs(value * 10 - Math.round(value * 10)) > Number.EPSILON * 10;
 }
 
 async function downloadUpload(upload: StoryUpload, input: string) {

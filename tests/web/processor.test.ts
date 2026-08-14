@@ -23,7 +23,23 @@ describe("hosted manifest privacy", () => {
   it("rejects hosted manifests that reference local or unowned media", async () => {
     const unsafe = manifest();
     unsafe.opening = "Imported from /Users/example/Pictures/private";
-    await expect(validateHostedStoryOutput("story-1", "run-1", unsafe)).rejects.toThrow(/PRIVACY_FAILED.*Users.*unowned media path/);
+    await expect(validateHostedStoryOutput("story-1", "run-1", unsafe, "approximate")).rejects.toThrow(/PRIVACY_FAILED.*Users/);
+  });
+
+  it("rejects policy-invalid raw coordinates and configured secrets", async () => {
+    const unsafe = manifest(),
+      sensitiveName = ["WANDERPAGE", "TEST", "TOKEN"].join("_"),
+      previous = process.env[sensitiveName];
+    process.env[sensitiveName] = "hosted-test-credential-value";
+    unsafe.opening = `private token: ${process.env[sensitiveName]}`;
+    try {
+      await expect(validateHostedStoryOutput("story-1", "run-1", unsafe, "hidden")).rejects.toThrow(
+        /PRIVACY_FAILED.*configured secret WANDERPAGE_TEST_TOKEN.*hidden manifests must not contain coordinates/
+      );
+    } finally {
+      if (previous === undefined) delete process.env[sensitiveName];
+      else process.env[sensitiveName] = previous;
+    }
   });
 
   it("rejects derivative bytes with embedded camera metadata", async () => {

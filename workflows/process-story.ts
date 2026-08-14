@@ -91,7 +91,12 @@ async function completeProcessing(storyId: string, runId: string, manifest: Awai
 async function validatePrivacy(storyId: string, runId: string, manifest: Awaited<ReturnType<typeof processStory>>["manifest"]) {
   "use step";
   try {
-    await validateHostedStoryOutput(storyId, runId, manifest);
+    const repository = NeonStoryRepository.fromEnvironment(),
+      story = await repository.findStory(storyId),
+      run = await repository.findRun(runId);
+    if (!story || !run || story.activeRunId !== runId || story.status !== "processing")
+      throw new Error("Story run is no longer eligible for privacy validation.");
+    await validateHostedStoryOutput(storyId, runId, manifest, story.locationPrivacy);
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Hosted output failed privacy validation.";
     throw new FatalError(detail.startsWith("PRIVACY_FAILED:") ? detail : `PRIVACY_FAILED: ${detail}`);
