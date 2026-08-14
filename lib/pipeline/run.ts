@@ -20,7 +20,7 @@ export type RunOptions = {
   people: "include" | "exclude";
   title?: string;
   maxPhotos: number;
-  privacy: "approximate" | "exact";
+  privacy: "hidden" | "broad" | "approximate" | "exact";
   force: boolean;
   dryRun: boolean;
   demo: boolean;
@@ -39,7 +39,8 @@ export type RunDependencies = {
 };
 
 export async function runTrip(options: RunOptions, dependencies: RunDependencies = {}) {
-  const root = resolve(dependencies.root ?? process.env.WANDERPAGE_WORKSPACE ?? process.cwd());
+  // The web processor passes an isolated temporary workspace; Turbopack must not trace that runtime path.
+  const root = resolve(/* turbopackIgnore: true */ dependencies.root ?? process.env.WANDERPAGE_WORKSPACE ?? process.cwd());
   const cache = join(root, ".trip-cache"),
     output = join(root, ".trip-output"),
     generated = join(root, ".trip-assets");
@@ -120,33 +121,43 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
   dependencies.onProgress?.({ stage: "select", progress: 68, message: "Selecting the strongest, most varied photographs" });
   const selection = selectPhotos(photos, options.people, options.maxPhotos);
   dependencies.onProgress?.({ stage: "write", progress: 74, message: "Writing the story from supported evidence" });
+  const safeDestinations =
+    options.privacy === "hidden"
+      ? []
+      : destinations.map(destination => ({
+          ...destination,
+          name: options.privacy === "broad" ? broadRegion(destination.name) : destination.name,
+        }));
   const narrative = await provider.generateNarrative(
     JSON.stringify({
       title: options.title,
       peopleMode: options.people,
+      locationPrivacy: options.privacy,
       photos: selection.selected.map(p => ({
         id: p.id,
         captureTime: p.captureTime,
-        categories: p.semantic?.categories,
-        captionSeed: p.semantic?.captionSeed,
-        locationClues: p.semantic?.possibleLocations,
+        categories: options.privacy === "broad" || options.privacy === "hidden" ? undefined : p.semantic?.categories,
+        captionSeed: options.privacy === "approximate" || options.privacy === "exact" ? p.semantic?.captionSeed : undefined,
+        locationClues: options.privacy === "approximate" || options.privacy === "exact" ? p.semantic?.possibleLocations : undefined,
       })),
-      destinations: destinations.map(d => ({
+      destinations: safeDestinations.map(d => ({
         name: d.confidence >= 0.55 ? d.name : undefined,
         confidence: d.confidence,
-        evidence: d.evidence,
+        evidence: options.privacy === "broad" ? undefined : d.evidence,
       })),
     })
   );
   apiCalls++;
   dependencies.onProgress?.({ stage: "enrich", progress: 80, message: "Adding sourced destination context" });
   const enriched = await Promise.all(
-    destinations.map(destination =>
-      destinationEnrichment(
-        destination,
-        process.env.WIKIMEDIA_USER_AGENT ?? "Wanderpage/0.1 (personal vacation story generator)",
-        selection.selected.find(p => destination.photoIds.includes(p.id))?.captureTime?.slice(0, 10)
-      )
+    safeDestinations.map(destination =>
+      options.privacy === "hidden" || options.privacy === "broad"
+        ? Promise.resolve({ introduction: "", facts: [], sources: [] })
+        : destinationEnrichment(
+            destination,
+            process.env.WIKIMEDIA_USER_AGENT ?? "Wanderpage/0.1 (personal vacation story generator)",
+            selection.selected.find(p => destination.photoIds.includes(p.id))?.captureTime?.slice(0, 10)
+          )
     )
   );
   dependencies.onProgress?.({ stage: "publish", progress: 86, message: "Preparing private, metadata-free web images" });
@@ -208,16 +219,24 @@ async function makeManifest(
   await mkdir(generated, { recursive: true });
   const published = await Promise.all(selection.selected.map(photo => publishPhoto(photo, generated, publicPath)));
   const captions = new Map(narrative.captions.map(item => [item.photoId, item]));
-  const destinationObjects = destinations
+  const destinationObjects = (options.privacy === "hidden" ? [] : destinations)
     .filter(d => d.confidence >= 0.55)
     .map((destination, index) => ({
       id: destination.id,
-      name: destination.confidence >= 0.8 ? destination.name : broaden(destination.name),
+      name:
+        options.privacy === "broad"
+          ? broadRegion(destination.name)
+          : destination.confidence >= 0.8
+            ? destination.name
+            : broaden(destination.name),
       confidence: destination.confidence,
-      approximateCoordinate: {
-        lat: roundedCoordinate(destination.lat, options.privacy),
-        lon: roundedCoordinate(destination.lon, options.privacy),
-      },
+      approximateCoordinate:
+        options.privacy === "approximate" || options.privacy === "exact"
+          ? {
+              lat: roundedCoordinate(destination.lat, options.privacy),
+              lon: roundedCoordinate(destination.lon, options.privacy),
+            }
+          : undefined,
       introduction: enriched[index]?.introduction ?? "",
       facts: enriched[index]?.facts ?? [],
     }));
@@ -266,12 +285,14 @@ async function makeManifest(
       { label: "Selected frames", value: String(selection.selected.length) },
     ],
     destinations: destinationObjects,
-    route: destinationObjects.map((d, index) => ({
-      destinationId: d.id,
-      sequence: index + 1,
-      lat: d.approximateCoordinate.lat,
-      lon: d.approximateCoordinate.lon,
-    })),
+    route: destinationObjects
+      .filter(d => d.approximateCoordinate)
+      .map((d, index) => ({
+        destinationId: d.id,
+        sequence: index + 1,
+        lat: d.approximateCoordinate!.lat,
+        lon: d.approximateCoordinate!.lon,
+      })),
     chapters,
     photos: selection.selected.map(photo => {
       const asset = published.find(p => p.id === photo.id)!;
@@ -293,6 +314,9 @@ async function makeManifest(
 function broaden(name: string) {
   const parts = name.split(",");
   return parts.at(-1)?.trim() || "the surrounding region";
+}
+function broadRegion(name: string) {
+  return name.includes(",") ? broaden(name) : "the surrounding region";
 }
 function routeDistance(destinations: Awaited<ReturnType<typeof inferDestinations>>) {
   let total = 0;

@@ -1,6 +1,12 @@
 # Wanderpage
 
-Wanderpage is a free, local-first vacation story generator: point it at a photo folder and it builds a private, static, cinematic travel story. Originals are never modified. Published images are resized WebP files with metadata removed; public route coordinates are rounded; low-confidence locations are omitted or broadened; people are never identified.
+Wanderpage turns travel photos into a private, cinematic story. The browser flow at `/create` uploads files directly to private storage, creates a private draft, and only shares a story after its owner explicitly publishes it. Originals are never modified; generated WebP derivatives remove metadata; people are never identified.
+
+## Hosted browser app
+
+Deploy the server-backed Next.js application to Vercel, connect a private Vercel Blob store and Neon Postgres database, and apply every SQL file in [`db/migrations`](db/migrations) in numeric order inside one deployment transaction. Then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, `WANDERPAGE_ADMISSION_PEPPER`, `WANDERPAGE_GENERATION_ENABLED=true`, `WANDERPAGE_DAILY_GENERATION_LIMIT`, `CRON_SECRET`, `WANDERPAGE_OPERATOR_SECRET`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs.
+
+This does not require Stripe, payments, a native app, or an Apple developer account. The detailed privacy, ownership, retention, and deployment decisions are recorded in [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
 
 ## Quickstart
 
@@ -44,6 +50,7 @@ pnpm trip --input "/absolute/path/to/vacation-photos" --people include --title "
 pnpm trip:list
 pnpm trip:publish oregon-coast-2026
 pnpm build
+pnpm static:export
 pnpm preview
 ```
 
@@ -67,7 +74,7 @@ pnpm build
 pnpm preview
 ```
 
-The exact static output is `out/`. Local-only reports are written under `.trip-output/`; cache artifacts live under `.trip-cache/`. Neither directory is exported.
+Local-only reports are written under `.trip-output/`; cache artifacts live under `.trip-cache/`. Neither directory is exposed by the hosted app.
 
 ## Quality gates
 
@@ -84,6 +91,8 @@ pnpm test:e2e
 
 `pnpm test` includes a fixture-driven integration test that creates a temporary nested photo folder with JPEG, WebP, duplicate, EXIF/GPS, and (on macOS) HEIC inputs. It runs the production pipeline, builds an isolated static Next.js export, applies the privacy and 90 MB budget checks, then opens the generated story in Chromium. Temporary originals and outputs are removed after the run.
 
+`pnpm build` creates the hosted server application. `pnpm static:export` creates the local-only rollback site under `out/` in an isolated build workspace that excludes hosted API routes. `pnpm privacy` validates that exact artifact. The required `pnpm test` gate rebuilds and validates both server and static modes before browser tests.
+
 The external OpenAI path is an explicit paid/network smoke test rather than part of every local test run:
 
 ```bash
@@ -95,6 +104,11 @@ It sends a small contact sheet through the configured vision model using Structu
 ## Environment
 
 - `OPENAI_API_KEY`: required for real AI-backed generation and strict people exclusion.
+- `DATABASE_URL`: required for hosted owner sessions, stories, and runs.
+- `WANDERPAGE_ADMISSION_PEPPER`: dedicated HMAC key for short-lived abuse-control identifiers; identifiers are cleared after 24 hours.
+- `WANDERPAGE_OPERATOR_SECRET`: separate bearer credential for emergency revocation through `DELETE /api/operator/stories/{storyId}`. The route immediately removes public visibility and starts idempotent object cleanup.
+- `BLOB_READ_WRITE_TOKEN`: required for private direct uploads and private derivative delivery.
+- `WANDERPAGE_SESSION_PEPPER`: required to hash anonymous owner-session cookies; use a long, random value.
 - `OPENAI_VISION_MODEL`: defaults to `gpt-5.6-luna`.
 - `OPENAI_WRITER_MODEL`: defaults to `gpt-5.6-terra`.
 - `WIKIMEDIA_USER_AGENT`: descriptive API user agent.

@@ -1,7 +1,17 @@
 {
   "version": 1,
   "jsRunner": "vitest",
-  "mappings": [],
+  "mappings": [
+    {
+      "paths": ["app/api/**", "lib/web/**", "workflows/**", "proxy.ts"],
+      "commands": [
+        {
+          "executable": "./node_modules/.bin/vitest",
+          "args": ["run", "tests/web"]
+        }
+      ]
+    }
+  ],
   "audits": [
     {
       "paths": [

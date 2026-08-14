@@ -36,6 +36,9 @@ export default function Landing() {
           <Link href="/demo" className="product-nav-link">
             View the demo ↗
           </Link>
+          <Link href="/create" className="product-nav-link">
+            Create a story ↗
+          </Link>
         </nav>
         <motion.div
           className="product-hero-copy"
@@ -50,7 +53,7 @@ export default function Landing() {
             <em>beautifully edited.</em>
           </h1>
           <p className="product-summary">
-            Wanderpage turns a folder of vacation photos into a cinematic website—kept local until you choose to share it.
+            Wanderpage turns a folder of vacation photos into a cinematic website—private until you choose to share it.
           </p>
           <Link href="/demo" className="product-cta">
             Explore a finished story <span>→</span>
@@ -63,10 +66,13 @@ export default function Landing() {
           <b>WP—001</b>
         </div>
         <div className="product-hero-note">
-          <span>Local-first</span>
-          <span>Originals untouched</span>
+          <span>Private by default</span>
+          <span>Review before sharing</span>
           <span>Share when ready</span>
         </div>
+        <Link href="/create" className="product-nav-link" style={{ position: "absolute", right: "6vw", bottom: "3rem" }}>
+          Create a private story →
+        </Link>
       </section>
 
       <section className="product-premise" aria-labelledby="premise-title">
@@ -104,8 +110,8 @@ export default function Landing() {
           <motion.article {...reveal}>
             <span className="proof-number">01</span>
             <div>
-              <h3>Choose the folder</h3>
-              <p>JPEG, PNG, WebP, and iPhone HEIC photos can stay exactly where they are.</p>
+              <h3>Choose your photos</h3>
+              <p>Upload JPEG, PNG, or WebP photos directly from your browser.</p>
             </div>
             <figure>
               <Image
@@ -164,14 +170,14 @@ export default function Landing() {
             untouched
           </span>
           <h2 id="privacy-title">
-            The originals
+            Your originals are
             <br />
-            <em>never leave home.</em>
+            <em>private by default.</em>
           </h2>
         </div>
         <div className="product-privacy-list">
           <p>
-            <span>01</span> Originals stay untouched on your computer.
+            <span>01</span> Original uploads stay private while a draft is curated.
           </p>
           <p>
             <span>02</span> Only reduced analysis sheets reach the vision model.

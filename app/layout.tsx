@@ -1,24 +1,10 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Newsreader } from "next/font/google";
 import "./globals.css";
 
-const editorial = Newsreader({
-  variable: "--font-editorial",
-  subsets: ["latin"],
-  display: "swap",
-});
-const sans = IBM_Plex_Sans({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
-const mono = IBM_Plex_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  display: "swap",
-});
+// Hosted pages must render per request so Next can apply the proxy-generated
+// CSP nonce to its scripts. The rollback exporter removes this declaration in
+// its isolated copy because that artifact has no server or authenticated data.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Wanderpage — Your trip, edited into a story",
@@ -26,9 +12,14 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const fonts = {
+    "--font-editorial": "Georgia, 'Times New Roman', serif",
+    "--font-sans": "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    "--font-mono": "'SFMono-Regular', Consolas, 'Liberation Mono', monospace",
+  } as React.CSSProperties;
   return (
     <html lang="en">
-      <body className={`${editorial.variable} ${sans.variable} ${mono.variable}`}>{children}</body>
+      <body style={fonts}>{children}</body>
     </html>
   );
 }
