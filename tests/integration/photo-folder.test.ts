@@ -85,7 +85,7 @@ describe("photo folder to deployed-site artifact", () => {
     await setTripPublished(workspace, "controlled-coast-test", true);
     await expect(access(join(workspace, "public/trip/generated/controlled-coast-test"))).resolves.toBeUndefined();
 
-    await execute("pnpm", ["exec", "next", "build", workspace], {
+    await execute("pnpm", ["exec", "next", "build", "--webpack", workspace], {
       cwd: repoRoot,
       env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", WANDERPAGE_WORKSPACE: workspace },
       maxBuffer: 10_000_000,
@@ -159,7 +159,7 @@ describe("photo folder to deployed-site artifact", () => {
       expect(manifest.photos.length).toBeGreaterThan(0);
       expect(manifest.published).toBe(false);
       await setTripPublished(cliWorkspace, "cli-folder-test", true);
-      await execute("pnpm", ["exec", "next", "build", cliWorkspace], {
+      await execute("pnpm", ["exec", "next", "build", "--webpack", cliWorkspace], {
         cwd: repoRoot,
         env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", WANDERPAGE_WORKSPACE: cliWorkspace },
         maxBuffer: 10_000_000,
