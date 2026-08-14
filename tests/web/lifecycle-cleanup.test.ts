@@ -70,6 +70,31 @@ describe("hosted lifecycle cleanup", () => {
     });
   });
 
+  it("rejects stale progress after deletion cancels a run", async () => {
+    const repository = new MemoryStoryRepository(),
+      now = new Date("2026-08-13T00:00:00Z"),
+      { session, story } = records("cancel-progress", "client", now),
+      run: StoryRun = {
+        id: crypto.randomUUID(),
+        storyId: story.id,
+        processorRevision: "web-v1",
+        status: "processing",
+        stage: "curating",
+        progress: 5,
+        attempts: 1,
+        sourceUploadIds: [],
+        updatedAt: now,
+      };
+    await repository.createSession(session);
+    await repository.createStory({ ...story, status: "processing", activeRunId: run.id });
+    await repository.createRun(run);
+    await repository.beginDeleteStory(story.id, session.id, new Date(now.getTime() + 1000));
+    await expect(repository.markRunProgress(story.id, run.id, "curating", 12, new Date(now.getTime() + 2000))).rejects.toThrow(
+      "RUN_STATE_CONFLICT"
+    );
+    expect((await repository.findRun(run.id))?.status).toBe("cancelled");
+  });
+
   it("binds a run to its admitted source set and excludes later uploads", async () => {
     const repository = new MemoryStoryRepository(),
       now = new Date("2026-08-13T00:00:00Z"),
@@ -167,11 +192,38 @@ describe("hosted lifecycle cleanup", () => {
     await repository.createStory({ ...story, status: "draft" });
 
     await expect(cleanupExpiredPrivateStories(repository, now)).resolves.toMatchObject({ expired: 1, deleted: 1 });
-    await expect(cleanupExpiredPrivateStories(repository, new Date(now.getTime() + 25 * 60 * 60 * 1000))).resolves.toMatchObject({
+    await expect(cleanupExpiredPrivateStories(repository, new Date(now.getTime() + 29 * 24 * 60 * 60 * 1000))).resolves.toMatchObject({
+      purged: 0,
+    });
+    await expect(cleanupExpiredPrivateStories(repository, new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000))).resolves.toMatchObject({
       purged: 1,
     });
     await expect(repository.findStory(story.id)).resolves.toBeUndefined();
     await expect(repository.findSessionBySecretHash(session.secretHash)).resolves.toBeUndefined();
+  });
+
+  it("clears expired admission identifiers while retaining stories", async () => {
+    const repository = new MemoryStoryRepository(),
+      created = new Date("2026-08-13T00:00:00Z"),
+      { session, story } = records("admission", "client-address-hash", created),
+      run: StoryRun = {
+        id: crypto.randomUUID(),
+        storyId: story.id,
+        processorRevision: "web-v1",
+        admissionKey: "client-address-hash",
+        status: "complete",
+        stage: "complete",
+        progress: 100,
+        attempts: 1,
+        sourceUploadIds: [],
+        updatedAt: created,
+      };
+    await repository.createSession({ ...session, expiresAt: new Date("2026-09-13T00:00:00Z") });
+    await repository.createStory({ ...story, status: "published" });
+    await repository.createRun(run);
+    await expect(repository.clearExpiredAdmissionKeys(new Date("2026-08-14T00:00:01Z"))).resolves.toBe(2);
+    expect((await repository.findStory(story.id))?.admissionKey).toBeUndefined();
+    expect((await repository.findRun(run.id))?.admissionKey).toBeUndefined();
   });
 
   it("retains an old draft while its owner session is active", async () => {

@@ -196,6 +196,16 @@ export class NeonStoryRepository implements StoryRepository {
     }
   }
 
+  async markRunProgress(storyId: string, runId: string, stage: string, progress: number, now: Date) {
+    const rows = await this.sql`
+      UPDATE story_runs r SET stage = ${stage}, progress = ${progress}, updated_at = ${now}
+      WHERE r.id = ${runId} AND r.story_id = ${storyId} AND r.status = 'processing'
+        AND EXISTS (SELECT 1 FROM stories s WHERE s.id = ${storyId} AND s.active_run_id = r.id AND s.status = 'processing')
+      RETURNING r.id
+    `;
+    if (!rows.length) throw new Error("RUN_STATE_CONFLICT");
+  }
+
   async completeRun(value: Story, run: StoryRun, manifest: Story["manifest"], now: Date) {
     const rows = await this.sql`
       WITH target AS MATERIALIZED (
@@ -335,6 +345,18 @@ export class NeonStoryRepository implements StoryRepository {
           AND NOT EXISTS (SELECT 1 FROM stories s WHERE s.owner_session_id = o.id) RETURNING id
       )
       SELECT count(*)::int AS count FROM deleted_stories
+    `;
+    return rows[0] ? number(rows[0], "count") : 0;
+  }
+
+  async clearExpiredAdmissionKeys(before: Date) {
+    const rows = await this.sql`
+      WITH cleared_stories AS (
+        UPDATE stories SET admission_key = NULL WHERE admission_key IS NOT NULL AND created_at < ${before} RETURNING id
+      ), cleared_runs AS (
+        UPDATE story_runs SET admission_key = NULL WHERE admission_key IS NOT NULL AND updated_at < ${before} RETURNING id
+      )
+      SELECT ((SELECT count(*) FROM cleared_stories) + (SELECT count(*) FROM cleared_runs))::int AS count
     `;
     return rows[0] ? number(rows[0], "count") : 0;
   }

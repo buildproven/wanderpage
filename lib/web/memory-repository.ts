@@ -123,6 +123,14 @@ export class MemoryStoryRepository implements StoryRepository {
     this.runs.set(runId, { ...run, workflowRunId, updatedAt: now });
   }
 
+  async markRunProgress(storyId: string, runId: string, stage: string, progress: number, now: Date) {
+    const story = this.stories.get(storyId),
+      run = this.runs.get(runId);
+    if (!story || !run || story.status !== "processing" || story.activeRunId !== runId || run.status !== "processing")
+      throw new Error("RUN_STATE_CONFLICT");
+    this.runs.set(runId, { ...run, stage, progress, updatedAt: now });
+  }
+
   async completeRun(story: Story, run: StoryRun, manifest: Story["manifest"], now: Date) {
     const currentStory = this.stories.get(story.id),
       currentRun = this.runs.get(run.id);
@@ -252,6 +260,21 @@ export class MemoryStoryRepository implements StoryRepository {
       }
     }
     return doomed.length;
+  }
+
+  async clearExpiredAdmissionKeys(before: Date) {
+    let cleared = 0;
+    for (const [id, story] of this.stories)
+      if (story.admissionKey && story.createdAt < before) {
+        this.stories.set(id, { ...story, admissionKey: undefined });
+        cleared += 1;
+      }
+    for (const [id, run] of this.runs)
+      if (run.admissionKey && run.updatedAt < before) {
+        this.runs.set(id, { ...run, admissionKey: undefined });
+        cleared += 1;
+      }
+    return cleared;
   }
 
   async expireStaleRuns(now: Date, staleBefore: Date, limit: number) {

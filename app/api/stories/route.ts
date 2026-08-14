@@ -4,6 +4,7 @@ import { getStoryService } from "@/lib/web/runtime";
 import { admissionKey, assertInitialRequest, ownerSecret, setOwnerCookie } from "@/lib/web/session";
 import { StoryServiceError } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes } from "@/lib/web/types";
+import { storyDto } from "@/lib/web/dto";
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     if (!secret) throw new Error("Owner session could not be established.");
     const story = created?.story ?? (await stories.createStory(secret, input, admissionKey(request))),
       session = await stories.requireSession(secret),
-      response = data({ story, csrfToken: session.csrfToken }, 201, { headers: privateHeaders() });
+      response = data({ story: storyDto(story), csrfToken: session.csrfToken }, 201, { headers: privateHeaders() });
     if (created) setOwnerCookie(response, secret, created.session);
     return response;
   } catch (error) {
@@ -43,7 +44,7 @@ export async function GET() {
     const stories = getStoryService(),
       secret = await ownerSecret();
     if (!secret) throw new StoryServiceError("AUTH_REQUIRED", "Start a private Wanderpage story to see your drafts.");
-    return data({ stories: await stories.listOwnedStories(secret) }, 200, { headers: privateHeaders() });
+    return data({ stories: (await stories.listOwnedStories(secret)).map(storyDto) }, 200, { headers: privateHeaders() });
   } catch (error) {
     return apiError(error);
   }

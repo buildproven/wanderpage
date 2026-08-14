@@ -101,6 +101,7 @@ export type StoryRepository = {
   findRun(id: string): Promise<StoryRun | undefined>;
   saveRun(run: StoryRun): Promise<void>;
   setWorkflowRunId(runId: string, workflowRunId: string, now: Date): Promise<void>;
+  markRunProgress(storyId: string, runId: string, stage: string, progress: number, now: Date): Promise<void>;
   completeRun(story: Story, run: StoryRun, manifest: TripManifest, now: Date): Promise<void>;
   claimRun(storyId: string, runId: string, now: Date): Promise<{ story: Story; run: StoryRun }>;
   beginDeleteStory(storyId: string, ownerSessionId: string, now: Date): Promise<Story>;
@@ -112,6 +113,7 @@ export type StoryRepository = {
   claimExpiredPrivateStories(now: Date, staleBefore: Date, limit: number): Promise<Story[]>;
   listStoriesReadyForDeletion(now: Date, limit: number): Promise<Story[]>;
   purgeDeletedStories(deletedBefore: Date, limit: number): Promise<number>;
+  clearExpiredAdmissionKeys(before: Date): Promise<number>;
   listRunsForDerivativeCleanup(limit: number): Promise<StoryRun[]>;
   markRunDerivativesDeleted(runId: string, now: Date): Promise<void>;
   createUpload(upload: StoryUpload): Promise<void>;

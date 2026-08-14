@@ -6,22 +6,22 @@ import { cleanupRunDerivatives } from "@/lib/web/object-cleanup";
 
 export async function processStoryWorkflow(storyId: string, runId: string) {
   "use workflow";
+  const state = await claimProcessing(storyId, runId);
+  if (state === "complete") {
+    await deleteOriginalUploads(storyId, runId);
+    return;
+  }
   try {
-    const state = await claimProcessing(storyId, runId);
-    if (state === "complete") {
-      await deleteOriginalUploads(storyId, runId);
-      return;
-    }
     const result = await runCurationPipeline(storyId, runId);
     await completeProcessing(storyId, runId, result.manifest);
   } catch (error) {
+    await recordFailure(storyId, runId, error);
     let cleanupError: unknown;
     try {
       await deleteFailedDerivatives(storyId, runId);
     } catch (failure) {
       cleanupError = failure;
     }
-    await recordFailure(storyId, runId, error);
     if (cleanupError) throw new AggregateError([error, cleanupError], "Story processing and derivative cleanup both failed.");
     throw error;
   }
@@ -32,7 +32,8 @@ async function deleteFailedDerivatives(storyId: string, runId: string) {
   "use step";
   const repository = NeonStoryRepository.fromEnvironment(),
     run = await repository.findRun(runId);
-  if (run && run.storyId === storyId) await cleanupRunDerivatives(repository, run);
+  if (run && run.storyId === storyId && (run.status === "failed" || run.status === "cancelled"))
+    await cleanupRunDerivatives(repository, run);
 }
 
 async function deleteOriginalUploads(storyId: string, runId: string) {
@@ -53,7 +54,8 @@ async function claimProcessing(storyId: string, runId: string) {
     now = new Date(),
     story = await repository.findStory(storyId),
     run = await repository.findRun(runId);
-  if (story?.status === "draft" && !story.activeRunId && run?.status === "complete") return "complete" as const;
+  if ((story?.status === "draft" || story?.status === "published") && !story.activeRunId && run?.status === "complete")
+    return "complete" as const;
   try {
     await repository.claimRun(storyId, runId, now);
     return "processing" as const;
@@ -69,7 +71,7 @@ async function runCurationPipeline(storyId: string, runId: string) {
     run = await repository.findRun(runId);
   if (!story || !run || story.activeRunId !== runId || story.status !== "processing")
     throw new FatalError("Story run is no longer eligible for processing.");
-  await repository.saveRun({ ...run, stage: "curating", progress: 12, updatedAt: new Date() });
+  await repository.markRunProgress(storyId, runId, "curating", 12, new Date());
   return processStory(story, await repository.listUploadsByIds(run.sourceUploadIds));
 }
 

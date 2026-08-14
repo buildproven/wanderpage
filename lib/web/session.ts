@@ -35,12 +35,12 @@ export function assertInitialRequest(request: Request) {
 }
 
 export function admissionKey(request: Request) {
-  const pepper = process.env.WANDERPAGE_SESSION_PEPPER,
+  const pepper = process.env.WANDERPAGE_ADMISSION_PEPPER,
     forwarded =
       request.headers.get("x-vercel-forwarded-for") ??
       (process.env.NODE_ENV === "production" ? undefined : request.headers.get("x-forwarded-for")),
     address = forwarded?.split(",")[0]?.trim();
-  if (!pepper || !address) throw new Error("WANDERPAGE_SESSION_PEPPER and a trusted client address are required for admission.");
+  if (!pepper || !address) throw new Error("WANDERPAGE_ADMISSION_PEPPER and a trusted client address are required for admission.");
   return createHmac("sha256", pepper).update(`generation:${address}`).digest("base64url");
 }
 
