@@ -3,11 +3,10 @@ name: Quality Checks
 # Industry best practice: "Fail fast locally, verify comprehensively remotely"
 #
 # Local (pre-commit): Lint + format (staged files) - instant feedback
-# Local (pre-push): Type check + tests (changed files) - catches logic bugs
-# CI (this workflow): Full test suite + E2E + security - comprehensive verification
+# Local (pre-push): Lint + format + secrets + changed dependency audit
+# CI (this workflow): Affected tests, Semgrep, and other security checks
 #
-# Note: Lint/format NOT duplicated here - pre-commit already did it
-# This avoids redundant work and reduces CI costs
+# The local gate stays fast. CI is the full safety net for this generator repo.
 
 on:
   push: # Kept: catches direct pushes and scheduled scans
@@ -61,12 +60,30 @@ jobs:
       install-cmd: ${{ steps.detect-pm.outputs.install-cmd }}
       is-turborepo: ${{ steps.detect-pm.outputs.is-turborepo }}
       turbo-prefix: ${{ steps.detect-pm.outputs.turbo-prefix }}
+      quality-only: ${{ steps.change-scope.outputs.quality-only }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Detect change scope
+        id: change-scope
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          QUALITY_ONLY=false
+          if [ "${{ github.repository }}" != 'buildproven/qa-architect' ] &&
+             { [ "${{ github.event_name }}" = 'pull_request' ] || [ "${{ github.event_name }}" = 'push' ]; } &&
+             [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            APPLICATION_CHANGES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -vE '^(\.github/workflows/quality\.yml|\.buildproven/test-impact\.json)$' || true)"
+            [ -n "$APPLICATION_CHANGES" ] || QUALITY_ONLY=true
+          fi
+          echo "quality-only=$QUALITY_ONLY" >> "$GITHUB_OUTPUT"
 
       - name: Setup pnpm
         if: always()
@@ -136,7 +153,7 @@ jobs:
   # Note: Lint/format jobs REMOVED - pre-commit already does this locally
   # This follows industry best practice: "Each layer does unique work"
   # Pre-commit = lint + format on staged files
-  # CI = full tests + E2E + security (things that can't be done locally)
+  # CI = affected tests + E2E + security (things that can't be done locally)
 
   # Step 2: Security checks - run if dependencies exist
   #
@@ -163,12 +180,14 @@ jobs:
     if: >-
       (github.event_name == 'pull_request' || github.event_name == 'push' ||
        github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
-      needs.detect-maturity.outputs.has-deps == 'true'
+      needs.detect-maturity.outputs.has-deps == 'true' &&
+      needs.detect-maturity.outputs.quality-only != 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup pnpm
@@ -197,6 +216,9 @@ jobs:
           echo "🔒 Auditing dependencies (high+) with pnpm..."
           pnpm audit --audit-level high --prod
       - name: Check for hardcoded secrets
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           GITLEAKS_VERSION='8.28.0'
@@ -207,27 +229,40 @@ jobs:
             --output "${GITLEAKS_DIR}/gitleaks.tar.gz"
           tar -xzf "${GITLEAKS_DIR}/gitleaks.tar.gz" -C "${GITLEAKS_DIR}" gitleaks
           echo "${GITLEAKS_SHA256}  ${GITLEAKS_DIR}/gitleaks" | sha256sum --check -
-          "${GITLEAKS_DIR}/gitleaks" detect --source . --redact --no-banner
+          if [ "${{ github.event_name }}" = 'pull_request' ] || [ "${{ github.event_name }}" = 'push' ]; then
+            "${GITLEAKS_DIR}/gitleaks" git --redact --no-banner --log-opts="$BASE_SHA..$HEAD_SHA" .
+          else
+            "${GITLEAKS_DIR}/gitleaks" git --redact --no-banner .
+          fi
 
       - name: Security pattern detection
-        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
-        with:
-          config: >
-            p/security-audit@1.85.0
-            p/javascript@1.85.0
-          cache: true
-          cache-key: semgrep-security-audit-1.85.0-javascript-1.85.0-${{ env.SEMGREP_VERSION }}
         env:
-          # Use Semgrep app token ONLY if a real one is configured. Do NOT fall
-          # back to GITHUB_TOKEN: any non-empty SEMGREP_APP_TOKEN puts the action
-          # into "logged in" mode (`semgrep ci`), which refuses the `--config`
-          # rules below ("Cannot run semgrep ci with --config while logged in").
-          # Leaving it empty runs the registry config rules locally — exactly
-          # what we want for PR-time SAST without uploading findings to the app.
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SEMGREP_VERSION: "1.85.0"
-          SEMGREP_ENABLE_VERSION_CHECK: "false"
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SEMGREP_ARGS=()
+          if [ "${{ github.event_name }}" = 'pull_request' ] || [ "${{ github.event_name }}" = 'push' ]; then
+            CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+            APPLICATION_CHANGES="$(printf '%s\n' "$CHANGED_FILES" | grep -vE '^(\.github/workflows/quality\.yml|\.buildproven/test-impact\.json)$' || true)"
+            if [ -z "$APPLICATION_CHANGES" ]; then
+              echo 'Only generated quality policy files changed; no application security surface changed.'
+              exit 0
+            fi
+            SEMGREP_ARGS+=(--baseline-commit "$BASE_SHA")
+          fi
+          docker run --rm \
+            --mount "type=bind,source=$PWD,target=/src,readonly" \
+            --workdir /src \
+            --tmpfs /tmp:rw,nosuid,nodev,size=512m \
+            --env HOME=/tmp \
+            'semgrep/semgrep@sha256:65dcd4408adda7c183a6b4550cb1e9b19f7f627a6fbb7e0559bd466bedc44d7b' \
+            semgrep scan \
+            --config p/security-audit \
+            --config p/javascript \
+            --error \
+            --metrics=off \
+            "${SEMGREP_ARGS[@]}"
 
   # Step 2b: Advisory audit report (NON-BLOCKING). Runs in parallel with the
   # security gate (needs detect-maturity, NOT security) so a gate failure can
@@ -242,7 +277,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    if: github.event_name == 'pull_request' && needs.detect-maturity.outputs.has-deps == 'true'
+    if: github.event_name == 'pull_request' && needs.detect-maturity.outputs.has-deps == 'true' && needs.detect-maturity.outputs.quality-only != 'true'
 
     steps:
       - name: Checkout code
@@ -322,7 +357,9 @@ jobs:
     timeout-minutes: 10
     needs: detect-maturity
     if: |
-      github.event.pull_request.draft != true || github.event_name != 'pull_request'
+      fromJSON(needs.detect-maturity.outputs.test-count) > 0 &&
+      needs.detect-maturity.outputs.quality-only != 'true' &&
+      (github.event.pull_request.draft != true || github.event_name != 'pull_request')
     strategy:
       fail-fast: false
       matrix:
@@ -332,6 +369,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup pnpm
@@ -356,35 +394,75 @@ jobs:
             exit 1
           }
 
-      # wanderpage-specific: `test` runs Playwright E2E and an integration
-      # test that launches Chromium directly, neither of which qa-architect's
-      # generator knows about. The generated "Tests" step below has no
-      # concept of project-specific browser needs, so this has to live here
-      # by hand — a future `setup.js --update` will not know to add it back.
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Run affected tests
+        if: hashFiles('.buildproven/test-impact.json') != '' && (github.event_name == 'pull_request' || github.event_name == 'push')
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          CLAUDE_KIT_SHA: 6209610058b95a3d3f2a9d1af7a10f9c69f0dd69
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA:.buildproven/test-impact.json" 2>/dev/null; then
+            CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+            APPLICATION_CHANGES="$(printf '%s\n' "$CHANGED_FILES" | grep -vE '^(\.github/workflows/quality\.yml|\.buildproven/test-impact\.json)$' || true)"
+            if [ -z "$APPLICATION_CHANGES" ]; then
+              echo "Only generated quality policy files changed. The release generator already validated the new policy."
+              exit 0
+            fi
+            echo "Base test-impact policy is absent. Running the complete migration audit once."
+            timeout 300 pnpm run test
+            exit 0
+          fi
 
+          POLICY_ROOT="$RUNNER_TEMP/test-impact-policy"
+          KIT_ROOT="$RUNNER_TEMP/claude-kit"
+          mkdir -p "$POLICY_ROOT/.buildproven" "$KIT_ROOT"
+          git show "$BASE_SHA:.buildproven/test-impact.json" > "$POLICY_ROOT/.buildproven/test-impact.json"
+          if ! cmp -s "$POLICY_ROOT/.buildproven/test-impact.json" .buildproven/test-impact.json; then
+            CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+            APPLICATION_CHANGES="$(printf '%s\n' "$CHANGED_FILES" | grep -vE '^(\.github/workflows/quality\.yml|\.buildproven/test-impact\.json)$' || true)"
+            if [ -z "$APPLICATION_CHANGES" ]; then
+              echo "Only generated quality policy files changed. The release generator already validated the policy."
+              exit 0
+            fi
+            echo "Test-impact policy and application code changed together. Running the complete selector-policy audit."
+            timeout 300 pnpm run test
+            exit 0
+          fi
+          git -C "$KIT_ROOT" init --quiet
+          git -C "$KIT_ROOT" remote add origin https://github.com/buildproven/claude-kit.git
+          git -C "$KIT_ROOT" fetch --quiet --filter=blob:none origin main
+          git -C "$KIT_ROOT" merge-base --is-ancestor "$CLAUDE_KIT_SHA" FETCH_HEAD
+          git -C "$KIT_ROOT" checkout --quiet --detach "$CLAUDE_KIT_SHA"
+          test "$(git -C "$KIT_ROOT" rev-parse HEAD)" = "$CLAUDE_KIT_SHA"
+
+          POLICY_SHA256="$(sha256sum "$POLICY_ROOT/.buildproven/test-impact.json" | awk '{print $1}')"
+          timeout 300 node "$KIT_ROOT/scripts/test-impact.js" \
+            --execute \
+            --policy-root "$POLICY_ROOT" \
+            --policy-sha256 "$POLICY_SHA256" \
+            --git-range "$BASE_SHA" "$HEAD_SHA" \
+            --
       - name: Lint
+        if: hashFiles('.buildproven/test-impact.json') == '' || (github.event_name != 'pull_request' && github.event_name != 'push')
         run: |
           echo "⏱️ Lint must complete within 5 minutes"
           timeout 300 pnpm run quality:lint
 
       - name: Format check
+        if: hashFiles('.buildproven/test-impact.json') == '' || (github.event_name != 'pull_request' && github.event_name != 'push')
         run: |
           echo "⏱️ Format check must complete within 5 minutes"
           timeout 300 pnpm run format:check
 
       - name: Type check
+        if: hashFiles('.buildproven/test-impact.json') == '' || (github.event_name != 'pull_request' && github.event_name != 'push')
         run: |
           echo "⏱️ Type check must complete within 5 minutes"
           timeout 300 pnpm run type-check
 
-      - name: Tests
-        run: |
-          echo "⏱️ Tests must complete within 5 minutes"
-          timeout 300 pnpm run test
-
       - name: Build
+        if: hashFiles('.buildproven/test-impact.json') == '' || (github.event_name != 'pull_request' && github.event_name != 'push')
         run: |
           echo "⏱️ Build must complete within 5 minutes"
           timeout 300 pnpm run build
@@ -392,7 +470,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: detect-maturity
-    if: needs.detect-maturity.outputs.maturity == 'production-ready'
+    if: needs.detect-maturity.outputs.maturity == 'production-ready' && needs.detect-maturity.outputs.quality-only != 'true'
 
     steps:
       - name: Checkout code
