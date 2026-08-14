@@ -287,6 +287,28 @@ export class NeonStoryRepository implements StoryRepository {
     return this.beginDeleteStory(storyId, string(target, "owner_session_id"), now);
   }
 
+  async consumeOperatorTakedownLimit(keyId: string, now: Date, limit = 5, windowSeconds = 60) {
+    const [row] = await this.sql`
+      INSERT INTO operator_rate_limits (key_id, window_started_at, attempts)
+      VALUES (${keyId}, ${now}, 1)
+      ON CONFLICT (key_id) DO UPDATE SET
+        window_started_at = CASE
+          WHEN operator_rate_limits.window_started_at <= ${now} - (${windowSeconds} * interval '1 second') THEN ${now}
+          ELSE operator_rate_limits.window_started_at
+        END,
+        attempts = CASE
+          WHEN operator_rate_limits.window_started_at <= ${now} - (${windowSeconds} * interval '1 second') THEN 1
+          ELSE operator_rate_limits.attempts + 1
+        END
+      RETURNING attempts, window_started_at
+    `;
+    if (!row) throw new Error("Operator rate limit query returned no result.");
+    return {
+      allowed: number(row, "attempts") <= limit,
+      resetAt: new Date(date(row, "window_started_at").getTime() + windowSeconds * 1000),
+    };
+  }
+
   async finishDeleteStory(storyId: string, now: Date) {
     const rows = await this.sql`
       WITH finished AS (

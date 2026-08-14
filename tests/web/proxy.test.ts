@@ -14,6 +14,16 @@ describe("owner cookie renewal proxy", () => {
     expect(renewed?.value).toBe("opaque-secret");
     expect(renewed?.maxAge).toBe(30 * 24 * 60 * 60);
   });
+
+  it("uses a unique nonce instead of allowing inline scripts", () => {
+    const first = proxy(new NextRequest("https://wanderpage.example/")),
+      second = proxy(new NextRequest("https://wanderpage.example/")),
+      firstPolicy = first.headers.get("content-security-policy"),
+      secondPolicy = second.headers.get("content-security-policy");
+    expect(firstPolicy).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+    expect(firstPolicy).not.toContain("script-src 'self' 'unsafe-inline'");
+    expect(secondPolicy).not.toBe(firstPolicy);
+  });
 });
 
 describe("initial story request", () => {
