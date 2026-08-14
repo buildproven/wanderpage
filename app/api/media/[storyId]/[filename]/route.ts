@@ -9,7 +9,8 @@ export async function GET(_request: Request, context: { params: Promise<{ storyI
   if (!safeName || safeName !== filename) return new Response("Not found", { status: 404 });
   try {
     const stories = getStoryService(),
-      secret = await ownerSecret();
+      secret = await ownerSecret(),
+      hasOwnerCredential = Boolean(secret);
     let story = secret ? await stories.getOwnedStory(secret, storyId).catch(() => undefined) : undefined;
     if (!story) {
       // A public story's derivatives remain private in Blob; this route is the only public reader.
@@ -27,7 +28,10 @@ export async function GET(_request: Request, context: { params: Promise<{ storyI
     return new Response(object.stream, {
       headers: {
         "Content-Type": object.blob.contentType,
-        "Cache-Control": story?.status === "published" ? "public, max-age=600" : "private, no-store",
+        "Content-Disposition": `inline; filename="${safeName}"`,
+        "X-Content-Type-Options": "nosniff",
+        Vary: "Cookie",
+        "Cache-Control": story?.status === "published" && !hasOwnerCredential ? "public, max-age=600" : "private, no-store",
       },
     });
   } catch {

@@ -213,14 +213,20 @@ export class NeonStoryRepository implements StoryRepository {
         WHERE s.id = ${value.id} AND s.version = ${value.version} AND s.active_run_id = r.id
           AND s.status = 'processing' AND r.status = 'processing'
         FOR UPDATE OF s, r
+      ), eligible_sources AS MATERIALIZED (
+        SELECT u.id FROM story_uploads u
+        WHERE u.id = ANY(${run.sourceUploadIds}) AND u.story_id IN (SELECT id FROM target) AND u.status = 'confirmed'
+      ), admitted AS MATERIALIZED (
+        SELECT id FROM target
+        WHERE (SELECT count(*) FROM eligible_sources) = cardinality(${run.sourceUploadIds})
       ), claimed_sources AS (
         UPDATE story_uploads SET status = 'rejected', cleanup_claimed_at = ${now}
-        WHERE id = ANY(${run.sourceUploadIds}) AND story_id IN (SELECT id FROM target) AND status = 'confirmed'
+        WHERE id IN (SELECT id FROM eligible_sources) AND story_id IN (SELECT id FROM admitted)
         RETURNING id
       ), completed_story AS (
         UPDATE stories SET status = 'draft', manifest = ${manifest ?? null}, active_run_id = NULL,
           updated_at = ${now}, version = version + 1
-        WHERE id IN (SELECT id FROM target) AND (SELECT count(*) FROM claimed_sources) = cardinality(${run.sourceUploadIds})
+        WHERE id IN (SELECT id FROM admitted) AND (SELECT count(*) FROM claimed_sources) = cardinality(${run.sourceUploadIds})
         RETURNING id
       )
       UPDATE story_runs SET status = 'complete', stage = 'complete', progress = 100, finished_at = ${now}, updated_at = ${now}

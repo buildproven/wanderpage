@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyLocationPrivacy } from "@/lib/web/processor";
+import sharp from "sharp";
+import { applyLocationPrivacy, validateHostedDerivative, validateHostedStoryOutput } from "@/lib/web/processor";
 
 describe("hosted manifest privacy", () => {
   it("removes location-bearing narrative and metadata in hidden mode", () => {
@@ -17,6 +18,22 @@ describe("hosted manifest privacy", () => {
     expect(broad.route).toEqual([]);
     expect(broad.sources).toEqual([]);
     expect(JSON.stringify(broad)).not.toContain("Secret Cove");
+  });
+
+  it("rejects hosted manifests that reference local or unowned media", async () => {
+    const unsafe = manifest();
+    unsafe.opening = "Imported from /Users/example/Pictures/private";
+    await expect(validateHostedStoryOutput("story-1", "run-1", unsafe)).rejects.toThrow(/PRIVACY_FAILED.*Users.*unowned media path/);
+  });
+
+  it("rejects derivative bytes with embedded camera metadata", async () => {
+    const fixture = await sharp({ create: { width: 2, height: 2, channels: 3, background: "red" } })
+      .withMetadata({ orientation: 1 })
+      .jpeg()
+      .toBuffer();
+    await expect(validateHostedDerivative(fixture)).resolves.toEqual(
+      expect.arrayContaining(["derivative is not WebP", "derivative contains embedded metadata"])
+    );
   });
 });
 

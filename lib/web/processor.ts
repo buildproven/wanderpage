@@ -11,6 +11,8 @@ import { runTrip } from "@/lib/pipeline/run";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
 import type { Story, StoryUpload } from "@/lib/web/types";
 
+const forbiddenHostedValue = [/\/Users\//, /\\Users\\/i, /\.trip-output/i, /\.trip-cache/i, /blob:/i, /file:\/\//i];
+
 export async function processStory(story: Story, uploads: StoryUpload[]) {
   const confirmed = uploads.filter(upload => upload.status === "confirmed");
   if (!confirmed.length) throw new Error("No completed photo uploads are available for processing.");
@@ -39,6 +41,42 @@ export async function processStory(story: Story, uploads: StoryUpload[]) {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+}
+
+export async function validateHostedStoryOutput(storyId: string, runId: string, manifest: TripManifest) {
+  const parsed = TripManifestSchema.parse(manifest),
+    serialized = JSON.stringify(parsed),
+    errors = forbiddenHostedValue.filter(pattern => pattern.test(serialized)).map(pattern => `manifest matched ${pattern}`),
+    paths = [...new Set(parsed.photos.flatMap(photo => [photo.srcLarge, photo.srcMedium, photo.srcThumb]))],
+    expectedPrefix = `/api/media/${storyId}/`;
+  for (const path of paths) {
+    if (!path.startsWith(expectedPrefix)) {
+      errors.push(`manifest contains an unowned media path: ${path}`);
+      continue;
+    }
+    const filename = decodeURIComponent(path.slice(expectedPrefix.length)),
+      [revision, pathRunId, ...nameParts] = filename.split("--");
+    if (!revision || pathRunId !== runId || !nameParts.length) {
+      errors.push(`manifest contains a media path outside run ${runId}: ${path}`);
+      continue;
+    }
+    const object = await get(`derivatives/${storyId}/${revision}/${runId}/${nameParts.join("--")}`, { access: "private", useCache: false });
+    if (!object || object.statusCode !== 200) {
+      errors.push(`derivative is unavailable: ${path}`);
+      continue;
+    }
+    const bytes = Buffer.from(await new Response(object.stream as never).arrayBuffer());
+    errors.push(...(await validateHostedDerivative(bytes)).map(error => `${path}: ${error}`));
+  }
+  if (errors.length) throw new Error(`PRIVACY_FAILED: ${errors.join("; ")}`);
+}
+
+export async function validateHostedDerivative(bytes: Buffer) {
+  const metadata = await sharp(bytes).metadata(),
+    errors: string[] = [];
+  if (metadata.format !== "webp") errors.push("derivative is not WebP");
+  if (metadata.exif || metadata.xmp || metadata.iptc) errors.push("derivative contains embedded metadata");
+  return errors;
 }
 
 async function downloadUpload(upload: StoryUpload, input: string) {

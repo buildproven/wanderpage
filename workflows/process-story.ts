@@ -1,7 +1,7 @@
 import { FatalError } from "workflow";
 import { del } from "@vercel/blob";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
-import { processStory } from "@/lib/web/processor";
+import { processStory, validateHostedStoryOutput } from "@/lib/web/processor";
 import { cleanupRunDerivatives } from "@/lib/web/object-cleanup";
 
 export async function processStoryWorkflow(storyId: string, runId: string) {
@@ -13,6 +13,7 @@ export async function processStoryWorkflow(storyId: string, runId: string) {
   }
   try {
     const result = await runCurationPipeline(storyId, runId);
+    await validatePrivacy(storyId, runId, result.manifest);
     await completeProcessing(storyId, runId, result.manifest);
   } catch (error) {
     await recordFailure(storyId, runId, error);
@@ -87,20 +88,33 @@ async function completeProcessing(storyId: string, runId: string, manifest: Awai
   await repository.completeRun(story, run, manifest, now);
 }
 
+async function validatePrivacy(storyId: string, runId: string, manifest: Awaited<ReturnType<typeof processStory>>["manifest"]) {
+  "use step";
+  try {
+    await validateHostedStoryOutput(storyId, runId, manifest);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Hosted output failed privacy validation.";
+    throw new FatalError(detail.startsWith("PRIVACY_FAILED:") ? detail : `PRIVACY_FAILED: ${detail}`);
+  }
+}
+
 async function recordFailure(storyId: string, runId: string, error: unknown) {
   "use step";
-  void error;
   const repository = NeonStoryRepository.fromEnvironment(),
     story = await repository.findStory(storyId),
     run = await repository.findRun(runId);
   if (!story || !run || story.activeRunId !== runId) return;
   const now = new Date();
+  const detail = error instanceof Error ? error.message : String(error),
+    privacyFailed = detail.includes("PRIVACY_FAILED");
   await repository.saveRun({
     ...run,
     status: "failed",
     stage: "failed",
-    errorCode: "PROCESSING_FAILED",
-    errorMessage: "Wanderpage could not finish this draft. Your original photos remain private.",
+    errorCode: privacyFailed ? "PRIVACY_FAILED" : "PROCESSING_FAILED",
+    errorMessage: privacyFailed
+      ? "Wanderpage blocked this draft because its hosted output failed privacy validation. Your original photos remain private."
+      : "Wanderpage could not finish this draft. Your original photos remain private.",
     finishedAt: now,
     updatedAt: now,
   });

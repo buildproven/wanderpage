@@ -9,5 +9,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|icon.svg).*)"],
+  // API responses manage their own cache and credential behavior. Renew the
+  // owner cookie only on document routes.
+  matcher: ["/((?!api/|_next/static|_next/image|icon.svg).*)"],
 };

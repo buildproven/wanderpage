@@ -19,6 +19,7 @@ export default function DraftControls({ storyId, csrfToken, status }: { storyId:
   }
 
   async function remove() {
+    if (!window.confirm("Permanently delete this story and all of its media? This cannot be undone.")) return;
     const response = await fetch(`/api/stories/${storyId}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json", "x-wanderpage-csrf": csrfToken },
