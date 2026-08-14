@@ -6,7 +6,7 @@ export function proxy(request: NextRequest) {
     contentSecurityPolicy = [
       "default-src 'self'",
       "img-src 'self' data:",
-      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "connect-src 'self' https://*.vercel-storage.com",
       "frame-ancestors 'none'",
