@@ -72,4 +72,45 @@ describe("source cleanup", () => {
     });
     expect(remove).not.toHaveBeenCalled();
   });
+
+  it("expires a stale active run before deleting its retained sources", async () => {
+    const repository = new MemoryStoryRepository(),
+      createdAt = new Date("2026-08-13T00:00:00Z"),
+      now = new Date("2026-08-15T00:00:00Z"),
+      service = new StoryService(
+        repository,
+        { start: async () => ({ workflowRunId: "workflow" }) },
+        () => createdAt,
+        secret => hashSecret(secret, "pepper"),
+        () => ({ enabled: true, dailyLimit: 1 })
+      ),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input),
+      runId = crypto.randomUUID(),
+      remove = vi.fn(async () => undefined);
+    await repository.createRun({
+      id: runId,
+      storyId: story.id,
+      processorRevision: "web-v1",
+      status: "processing",
+      stage: "curating",
+      progress: 5,
+      attempts: 1,
+      updatedAt: createdAt,
+    });
+    await repository.saveStory({ ...story, status: "processing", activeRunId: runId }, story.version);
+    await repository.createUpload({
+      id: crypto.randomUUID(),
+      storyId: story.id,
+      blobPath: `sources/${story.id}/stale`,
+      originalName: "stale.jpg",
+      declaredType: "image/jpeg",
+      status: "confirmed",
+      confirmedAt: createdAt,
+      createdAt,
+    });
+    await expect(cleanupExpiredSources(repository, now, 100, remove)).resolves.toEqual({ deleted: 1, remaining: false });
+    expect((await repository.findRun(runId))?.status).toBe("failed");
+    expect((await repository.findStory(story.id))?.status).toBe("failed");
+  });
 });

@@ -21,6 +21,13 @@ export class MemoryStoryRepository implements StoryRepository {
     this.sessionsByHash.set(session.secretHash, session.id);
   }
 
+  async createSessionAndStoryAdmitted(session: OwnerSession, story: Story, limits: StoryCreationLimits) {
+    await this.assertStoryCapacity(story, limits);
+    this.sessions.set(session.id, clone(session));
+    this.sessionsByHash.set(session.secretHash, session.id);
+    this.stories.set(story.id, clone(story));
+  }
+
   async findSessionBySecretHash(secretHash: string) {
     const id = this.sessionsByHash.get(secretHash);
     const session = id ? this.sessions.get(id) : undefined;
@@ -39,12 +46,16 @@ export class MemoryStoryRepository implements StoryRepository {
   }
 
   async createStoryAdmitted(story: Story, limits: StoryCreationLimits) {
+    await this.assertStoryCapacity(story, limits);
+    this.stories.set(story.id, clone(story));
+  }
+
+  private async assertStoryCapacity(story: Story, limits: StoryCreationLimits) {
     const recent = [...this.stories.values()].filter(value => value.createdAt >= limits.since);
     if (recent.filter(value => value.ownerSessionId === story.ownerSessionId).length >= limits.sessionStories)
       throw new Error("SESSION_STORY_LIMIT");
     if (story.admissionKey && recent.filter(value => value.admissionKey === story.admissionKey).length >= limits.clientStories)
       throw new Error("CLIENT_STORY_LIMIT");
-    this.stories.set(story.id, clone(story));
   }
 
   async findStory(id: string) {
@@ -115,6 +126,93 @@ export class MemoryStoryRepository implements StoryRepository {
       clone({ ...story, status: "draft", manifest, activeRunId: undefined, updatedAt: now, version: story.version + 1 })
     );
     this.runs.set(run.id, clone({ ...run, status: "complete", stage: "complete", progress: 100, finishedAt: now, updatedAt: now }));
+  }
+
+  async claimRun(storyId: string, runId: string, now: Date) {
+    const story = this.stories.get(storyId),
+      run = this.runs.get(runId);
+    if (!story || !run || story.activeRunId !== runId) throw new Error("RUN_STATE_CONFLICT");
+    if (story.status === "processing" && run.status === "processing") return { story: clone(story), run: clone(run) };
+    if (story.status !== "queued" || run.status !== "queued") throw new Error("RUN_STATE_CONFLICT");
+    const claimedStory = clone({ ...story, status: "processing" as const, updatedAt: now, version: story.version + 1 }),
+      claimedRun = clone({
+        ...run,
+        status: "processing" as const,
+        stage: "curating",
+        progress: 5,
+        attempts: run.attempts + 1,
+        startedAt: run.startedAt ?? now,
+        updatedAt: now,
+      });
+    this.stories.set(storyId, claimedStory);
+    this.runs.set(runId, claimedRun);
+    return { story: clone(claimedStory), run: clone(claimedRun) };
+  }
+
+  async beginDeleteStory(storyId: string, ownerSessionId: string, now: Date) {
+    const story = this.stories.get(storyId);
+    if (!story || story.ownerSessionId !== ownerSessionId || story.status === "deleted") throw new Error("STORY_NOT_FOUND");
+    const deleting = clone({
+      ...story,
+      status: "deleting" as const,
+      publicSlug: undefined,
+      activeRunId: undefined,
+      updatedAt: now,
+      version: story.version + 1,
+    });
+    this.stories.set(storyId, deleting);
+    for (const [id, run] of this.runs)
+      if (run.storyId === storyId && (run.status === "queued" || run.status === "processing"))
+        this.runs.set(id, { ...run, status: "cancelled", stage: "cancelled", finishedAt: now, updatedAt: now });
+    return clone(deleting);
+  }
+
+  async finishDeleteStory(storyId: string, now: Date) {
+    const story = this.stories.get(storyId);
+    if (!story || story.status !== "deleting") throw new Error("STORY_NOT_DELETING");
+    this.stories.set(
+      storyId,
+      clone({ ...story, status: "deleted", manifest: undefined, deletedAt: now, updatedAt: now, version: story.version + 1 })
+    );
+    for (const [id, upload] of this.uploads)
+      if (upload.storyId === storyId) this.uploads.set(id, { ...upload, status: "deleted", deletedAt: now });
+  }
+
+  async listRuns(storyId: string) {
+    return [...this.runs.values()].filter(value => value.storyId === storyId).map(value => clone(value));
+  }
+
+  async expireStaleRuns(now: Date, staleBefore: Date, limit: number) {
+    const stale = [...this.runs.values()]
+      .filter(value => (value.status === "queued" || value.status === "processing") && value.updatedAt <= staleBefore)
+      .slice(0, limit);
+    for (const run of stale) {
+      const failed = {
+        ...run,
+        status: "failed" as const,
+        stage: "expired",
+        errorCode: "PROCESSING_EXPIRED",
+        finishedAt: now,
+        updatedAt: now,
+      };
+      this.runs.set(run.id, failed);
+      const story = this.stories.get(run.storyId);
+      if (story?.activeRunId === run.id)
+        this.stories.set(story.id, { ...story, status: "failed", activeRunId: undefined, updatedAt: now, version: story.version + 1 });
+    }
+    return stale.map(value => clone({ ...value, status: "failed" as const, stage: "expired", finishedAt: now, updatedAt: now }));
+  }
+
+  async listRunsForDerivativeCleanup(limit: number) {
+    return [...this.runs.values()]
+      .filter(value => (value.status === "failed" || value.status === "cancelled") && !value.derivativesDeletedAt)
+      .slice(0, limit)
+      .map(value => clone(value));
+  }
+
+  async markRunDerivativesDeleted(runId: string, now: Date) {
+    const run = this.runs.get(runId);
+    if (run) this.runs.set(runId, { ...run, derivativesDeletedAt: now, updatedAt: now });
   }
 
   async createUpload(upload: StoryUpload) {

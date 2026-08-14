@@ -24,6 +24,16 @@ export function apiError(error: unknown) {
   }
   if (error instanceof SyntaxError)
     return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "The request body must be valid JSON." } }, { status: 400 });
+  if (error instanceof Error && ["FORBIDDEN_ORIGIN", "CSRF_INVALID"].includes(error.message))
+    return NextResponse.json(
+      { error: { code: "FORBIDDEN", message: "This request could not be verified." } },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } }
+    );
+  if (error instanceof Error && error.message === "INVALID_CONTENT_TYPE")
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: "This endpoint requires application/json." } },
+      { status: 400, headers: { "Cache-Control": "private, no-store" } }
+    );
   const message = error instanceof Error ? error.message : "Wanderpage is temporarily unavailable.";
   const configuration = /DATABASE_URL|WANDERPAGE_SESSION_PEPPER|BLOB_READ_WRITE_TOKEN|OPENAI_API_KEY|WORKFLOW/.test(message);
   return NextResponse.json(

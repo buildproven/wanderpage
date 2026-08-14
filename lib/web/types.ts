@@ -55,6 +55,7 @@ export type StoryRun = {
   errorMessage?: string;
   startedAt?: Date;
   finishedAt?: Date;
+  derivativesDeletedAt?: Date;
   updatedAt: Date;
 };
 
@@ -83,6 +84,7 @@ export type CreateStoryInput = {
 
 export type StoryRepository = {
   createSession(session: OwnerSession): Promise<void>;
+  createSessionAndStoryAdmitted(session: OwnerSession, story: Story, limits: StoryCreationLimits): Promise<void>;
   findSessionBySecretHash(secretHash: string): Promise<OwnerSession | undefined>;
   touchSession(id: string, lastSeenAt: Date, expiresAt: Date): Promise<void>;
   createStory(story: Story): Promise<void>;
@@ -96,6 +98,13 @@ export type StoryRepository = {
   findRun(id: string): Promise<StoryRun | undefined>;
   saveRun(run: StoryRun): Promise<void>;
   completeRun(story: Story, run: StoryRun, manifest: TripManifest, now: Date): Promise<void>;
+  claimRun(storyId: string, runId: string, now: Date): Promise<{ story: Story; run: StoryRun }>;
+  beginDeleteStory(storyId: string, ownerSessionId: string, now: Date): Promise<Story>;
+  finishDeleteStory(storyId: string, now: Date): Promise<void>;
+  listRuns(storyId: string): Promise<StoryRun[]>;
+  expireStaleRuns(now: Date, staleBefore: Date, limit: number): Promise<StoryRun[]>;
+  listRunsForDerivativeCleanup(limit: number): Promise<StoryRun[]>;
+  markRunDerivativesDeleted(runId: string, now: Date): Promise<void>;
   createUpload(upload: StoryUpload): Promise<void>;
   reserveUpload(upload: StoryUpload, limits: UploadLimits): Promise<void>;
   findUpload(id: string): Promise<StoryUpload | undefined>;

@@ -28,6 +28,25 @@ export class NeonStoryRepository implements StoryRepository {
     `;
   }
 
+  async createSessionAndStoryAdmitted(session: OwnerSession, value: Story, limits: StoryCreationLimits) {
+    const rows = await this.sql`
+      WITH admission_lock AS MATERIALIZED (
+        SELECT pg_advisory_xact_lock(hashtext('wanderpage-story-admission'))
+      ), admitted AS MATERIALIZED (
+        SELECT 1 FROM admission_lock
+        WHERE (SELECT count(*) FROM stories WHERE admission_key = ${value.admissionKey ?? null} AND created_at >= ${limits.since}) < ${limits.clientStories}
+      ), inserted_session AS (
+        INSERT INTO owner_sessions (id, secret_hash, csrf_token, created_at, last_seen_at, expires_at, terms_version, upload_consent_version)
+        SELECT ${session.id}, ${session.secretHash}, ${session.csrfToken}, ${session.createdAt}, ${session.lastSeenAt}, ${session.expiresAt}, ${session.termsVersion}, ${session.uploadConsentVersion}
+        FROM admitted RETURNING id
+      )
+      INSERT INTO stories (id, owner_session_id, admission_key, status, title, people_mode, location_privacy, processor_revision, source_expires_at, created_at, updated_at, version)
+      SELECT ${value.id}, inserted_session.id, ${value.admissionKey ?? null}, ${value.status}, ${value.title}, ${value.peopleMode}, ${value.locationPrivacy}, ${value.processorRevision}, ${value.sourceExpiresAt}, ${value.createdAt}, ${value.updatedAt}, ${value.version}
+      FROM inserted_session RETURNING id
+    `;
+    if (!rows.length) throw new Error("CLIENT_STORY_LIMIT");
+  }
+
   async findSessionBySecretHash(secretHash: string) {
     const [row] = await this.sql`SELECT * FROM owner_sessions WHERE secret_hash = ${secretHash} LIMIT 1`;
     return row ? session(row) : undefined;
@@ -185,6 +204,94 @@ export class NeonStoryRepository implements StoryRepository {
     if (!rows.length) throw new Error("RUN_STATE_CONFLICT");
   }
 
+  async claimRun(storyId: string, runId: string, now: Date) {
+    const rows = await this.sql`
+      WITH target AS MATERIALIZED (
+        SELECT s.id FROM stories s JOIN story_runs r ON r.id = ${runId} AND r.story_id = s.id
+        WHERE s.id = ${storyId} AND s.active_run_id = r.id
+          AND ((s.status = 'queued' AND r.status = 'queued') OR (s.status = 'processing' AND r.status = 'processing'))
+        FOR UPDATE OF s, r
+      ), claimed_story AS (
+        UPDATE stories SET status = 'processing', updated_at = ${now}, version = version + CASE WHEN status = 'queued' THEN 1 ELSE 0 END
+        WHERE id IN (SELECT id FROM target) RETURNING *
+      ), claimed_run AS (
+        UPDATE story_runs SET status = 'processing', stage = 'curating', progress = GREATEST(progress, 5),
+          attempts = attempts + CASE WHEN status = 'queued' THEN 1 ELSE 0 END,
+          started_at = coalesce(started_at, ${now}), updated_at = ${now}
+        WHERE id = ${runId} AND story_id IN (SELECT id FROM target) RETURNING *
+      )
+      SELECT row_to_json(claimed_story) AS story, row_to_json(claimed_run) AS run FROM claimed_story CROSS JOIN claimed_run
+    `;
+    const [row] = rows;
+    if (!row || !row.story || !row.run) throw new Error("RUN_STATE_CONFLICT");
+    return { story: story(row.story as Row), run: run(row.run as Row) };
+  }
+
+  async beginDeleteStory(storyId: string, ownerSessionId: string, now: Date) {
+    const rows = await this.sql`
+      WITH target AS MATERIALIZED (
+        SELECT id FROM stories WHERE id = ${storyId} AND owner_session_id = ${ownerSessionId} AND status <> 'deleted' FOR UPDATE
+      ), cancelled AS (
+        UPDATE story_runs SET status = 'cancelled', stage = 'cancelled', finished_at = ${now}, updated_at = ${now}
+        WHERE story_id IN (SELECT id FROM target) AND status IN ('queued', 'processing') RETURNING id
+      )
+      UPDATE stories SET status = 'deleting', public_slug = NULL, active_run_id = NULL, updated_at = ${now}, version = version + 1
+      WHERE id IN (SELECT id FROM target) RETURNING *
+    `;
+    const [row] = rows;
+    if (!row) throw new Error("STORY_NOT_FOUND");
+    return story(row);
+  }
+
+  async finishDeleteStory(storyId: string, now: Date) {
+    const rows = await this.sql`
+      WITH finished AS (
+        UPDATE stories SET status = 'deleted', manifest = NULL, deleted_at = ${now}, updated_at = ${now}, version = version + 1
+        WHERE id = ${storyId} AND status = 'deleting' RETURNING id
+      )
+      UPDATE story_uploads SET status = 'deleted', deleted_at = ${now}
+      WHERE story_id IN (SELECT id FROM finished)
+      RETURNING id
+    `;
+    const [storyRow] = await this.sql`SELECT status FROM stories WHERE id = ${storyId}`;
+    if (!storyRow || string(storyRow, "status") !== "deleted") throw new Error("STORY_NOT_DELETING");
+    void rows;
+  }
+
+  async listRuns(storyId: string) {
+    const rows = await this.sql`SELECT * FROM story_runs WHERE story_id = ${storyId} ORDER BY updated_at ASC`;
+    return rows.map(run);
+  }
+
+  async expireStaleRuns(now: Date, staleBefore: Date, limit: number) {
+    const rows = await this.sql`
+      WITH stale AS MATERIALIZED (
+        SELECT r.id, r.story_id FROM story_runs r JOIN stories s ON s.id = r.story_id AND s.active_run_id = r.id
+        WHERE r.status IN ('queued', 'processing') AND s.status IN ('queued', 'processing') AND r.updated_at <= ${staleBefore}
+        ORDER BY r.updated_at ASC FOR UPDATE OF r, s SKIP LOCKED LIMIT ${limit}
+      ), failed_stories AS (
+        UPDATE stories SET status = 'failed', active_run_id = NULL, updated_at = ${now}, version = version + 1
+        WHERE id IN (SELECT story_id FROM stale) RETURNING id
+      )
+      UPDATE story_runs SET status = 'failed', stage = 'expired', error_code = 'PROCESSING_EXPIRED',
+        error_message = 'Story processing expired before completion.', finished_at = ${now}, updated_at = ${now}
+      WHERE id IN (SELECT id FROM stale) AND EXISTS (SELECT 1 FROM failed_stories) RETURNING *
+    `;
+    return rows.map(run);
+  }
+
+  async listRunsForDerivativeCleanup(limit: number) {
+    const rows = await this.sql`
+      SELECT * FROM story_runs WHERE status IN ('failed', 'cancelled') AND derivatives_deleted_at IS NULL
+      ORDER BY updated_at ASC LIMIT ${limit}
+    `;
+    return rows.map(run);
+  }
+
+  async markRunDerivativesDeleted(runId: string, now: Date) {
+    await this.sql`UPDATE story_runs SET derivatives_deleted_at = ${now}, updated_at = ${now} WHERE id = ${runId}`;
+  }
+
   async createUpload(upload: StoryUpload) {
     await this.sql`
       INSERT INTO story_uploads (id, story_id, blob_path, original_name, declared_type, detected_type, byte_size, sha256, status, created_at, confirmed_at, deleted_at)
@@ -312,6 +419,7 @@ function run(row: Row): StoryRun {
     errorMessage: optionalString(row, "error_message"),
     startedAt: optionalDate(row, "started_at"),
     finishedAt: optionalDate(row, "finished_at"),
+    derivativesDeletedAt: optionalDate(row, "derivatives_deleted_at"),
     updatedAt: date(row, "updated_at"),
   };
 }

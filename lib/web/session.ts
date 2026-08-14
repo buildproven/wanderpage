@@ -26,6 +26,14 @@ export function assertMutationRequest(request: Request, session: OwnerSession) {
   if (!csrf || csrf !== session.csrfToken) throw new Error("CSRF_INVALID");
 }
 
+export function assertInitialRequest(request: Request) {
+  const origin = request.headers.get("origin"),
+    expectedOrigin = new URL(request.url).origin,
+    contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (origin !== expectedOrigin) throw new Error("FORBIDDEN_ORIGIN");
+  if (contentType !== "application/json") throw new Error("INVALID_CONTENT_TYPE");
+}
+
 export function admissionKey(request: Request) {
   const pepper = process.env.WANDERPAGE_SESSION_PEPPER,
     forwarded =

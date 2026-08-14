@@ -7,6 +7,7 @@ export async function cleanupExpiredSources(
   limit = 100,
   deleteObject: (pathname: string) => Promise<unknown> = pathname => del(pathname)
 ) {
+  await repository.expireStaleRuns(now, new Date(now.getTime() - 6 * 60 * 60 * 1000), limit);
   const uploads = await repository.claimExpiredSourceUploads(now, limit);
   let deleted = 0;
   for (const upload of uploads) {

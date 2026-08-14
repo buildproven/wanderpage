@@ -2,6 +2,7 @@ import { FatalError } from "workflow";
 import { del } from "@vercel/blob";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { processStory } from "@/lib/web/processor";
+import { cleanupRunDerivatives } from "@/lib/web/object-cleanup";
 
 export async function processStoryWorkflow(storyId: string, runId: string) {
   "use workflow";
@@ -11,9 +12,23 @@ export async function processStoryWorkflow(storyId: string, runId: string) {
     await completeProcessing(storyId, runId, result.manifest);
     await deleteOriginalUploads(storyId, runId);
   } catch (error) {
+    let cleanupError: unknown;
+    try {
+      await deleteFailedDerivatives(storyId, runId);
+    } catch (failure) {
+      cleanupError = failure;
+    }
     await recordFailure(storyId, runId, error);
+    if (cleanupError) throw new AggregateError([error, cleanupError], "Story processing and derivative cleanup both failed.");
     throw error;
   }
+}
+
+async function deleteFailedDerivatives(storyId: string, runId: string) {
+  "use step";
+  const repository = NeonStoryRepository.fromEnvironment(),
+    run = await repository.findRun(runId);
+  if (run && run.storyId === storyId) await cleanupRunDerivatives(repository, run);
 }
 
 async function deleteOriginalUploads(storyId: string, runId: string) {
@@ -31,20 +46,12 @@ async function deleteOriginalUploads(storyId: string, runId: string) {
 async function claimProcessing(storyId: string, runId: string) {
   "use step";
   const repository = NeonStoryRepository.fromEnvironment(),
-    story = await repository.findStory(storyId),
-    run = await repository.findRun(runId);
-  if (!story || !run || story.activeRunId !== runId || story.status !== "queued")
+    now = new Date();
+  try {
+    await repository.claimRun(storyId, runId, now);
+  } catch {
     throw new FatalError("Story run is no longer eligible for processing.");
-  await repository.saveStory({ ...story, status: "processing", updatedAt: new Date() }, story.version);
-  await repository.saveRun({
-    ...run,
-    status: "processing",
-    stage: "curating",
-    progress: 5,
-    attempts: run.attempts + 1,
-    startedAt: new Date(),
-    updatedAt: new Date(),
-  });
+  }
 }
 
 async function runCurationPipeline(storyId: string, runId: string) {

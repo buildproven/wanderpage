@@ -58,6 +58,33 @@ export class StoryService {
     return { session, rawSecret };
   }
 
+  async createSessionWithStory(input: CreateStoryInput, admissionKey: string) {
+    const parsed = createSchema.safeParse(input);
+    if (!parsed.success) throw new StoryServiceError("VALIDATION_ERROR", "Check the story title and privacy choices.");
+    this.assertGenerationOpen();
+    const now = this.now(),
+      rawSecret = randomBytes(32).toString("base64url"),
+      session: OwnerSession = {
+        id: randomUUID(),
+        secretHash: this.secretHasher(rawSecret),
+        csrfToken: randomBytes(32).toString("base64url"),
+        createdAt: now,
+        lastSeenAt: now,
+        expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        termsVersion: parsed.data.termsVersion,
+        uploadConsentVersion: parsed.data.uploadConsentVersion,
+      },
+      story = makeStory(session.id, admissionKey, parsed.data, now);
+    try {
+      await this.repository.createSessionAndStoryAdmitted(session, story, storyLimits(now));
+    } catch (error) {
+      if (error instanceof Error && error.message === "CLIENT_STORY_LIMIT")
+        throw new StoryServiceError("INVALID_STATE", "The private story creation limit has been reached. Try again after it resets.");
+      throw error;
+    }
+    return { session, story, rawSecret };
+  }
+
   async requireSession(rawSecret: string | undefined) {
     if (!rawSecret) throw new StoryServiceError("AUTH_REQUIRED", "Your private Wanderpage session is missing.");
     const session = await this.repository.findSessionBySecretHash(this.secretHasher(rawSecret));
@@ -77,26 +104,9 @@ export class StoryService {
     if (session.termsVersion !== parsed.data.termsVersion || session.uploadConsentVersion !== parsed.data.uploadConsentVersion)
       throw new StoryServiceError("VALIDATION_ERROR", "Please start a new session after accepting the current upload terms.");
     const now = this.now(),
-      story: Story = {
-        id: randomUUID(),
-        ownerSessionId: session.id,
-        admissionKey,
-        status: "uploading",
-        title: parsed.data.title,
-        peopleMode: parsed.data.peopleMode,
-        locationPrivacy: parsed.data.locationPrivacy,
-        processorRevision,
-        sourceExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-        createdAt: now,
-        updatedAt: now,
-        version: 0,
-      };
+      story = makeStory(session.id, admissionKey, parsed.data, now);
     try {
-      await this.repository.createStoryAdmitted(story, {
-        sessionStories: 3,
-        clientStories: 6,
-        since: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-      });
+      await this.repository.createStoryAdmitted(story, storyLimits(now));
     } catch (error) {
       if (error instanceof Error && ["SESSION_STORY_LIMIT", "CLIENT_STORY_LIMIT"].includes(error.message))
         throw new StoryServiceError("INVALID_STATE", "The private story creation limit has been reached. Try again after it resets.");
@@ -247,6 +257,18 @@ export class StoryService {
     if (story.status !== "published") throw new StoryServiceError("INVALID_STATE", "Only a published story can be unpublished.");
     return this.repository.saveStory({ ...story, status: "draft", updatedAt: this.now() }, story.version);
   }
+
+  async prepareDelete(rawSecret: string, storyId: string) {
+    const session = await this.requireSession(rawSecret),
+      story = await this.repository.findStory(storyId);
+    if (!story || !safeEqual(story.ownerSessionId, session.id)) throw new StoryServiceError("NOT_FOUND", "Story not found.");
+    if (story.status === "deleted") return { story, alreadyDeleted: true };
+    return { story: await this.repository.beginDeleteStory(storyId, session.id, this.now()), alreadyDeleted: false };
+  }
+
+  async finishDelete(storyId: string) {
+    await this.repository.finishDeleteStory(storyId, this.now());
+  }
 }
 
 export function hashSecret(secret: string, pepper: string) {
@@ -282,6 +304,27 @@ function environmentGenerationPolicy() {
     enabled: process.env.WANDERPAGE_GENERATION_ENABLED === "true",
     dailyLimit: positiveInteger(process.env.WANDERPAGE_DAILY_GENERATION_LIMIT, 25),
   };
+}
+
+function makeStory(ownerSessionId: string, admissionKey: string, input: CreateStoryInput, now: Date): Story {
+  return {
+    id: randomUUID(),
+    ownerSessionId,
+    admissionKey,
+    status: "uploading",
+    title: input.title,
+    peopleMode: input.peopleMode,
+    locationPrivacy: input.locationPrivacy,
+    processorRevision,
+    sourceExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    createdAt: now,
+    updatedAt: now,
+    version: 0,
+  };
+}
+
+function storyLimits(now: Date) {
+  return { sessionStories: 3, clientStories: 6, since: new Date(now.getTime() - 24 * 60 * 60 * 1000) };
 }
 
 void StoryStatuses;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiError, data, privateHeaders } from "@/lib/web/http";
 import { getStoryService } from "@/lib/web/runtime";
-import { admissionKey, ownerSecret, setOwnerCookie } from "@/lib/web/session";
+import { admissionKey, assertInitialRequest, ownerSecret, setOwnerCookie } from "@/lib/web/session";
 import { StoryServiceError } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes } from "@/lib/web/types";
 
@@ -15,6 +15,7 @@ const createSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    assertInitialRequest(request);
     const input = createSchema.parse(await request.json()),
       stories = getStoryService();
     let secret = await ownerSecret(),
@@ -23,11 +24,11 @@ export async function POST(request: Request) {
       await stories.requireSession(secret);
     } catch (error) {
       if (!(error instanceof StoryServiceError) || error.code !== "AUTH_REQUIRED") throw error;
-      created = await stories.createSession(input);
+      created = await stories.createSessionWithStory(input, admissionKey(request));
       secret = created.rawSecret;
     }
     if (!secret) throw new Error("Owner session could not be established.");
-    const story = await stories.createStory(secret, input, admissionKey(request)),
+    const story = created?.story ?? (await stories.createStory(secret, input, admissionKey(request))),
       session = await stories.requireSession(secret),
       response = data({ story, csrfToken: session.csrfToken }, 201, { headers: privateHeaders() });
     if (created) setOwnerCookie(response, secret, created.session);
