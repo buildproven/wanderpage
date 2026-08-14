@@ -7,7 +7,7 @@
       "commands": [
         {
           "executable": "./node_modules/.bin/vitest",
-          "args": ["run", "tests/web/**/*.test.ts"]
+          "args": ["run", "tests/web"]
         }
       ]
     }
