@@ -2,6 +2,7 @@ import { withWorkflow } from "workflow/next";
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
+  agentRules: false,
   images: { unoptimized: true },
   poweredByHeader: false,
   async headers() {
