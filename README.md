@@ -8,6 +8,8 @@ Deploy the server-backed Next.js application to Vercel, connect a private Vercel
 
 This does not require Stripe, payments, a native app, or an Apple developer account. The detailed privacy, ownership, retention, and deployment decisions are recorded in [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
 
+The credentialed preview activation sequence and Vercel settings are documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## Quickstart
 
 Requirements: Node.js 24.18.0, [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`), and macOS `sips` for HEIC fallback when Sharp/libvips cannot decode a file. If pnpm is missing, `npx @buildproven/wanderpage` tells you so and exits — install it and re-run the same command.
