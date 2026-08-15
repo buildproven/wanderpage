@@ -54,7 +54,7 @@ async function expectStatus(context: BrowserContext, path: string, status: numbe
   return response;
 }
 
-async function createAndUpload(page: Page) {
+async function createAndUpload(page: Page, onCreated: (storyId: string, csrfToken: string) => void) {
   await page.goto(new URL("/create", baseUrl).toString(), { waitUntil: "networkidle" });
   await page.getByLabel("Story title").fill("Hosted preview acceptance");
   await page.getByLabel(/Photos \(JPEG/).setInputFiles(
@@ -65,12 +65,22 @@ async function createAndUpload(page: Page) {
     }))
   );
   await page.getByRole("checkbox").check();
+  const createResponse = page.waitForResponse(
+    response => response.url().endsWith("/api/stories") && response.request().method() === "POST"
+  );
   await page.getByRole("button", { name: "Upload privately" }).click();
+  const createdBody = (await (await createResponse).json()) as ApiEnvelope<StoryEnvelope>;
+  const createdStory = createdBody.data?.story,
+    createdCsrf = createdBody.data?.csrfToken;
+  if (!createdStory || !createdCsrf) throw new Error("Story creation did not return a cleanup-capable CSRF token.");
+  const created = { storyId: createdStory.id, csrfToken: createdCsrf };
+  onCreated(created.storyId, created.csrfToken);
   await page.getByRole("status").filter({ hasText: "Photos uploaded privately" }).waitFor({ state: "visible", timeout: timeoutMs });
   const href = await page.getByRole("link", { name: /Open private review/ }).getAttribute("href");
   const storyId = href?.match(/^\/stories\/([0-9a-f-]+)$/i)?.[1];
   if (!storyId) throw new Error("The hosted creator did not return a private story link.");
-  return storyId;
+  if (storyId !== created.storyId) throw new Error("The hosted creator returned a different story than the creation response.");
+  return created;
 }
 
 async function waitForStory(context: BrowserContext, storyId: string) {
@@ -114,7 +124,12 @@ async function run() {
     mark("unauthenticated-api");
 
     const page = await owner.newPage();
-    storyId = await createAndUpload(page);
+    const created = await createAndUpload(page, (id, token) => {
+      storyId = id;
+      csrfToken = token;
+    });
+    storyId = created.storyId;
+    csrfToken = created.csrfToken;
     const listed = await apiRequest<{ stories: Story[]; csrfToken: string }>(owner, "/api/stories");
     const story = listed.stories.find(item => item.id === storyId);
     if (!story) throw new Error("Owner listing did not include the uploaded story.");
@@ -149,7 +164,16 @@ async function run() {
     mark("delete-published");
     void queued;
   } finally {
-    if (storyId && csrfToken) await deleteStory(owner, storyId, csrfToken).catch(() => undefined);
+    if (storyId && csrfToken) {
+      try {
+        await deleteStory(owner, storyId, csrfToken);
+      } catch (error) {
+        console.error(
+          JSON.stringify({ event: "cleanup", result: "FAIL", storyId, error: error instanceof Error ? error.message : String(error) })
+        );
+        throw error;
+      }
+    }
     await owner.close();
     await otherOwner.close();
     await browser.close();

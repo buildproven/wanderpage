@@ -19,8 +19,8 @@ export function assertPreviewUrl(raw: string, allowlistedHosts: readonly string[
   if (hostname === "wanderpage.buildproven.ai" || hostname.endsWith(".buildproven.ai")) {
     throw new Error("Production Wanderpage domains are blocked by the preview acceptance harness.");
   }
-  if (!hostname.endsWith(".vercel.app") && !allowlistedHosts.includes(hostname)) {
-    throw new Error("WANDERPAGE_PREVIEW_URL must use a Vercel preview host or an explicit preview allowlist.");
+  if (!allowlistedHosts.includes(hostname)) {
+    throw new Error("WANDERPAGE_PREVIEW_URL must match the exact WANDERPAGE_PREVIEW_ALLOWLIST preview host.");
   }
   return url;
 }

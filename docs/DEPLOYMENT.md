@@ -76,6 +76,7 @@ synthetic PNGs, and deletes the story it creates:
 
 ```bash
 WANDERPAGE_PREVIEW_URL=https://<deployment>.vercel.app \
+WANDERPAGE_PREVIEW_ALLOWLIST=<deployment>.vercel.app \
 WANDERPAGE_PREVIEW_CONFIRM=preview-only \
 WANDERPAGE_HOSTED_SMOKE=1 \
 pnpm hosted:preview

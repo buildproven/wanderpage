@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { assertPreviewUrl, readPreviewRunMode } from "@/lib/web/preview-policy";
 
 describe("hosted preview acceptance policy", () => {
-  it("accepts a Vercel preview URL", () => {
-    expect(assertPreviewUrl("https://wanderpage-git-preview.vercel.app").hostname).toBe("wanderpage-git-preview.vercel.app");
+  it("accepts an exact operator-allowlisted preview URL", () => {
+    expect(assertPreviewUrl("https://wanderpage-git-preview.vercel.app", ["wanderpage-git-preview.vercel.app"]).hostname).toBe(
+      "wanderpage-git-preview.vercel.app"
+    );
   });
 
   it("blocks production and local URLs", () => {
@@ -12,7 +14,7 @@ describe("hosted preview acceptance policy", () => {
   });
 
   it("requires an explicit allowlist for a non-Vercel preview host", () => {
-    expect(() => assertPreviewUrl("https://preview.example.test")).toThrow(/allowlist/);
+    expect(() => assertPreviewUrl("https://preview.example.test")).toThrow(/ALLOWLIST|allowlist/);
     expect(assertPreviewUrl("https://preview.example.test", ["preview.example.test"]).hostname).toBe("preview.example.test");
   });
 
