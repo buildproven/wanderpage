@@ -85,10 +85,13 @@ async function createAndUpload(page: Page, onCreated: (storyId: string, csrfToke
 
 async function waitForStory(context: BrowserContext, storyId: string) {
   const deadline = Date.now() + timeoutMs;
+  let sawGenerationState = false;
   let latest: Story | undefined;
   while (Date.now() < deadline) {
     latest = (await apiRequest<StoryEnvelope>(context, `/api/stories/${storyId}`, "GET")).story;
-    if (["draft", "published", "failed"].includes(latest.status)) return latest;
+    if (["queued", "processing"].includes(latest.status)) sawGenerationState = true;
+    if (sawGenerationState && ["draft", "published"].includes(latest.status)) return latest;
+    if (sawGenerationState && latest.status === "failed") throw new Error("Hosted generation reached failed status.");
     await new Promise(resolve => setTimeout(resolve, 5_000));
   }
   throw new Error(`Story ${storyId} did not finish processing before timeout (last status ${latest?.status ?? "unknown"}).`);
@@ -107,6 +110,8 @@ async function run() {
   const otherOwner = await browser.newContext();
   let storyId: string | undefined;
   let csrfToken: string | undefined;
+  let otherStoryId: string | undefined;
+  let otherCsrfToken: string | undefined;
   let cleanupError: unknown;
   try {
     const demo = await owner.request.get(new URL("/demo", baseUrl).toString());
@@ -137,9 +142,23 @@ async function run() {
     csrfToken = listed.csrfToken;
     mark("private-upload", story.status);
 
+    const other = await apiRequest<StoryEnvelope>(otherOwner, "/api/stories", "POST", undefined, {
+      title: "Second owner isolation check",
+      peopleMode: "exclude",
+      locationPrivacy: "hidden",
+      termsVersion: "2026-08-15",
+      uploadConsentVersion: "2026-08-15",
+    });
+    otherStoryId = other.story.id;
+    otherCsrfToken = other.csrfToken;
+    if (!otherCsrfToken) throw new Error("Second owner session did not return a cleanup-capable CSRF token.");
     const forbidden = await otherOwner.request.get(new URL(`/api/stories/${storyId}`, baseUrl).toString());
-    if (![401, 404].includes(forbidden.status())) throw new Error(`Second browser accessed the private story (${forbidden.status()}).`);
+    if (![403, 404].includes(forbidden.status()))
+      throw new Error(`Second authenticated owner accessed the private story (${forbidden.status()}).`);
     mark("owner-isolation");
+    await deleteStory(otherOwner, otherStoryId, otherCsrfToken);
+    otherStoryId = undefined;
+    otherCsrfToken = undefined;
 
     if (runMode === "smoke") {
       await deleteStory(owner, storyId, csrfToken);
@@ -148,8 +167,9 @@ async function run() {
     }
 
     const queued = await apiRequest<StoryEnvelope>(owner, `/api/stories/${storyId}/generate`, "POST", csrfToken);
+    if (!["queued", "processing"].includes(queued.story.status))
+      throw new Error(`Generation did not enter a queued state (${queued.story.status}).`);
     const finished = await waitForStory(owner, storyId);
-    if (finished.status === "failed") throw new Error("Hosted generation reached failed status.");
     mark("generation", finished.status);
     const published = await apiRequest<StoryEnvelope>(owner, `/api/stories/${storyId}/publish`, "POST", csrfToken, { action: "publish" });
     if (!published.story.publicSlug) throw new Error("Publish did not return a public slug.");
@@ -165,6 +185,7 @@ async function run() {
     mark("delete-published");
     void queued;
   } finally {
+    const cleanupErrors: unknown[] = [];
     if (storyId && csrfToken) {
       try {
         await deleteStory(owner, storyId, csrfToken);
@@ -172,12 +193,28 @@ async function run() {
         console.error(
           JSON.stringify({ event: "cleanup", result: "FAIL", storyId, error: error instanceof Error ? error.message : String(error) })
         );
-        cleanupError = error;
+        cleanupErrors.push(error);
+      }
+    }
+    if (otherStoryId && otherCsrfToken) {
+      try {
+        await deleteStory(otherOwner, otherStoryId, otherCsrfToken);
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "cleanup",
+            result: "FAIL",
+            storyId: otherStoryId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        );
+        cleanupErrors.push(error);
       }
     }
     await owner.close();
     await otherOwner.close();
     await browser.close();
+    cleanupError = cleanupErrors[0];
     if (cleanupError) throw cleanupError;
   }
 }
