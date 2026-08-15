@@ -8,7 +8,7 @@ export function proxy(request: NextRequest) {
       "img-src 'self' data:",
       `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
-      "connect-src 'self' https://*.vercel-storage.com",
+      "connect-src 'self' https://vercel.com https://*.vercel-storage.com",
       "frame-ancestors 'none'",
       "base-uri 'none'",
       "form-action 'self'",
