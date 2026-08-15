@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blobClientResponse } from "@/app/api/uploads/route";
+import { blobClientResponse } from "@/lib/web/blob-response";
 
 describe("Blob client upload response", () => {
   it("returns the raw Blob token payload instead of the application envelope", async () => {

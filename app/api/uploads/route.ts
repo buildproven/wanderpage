@@ -1,20 +1,12 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { del } from "@vercel/blob";
-import { NextResponse } from "next/server";
-import { apiError, privateHeaders } from "@/lib/web/http";
+import { apiError } from "@/lib/web/http";
+import { blobClientResponse } from "@/lib/web/blob-response";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { getStoryService } from "@/lib/web/runtime";
 import { assertMutationRequest, ownerSecret } from "@/lib/web/session";
 import { StoryServiceError } from "@/lib/web/story-service";
 import { maxPhotoBytes, UploadService } from "@/lib/web/upload-service";
-
-/**
- * The Blob client consumes this response directly. Unlike our application API
- * routes, it must not be wrapped in the `{ data: ... }` envelope.
- */
-export function blobClientResponse(result: unknown) {
-  return NextResponse.json(result, { status: 200, headers: privateHeaders() });
-}
 
 export async function POST(request: Request) {
   try {
