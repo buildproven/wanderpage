@@ -107,6 +107,7 @@ async function run() {
   const otherOwner = await browser.newContext();
   let storyId: string | undefined;
   let csrfToken: string | undefined;
+  let cleanupError: unknown;
   try {
     const demo = await owner.request.get(new URL("/demo", baseUrl).toString());
     if (!demo.ok() || !(await demo.text()).includes("Wanderpage")) throw new Error("/demo did not render the deployed app.");
@@ -171,12 +172,13 @@ async function run() {
         console.error(
           JSON.stringify({ event: "cleanup", result: "FAIL", storyId, error: error instanceof Error ? error.message : String(error) })
         );
-        throw error;
+        cleanupError = error;
       }
     }
     await owner.close();
     await otherOwner.close();
     await browser.close();
+    if (cleanupError) throw cleanupError;
   }
 }
 
