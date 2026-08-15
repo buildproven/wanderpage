@@ -1,4 +1,5 @@
 import { chromium, type APIResponse, type BrowserContext, type Page } from "@playwright/test";
+import { currentDisclosureVersion } from "@/lib/consent";
 import { assertPreviewUrl, readPreviewRunMode } from "@/lib/web/preview-policy";
 
 type Story = { id: string; status: string; publicSlug?: string; title: string; version: number };
@@ -146,8 +147,8 @@ async function run() {
       title: "Second owner isolation check",
       peopleMode: "exclude",
       locationPrivacy: "hidden",
-      termsVersion: "2026-08-15",
-      uploadConsentVersion: "2026-08-15",
+      termsVersion: currentDisclosureVersion,
+      uploadConsentVersion: currentDisclosureVersion,
     });
     otherStoryId = other.story.id;
     otherCsrfToken = other.csrfToken;

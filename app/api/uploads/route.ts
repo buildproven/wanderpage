@@ -1,6 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { del } from "@vercel/blob";
-import { apiError, data, privateHeaders } from "@/lib/web/http";
+import { apiError } from "@/lib/web/http";
+import { blobClientResponse } from "@/lib/web/blob-response";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { getStoryService } from "@/lib/web/runtime";
 import { assertMutationRequest, ownerSecret } from "@/lib/web/session";
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
         }
       },
     });
-    return data(result, 200, { headers: privateHeaders() });
+    return blobClientResponse(result);
   } catch (error) {
     return apiError(error);
   }
