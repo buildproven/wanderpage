@@ -68,6 +68,27 @@ The acceptance run must prove owner isolation, failed and retried processing,
 explicit publish/unpublish/delete, private original cleanup, and metadata
 privacy. A successful build or a Vercel `Ready` status is not hosted acceptance.
 
+## Preview acceptance command
+
+Run from the repository root against a reviewed Vercel preview. The harness
+blocks production hosts, requires an explicit preview confirmation, uses six
+synthetic PNGs, and deletes the story it creates:
+
+```bash
+WANDERPAGE_PREVIEW_URL=https://<deployment>.vercel.app \
+WANDERPAGE_PREVIEW_ALLOWLIST=<deployment>.vercel.app \
+WANDERPAGE_PREVIEW_CONFIRM=preview-only \
+WANDERPAGE_HOSTED_SMOKE=1 \
+pnpm hosted:preview
+```
+
+The smoke mode proves routing, authentication, owner isolation, private upload,
+and unpublished deletion without invoking generation. After the preview has
+been inspected and generation has been explicitly enabled, the full lifecycle
+can be run with `WANDERPAGE_HOSTED_ACCEPTANCE=1` and
+`WANDERPAGE_HOSTED_ALLOW_GENERATION=1` instead of `WANDERPAGE_HOSTED_SMOKE=1`.
+Failed runs are failures, not acceptance evidence.
+
 ## Production boundary
 
 Provisioning external services, using real private photos, enabling chargeable
