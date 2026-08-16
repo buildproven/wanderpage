@@ -77,11 +77,14 @@ export default function WebCreator() {
 
   return (
     <main className="product-page" style={{ padding: "3rem 6vw", minHeight: "100vh" }}>
-      <p className="product-kicker">Private browser creation</p>
+      <p className="product-kicker">Private browser creation · Coming soon</p>
       <h1 style={{ maxWidth: 760 }}>Turn a photo folder into a story.</h1>
       <p style={{ maxWidth: 680 }}>
         Your photos upload privately for curation. Wanderpage never identifies people, and you choose whether places are broad, approximate,
         or hidden. Nothing is public until you explicitly publish a finished draft.
+      </p>
+      <p style={{ maxWidth: 680 }}>
+        Hosted browser creation is coming soon. For a working private version today, use the local launcher with your own OpenAI key.
       </p>
       <form
         onSubmit={event => {
