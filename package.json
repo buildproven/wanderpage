@@ -54,6 +54,7 @@
   "scripts": {
     "dev": "next dev",
     "studio": "tsx scripts/studio.ts",
+    "private": "tsx scripts/private.ts",
     "build": "next build --webpack",
     "static:export": "tsx scripts/static-export.ts",
     "preview": "next start",

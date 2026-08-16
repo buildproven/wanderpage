@@ -20,7 +20,7 @@ npx @buildproven/wanderpage
 
 This creates a `./wanderpage` project folder, installs dependencies, and opens Studio in your browser — nothing runs anywhere but your machine. Pass a folder name to scaffold somewhere else (`npx @buildproven/wanderpage my-trips`), or re-run the same command later to relaunch Studio in an existing project.
 
-Set `OPENAI_API_KEY` for real vision analysis and narrative generation — add it to the generated project's `.env.local`. The model names and Wikimedia user agent are configurable in `.env.example`. Vercel may use an existing CLI login or `VERCEL_TOKEN`.
+For real vision analysis and narrative generation, Wanderpage needs your `OPENAI_API_KEY`. The easiest personal setup is to double-click `Open Wanderpage.command`: on the first run it installs dependencies, checks `.env.local` and `.env`, and if needed asks for the path to an existing env file. The key stays on your machine and is never printed or uploaded by the launcher. The model names and Wikimedia user agent are configurable in `.env.example`.
 
 ## Cloning instead
 
@@ -35,11 +35,19 @@ cp .env.example .env.local
 
 ## Open the local app
 
-On macOS, double-click `Open Wanderpage.command`. Or launch the same local interface from a terminal:
+On macOS, double-click `Open Wanderpage.command`. Or launch the same personal flow from a terminal:
 
 ```bash
-pnpm studio
+pnpm private
 ```
+
+You can point the launcher at an existing env file without copying it:
+
+```bash
+WANDERPAGE_ENV_FILE="/absolute/path/to/.env" pnpm private
+```
+
+Use `pnpm studio` when you want the lower-level launcher and already have the environment configured.
 
 Wanderpage builds the interface, opens it in the default browser, and listens only on `127.0.0.1`. Choose a photo folder, set the people and route privacy controls, and select **Build my Wanderpage**. The app shows live progress, the selected edit, rejected-photo counts, the local decision report, and the finished trip. Only one trip runs at a time.
 
@@ -115,6 +123,7 @@ It sends a small contact sheet through the configured vision model using Structu
 - `OPENAI_WRITER_MODEL`: defaults to `gpt-5.6-terra`.
 - `WIKIMEDIA_USER_AGENT`: descriptive API user agent.
 - `WANDERPAGE_PORT`: optional local Studio port; defaults to `4317` on `127.0.0.1`.
+- `WANDERPAGE_ENV_FILE`: optional path to an existing private env file; the personal launcher reads it without copying it into this project.
 - `VERCEL_TOKEN`: optional when the Vercel CLI is already authenticated.
 - `WANDERPAGE_WORKSPACE`: optional advanced override for writing generated data, cache, reports, and public assets into an isolated workspace; the integration suite uses this to protect the repository checkout.
 
