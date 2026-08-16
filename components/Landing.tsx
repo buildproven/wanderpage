@@ -37,7 +37,7 @@ export default function Landing() {
             View the demo ↗
           </Link>
           <Link href="/create" className="product-nav-link">
-            Create a story ↗
+            Create a story · coming soon ↗
           </Link>
         </nav>
         <motion.div
@@ -71,7 +71,7 @@ export default function Landing() {
           <span>Share when ready</span>
         </div>
         <Link href="/create" className="product-nav-link" style={{ position: "absolute", right: "6vw", bottom: "3rem" }}>
-          Create a private story →
+          Create a private story · coming soon →
         </Link>
       </section>
 
