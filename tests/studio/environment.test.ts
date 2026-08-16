@@ -46,4 +46,19 @@ describe("Studio environment", () => {
     expect(process.env.OPENAI_API_KEY).toBe("from-existing-file");
     expect(process.env.WANDERPAGE_PORT).toBe("4401");
   });
+
+  it("allows a real external key to replace a blank local placeholder", async () => {
+    const workspace = await createTempWorkspace("studio-blank-placeholder");
+    workspaces.push(workspace);
+    await writeFile(join(workspace, ".env.local"), "OPENAI_API_KEY=\n");
+    const envFile = join(workspace, "private.env");
+    await writeFile(envFile, "OPENAI_API_KEY=from-existing-file\n");
+
+    delete process.env.OPENAI_API_KEY;
+    await loadStudioEnvironment(workspace);
+    expect(process.env.OPENAI_API_KEY).toBe("");
+
+    await loadEnvironmentFile(envFile, { overrideEmpty: true });
+    expect(process.env.OPENAI_API_KEY).toBe("from-existing-file");
+  });
 });

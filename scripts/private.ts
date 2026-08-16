@@ -12,7 +12,7 @@ await loadStudioEnvironment(root);
 
 if (!process.env.OPENAI_API_KEY) {
   const configuredFile = process.env.WANDERPAGE_ENV_FILE;
-  if (configuredFile) await loadEnvironmentFile(expandPath(configuredFile, root));
+  if (configuredFile) await loadEnvironmentFile(expandPath(configuredFile, root), { overrideEmpty: true });
   else await loadFirstExisting([join(root, ".env"), join(root, ".env.local")]);
 }
 
@@ -22,7 +22,7 @@ if (!process.env.OPENAI_API_KEY && input.isTTY && output.isTTY) {
     "Wanderpage needs OPENAI_API_KEY for real curation. Enter the path to your existing .env file (or press Return to cancel): "
   );
   readline.close();
-  if (answer.trim()) await loadEnvironmentFile(expandPath(answer.trim(), root));
+  if (answer.trim()) await loadEnvironmentFile(expandPath(answer.trim(), root), { overrideEmpty: true });
 }
 
 if (!process.env.OPENAI_API_KEY) {
@@ -57,7 +57,7 @@ async function loadFirstExisting(paths: string[]) {
         .then(() => true)
         .catch(() => false)
     ) {
-      await loadEnvironmentFile(filePath);
+      await loadEnvironmentFile(filePath, { overrideEmpty: true });
       return;
     }
   }
