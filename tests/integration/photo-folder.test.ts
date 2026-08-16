@@ -128,7 +128,7 @@ describe("photo folder to deployed-site artifact", () => {
       await browser.close();
       await server.close();
     }
-  }, 300_000);
+  }, 180_000);
 
   it("runs the documented photo-folder CLI against an isolated workspace", async () => {
     const cliWorkspace = await createTempWorkspace("cli");
