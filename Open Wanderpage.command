@@ -6,4 +6,8 @@ if ! command -v pnpm >/dev/null 2>&1; then
   read "?Press Return to close."
   exit 1
 fi
-exec pnpm studio
+if [ ! -d node_modules ]; then
+  print "First run: installing Wanderpage dependencies…"
+  pnpm install --frozen-lockfile
+fi
+exec pnpm private

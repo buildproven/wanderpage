@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadStudioEnvironment } from "@/lib/studio/environment";
+import { loadEnvironmentFile, loadStudioEnvironment } from "@/lib/studio/environment";
 import { createTempWorkspace, removeTempWorkspace } from "../helpers/workspace";
 
 describe("Studio environment", () => {
@@ -31,5 +31,19 @@ describe("Studio environment", () => {
     process.env.OPENAI_API_KEY = "shell";
     await loadStudioEnvironment(workspace);
     expect(process.env.OPENAI_API_KEY).toBe("shell");
+  });
+
+  it("loads an existing private env file without requiring it to be copied into the project", async () => {
+    const workspace = await createTempWorkspace("studio-external-environment");
+    workspaces.push(workspace);
+    const envFile = join(workspace, "private.env");
+    await writeFile(envFile, "OPENAI_API_KEY=from-existing-file\nWANDERPAGE_PORT=4401\n");
+
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.WANDERPAGE_PORT;
+    await loadEnvironmentFile(envFile);
+
+    expect(process.env.OPENAI_API_KEY).toBe("from-existing-file");
+    expect(process.env.WANDERPAGE_PORT).toBe("4401");
   });
 });
