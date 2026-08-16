@@ -447,25 +447,21 @@ jobs:
             --git-range "$BASE_SHA" "$HEAD_SHA" \
             --
       - name: Lint
-        if: hashFiles('.buildproven/test-impact.json') == '' || (github.event_name != 'pull_request' && github.event_name != 'push')
         run: |
           echo "⏱️ Lint must complete within 5 minutes"
           timeout 300 pnpm run quality:lint
 
       - name: Format check
-        if: hashFiles('.buildproven/test-impact.json') == '' || (github.event_name != 'pull_request' && github.event_name != 'push')
         run: |
           echo "⏱️ Format check must complete within 5 minutes"
           timeout 300 pnpm run format:check
 
       - name: Type check
-        if: hashFiles('.buildproven/test-impact.json') == '' || (github.event_name != 'pull_request' && github.event_name != 'push')
         run: |
           echo "⏱️ Type check must complete within 5 minutes"
           timeout 300 pnpm run type-check
 
       - name: Build
-        if: hashFiles('.buildproven/test-impact.json') == '' || (github.event_name != 'pull_request' && github.event_name != 'push')
         run: |
           echo "⏱️ Build must complete within 5 minutes"
           timeout 300 pnpm run build
