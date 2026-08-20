@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import WebCreator from "@/components/WebCreator";
+
+const hostedCreatorEnabled = process.env.WANDERPAGE_GENERATION_ENABLED === "true";
 
 export const metadata: Metadata = {
-  title: "Create a story — coming soon — Wanderpage",
-  description: "Hosted browser creation is coming soon to Wanderpage.",
+  title: hostedCreatorEnabled ? "Create a story — Wanderpage" : "Create a story — coming soon — Wanderpage",
+  description: hostedCreatorEnabled
+    ? "Privately upload travel photos and create a Wanderpage draft in your browser."
+    : "Hosted browser creation is coming soon to Wanderpage.",
 };
 
 export default function CreatePage() {
+  if (hostedCreatorEnabled) return <WebCreator />;
+
   return (
     <main className="product-page" style={{ padding: "3rem 6vw", minHeight: "100vh" }}>
       <p className="product-kicker">Hosted browser creation · Coming soon</p>

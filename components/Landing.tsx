@@ -11,7 +11,7 @@ const reveal = {
   transition: { duration: 0.75, ease: [0.2, 0.7, 0.2, 1] as const },
 };
 
-export default function Landing() {
+export default function Landing({ hostedCreatorEnabled = false }: { hostedCreatorEnabled?: boolean }) {
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, reduce ? 1 : 1.07]);
@@ -37,7 +37,7 @@ export default function Landing() {
             View the demo ↗
           </Link>
           <Link href="/create" className="product-nav-link">
-            Create a story · coming soon ↗
+            {hostedCreatorEnabled ? "Create a story ↗" : "Create a story · coming soon ↗"}
           </Link>
         </nav>
         <motion.div
@@ -71,7 +71,7 @@ export default function Landing() {
           <span>Share when ready</span>
         </div>
         <Link href="/create" className="product-nav-link" style={{ position: "absolute", right: "6vw", bottom: "3rem" }}>
-          Create a private story · coming soon →
+          {hostedCreatorEnabled ? "Create a private story →" : "Create a private story · coming soon →"}
         </Link>
       </section>
 
