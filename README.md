@@ -1,10 +1,10 @@
 # Wanderpage
 
-Wanderpage turns travel photos into a private, cinematic story. The browser flow at `/create` uploads files directly to private storage, creates a private draft, and only shares a story after its owner explicitly publishes it. Originals are never modified; generated WebP derivatives remove metadata; people are never identified.
+Wanderpage turns travel photos into a private, cinematic story. The local-first flow is ready today; the hosted browser creator is implemented behind a preview and operator-admission gate and remains labeled **coming soon** until its credentialed acceptance run is complete. Originals are never modified; generated WebP derivatives remove metadata; people are never identified.
 
-## Hosted browser app
+## Hosted browser app (preview-gated)
 
-Deploy the server-backed Next.js application to Vercel, connect a private Vercel Blob store and Neon Postgres database, and apply every SQL file in [`db/migrations`](db/migrations) in numeric order inside one deployment transaction. Then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, `WANDERPAGE_ADMISSION_PEPPER`, `WANDERPAGE_GENERATION_ENABLED=true`, `WANDERPAGE_DAILY_GENERATION_LIMIT`, `CRON_SECRET`, `WANDERPAGE_OPERATOR_SECRET`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs.
+The server-backed Next.js creator is implemented, but `/create` stays preview-gated until an isolated Vercel deployment passes the hosted acceptance sequence. To activate a preview, deploy the application to Vercel, connect a private Vercel Blob store and Neon Postgres database, and apply every SQL file in [`db/migrations`](db/migrations) in numeric order inside one deployment transaction. Then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, `WANDERPAGE_ADMISSION_PEPPER`, `WANDERPAGE_GENERATION_ENABLED=true`, `WANDERPAGE_DAILY_GENERATION_LIMIT`, `CRON_SECRET`, `WANDERPAGE_OPERATOR_SECRET`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs. Follow [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); provisioning services and enabling generation require explicit operator approval.
 
 This does not require Stripe, payments, a native app, or an Apple developer account. The detailed privacy, ownership, retention, and deployment decisions are recorded in [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
 

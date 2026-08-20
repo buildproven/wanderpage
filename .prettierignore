@@ -4,6 +4,7 @@ dist
 build
 coverage
 .next
+app/.well-known/workflow/
 .vercel
 .env
 .env.local
