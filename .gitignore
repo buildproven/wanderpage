@@ -4,8 +4,9 @@ out/
 .vercel/
 coverage/
 .DS_Store
-.env
-.env.local
+.env*
+!.env.example
+*.log
 .trip-cache/
 .trip-output/
 test-results/

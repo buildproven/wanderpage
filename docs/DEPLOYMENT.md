@@ -18,6 +18,12 @@ dashboard output-directory setting. Do not set it to `out`: `out/` is produced
 only by the local rollback export and contains no hosted API or private-story
 route handlers.
 
+The checked-in file is not proof that the Vercel project settings have
+converged. Before hosted acceptance, run `vercel project inspect wanderpage`
+and repair any live `Framework Preset: Other` or `Output Directory: out` settings
+to `Next.js` and an unset output directory. Inspect the resulting deployment
+again before enabling the creator.
+
 ## Required preview services
 
 Create isolated preview resources before enabling the creator:
