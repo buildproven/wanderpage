@@ -139,6 +139,27 @@ describe("web story service", () => {
     expect(updated.manifest?.photos).toEqual(draft.manifest?.photos);
   });
 
+  it("rejects a stale private draft edit without overwriting the newer tab", async () => {
+    const { service, repository } = fixture(),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input),
+      draft = await repository.saveStory({ ...story, status: "draft", manifest: demoManifest() }, story.version),
+      current = await service.updateStory(owner.rawSecret, draft.id, draft.version, {
+        title: "The latest private title",
+        peopleMode: draft.peopleMode,
+        locationPrivacy: draft.locationPrivacy,
+      });
+
+    await expect(
+      service.updateStory(owner.rawSecret, draft.id, draft.version, {
+        title: "An older tab title",
+        peopleMode: draft.peopleMode,
+        locationPrivacy: draft.locationPrivacy,
+      })
+    ).rejects.toMatchObject({ code: "STORY_VERSION_CONFLICT" });
+    expect(await repository.findStory(draft.id)).toMatchObject({ title: current.title, version: current.version });
+  });
+
   it("allows a failed private run to retry while its confirmed sources remain available", async () => {
     const { service, repository, starts } = fixture(),
       owner = await service.createSession(input),
