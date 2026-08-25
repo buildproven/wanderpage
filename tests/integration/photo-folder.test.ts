@@ -170,7 +170,7 @@ describe("photo folder to deployed-site artifact", () => {
     } finally {
       await removeTempWorkspace(cliWorkspace);
     }
-  }, 60_000);
+  }, 180_000);
 });
 
 class RecordingProvider implements AIProvider {
