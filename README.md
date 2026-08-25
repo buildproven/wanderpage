@@ -8,6 +8,8 @@ The server-backed Next.js creator is implemented, but `/create` stays preview-ga
 
 This does not require Stripe, payments, a native app, or an Apple developer account. The detailed privacy, ownership, retention, and deployment decisions are recorded in [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
 
+When the hosted preview is enabled, the private draft desk lets a creator return to anonymous-session drafts, watch upload and curation status, retry a failed run, edit the title and pre-processing privacy choices, and publish or revoke a story explicitly. It does not replace the credentialed preview acceptance sequence above, and generation remains disabled until that sequence passes.
+
 The credentialed preview activation sequence and Vercel settings are documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Quickstart

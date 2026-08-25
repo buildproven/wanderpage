@@ -12,13 +12,21 @@ export default async function PrivateStoryPage({ params }: { params: Promise<{ s
     privateStory = await loadPrivateStory(storyId);
   if (!privateStory.story.manifest)
     return (
-      <main className="product-page" style={{ padding: "3rem 6vw" }}>
-        <DraftControls storyId={privateStory.story.id} csrfToken={privateStory.session.csrfToken} status={privateStory.story.status} />
+      <main className="product-page">
+        <DraftControls
+          key={`${privateStory.story.id}:${privateStory.story.version}`}
+          story={privateStory.story}
+          csrfToken={privateStory.session.csrfToken}
+        />
       </main>
     );
   return (
     <>
-      <DraftControls storyId={privateStory.story.id} csrfToken={privateStory.session.csrfToken} status={privateStory.story.status} />
+      <DraftControls
+        key={`${privateStory.story.id}:${privateStory.story.version}`}
+        story={privateStory.story}
+        csrfToken={privateStory.session.csrfToken}
+      />
       <Story trip={privateStory.story.manifest} />
     </>
   );

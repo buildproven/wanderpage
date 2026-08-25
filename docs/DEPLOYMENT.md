@@ -95,6 +95,13 @@ can be run with `WANDERPAGE_HOSTED_ACCEPTANCE=1` and
 `WANDERPAGE_HOSTED_ALLOW_GENERATION=1` instead of `WANDERPAGE_HOSTED_SMOKE=1`.
 Failed runs are failures, not acceptance evidence.
 
+The enabled-preview pass must also inspect the private draft desk: return to an
+existing anonymous-session draft, observe upload and curation status, retry a
+failed run, save title and pre-processing privacy choices, and confirm that
+publish, revoke, and delete remain explicit owner actions. Confirm that its
+private summary does not expose exact GPS or unsupported location claims before
+publishing.
+
 ## Production boundary
 
 Provisioning external services, using real private photos, enabling chargeable

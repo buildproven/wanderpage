@@ -3,6 +3,7 @@
 import { upload } from "@vercel/blob/client";
 import { useEffect, useState } from "react";
 import { currentDisclosureVersion } from "@/lib/consent";
+import styles from "./HostedDraftDesk.module.css";
 
 const termsVersion = currentDisclosureVersion;
 type Story = { id: string; title: string; status: string; publicSlug?: string };
@@ -15,12 +16,17 @@ export default function WebCreator() {
     [accepted, setAccepted] = useState(false),
     [csrfToken, setCsrfToken] = useState<string>(),
     [story, setStory] = useState<Story>(),
+    [existingStories, setExistingStories] = useState<Story[]>([]),
+    [uploadIndex, setUploadIndex] = useState(0),
     [message, setMessage] = useState<string>(),
     [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void request<{ csrfToken: string }>("/api/stories", { method: "GET" })
-      .then(result => setCsrfToken(result.csrfToken))
+    void request<{ csrfToken: string; stories: Story[] }>("/api/stories", { method: "GET" })
+      .then(result => {
+        setCsrfToken(result.csrfToken);
+        setExistingStories(result.stories);
+      })
       .catch(() => undefined);
   }, []);
 
@@ -28,6 +34,7 @@ export default function WebCreator() {
     if (!accepted || files.length < 6 || files.length > 60 || !title.trim()) return;
     setBusy(true);
     setMessage(undefined);
+    setUploadIndex(0);
     try {
       const created = await request<{ story: Story; csrfToken: string }>("/api/stories", {
         method: "POST",
@@ -36,7 +43,8 @@ export default function WebCreator() {
       });
       setStory(created.story);
       setCsrfToken(created.csrfToken);
-      for (const file of files) {
+      for (const [index, file] of files.entries()) {
+        setUploadIndex(index + 1);
         const reservation = await request<{ upload: { blobPath: string }; uploadPayload: string }>("/api/upload-reservations", {
           method: "POST",
           headers: { "x-wanderpage-csrf": created.csrfToken },
@@ -50,11 +58,13 @@ export default function WebCreator() {
           contentType: file.type,
         });
       }
+      setExistingStories(current => [created.story, ...current.filter(value => value.id !== created.story.id)]);
       setMessage("Photos uploaded privately. Generate the draft when you are ready.");
     } catch (error) {
       setMessage(messageFor(error));
     } finally {
       setBusy(false);
+      setUploadIndex(0);
     }
   }
 
@@ -126,7 +136,7 @@ export default function WebCreator() {
           losing this anonymous browser session means losing access.
         </label>
         <button className="product-cta" type="submit" disabled={busy || !accepted || files.length < 6 || files.length > 60}>
-          {busy ? "Working…" : "Upload privately"}
+          {busy ? (uploadIndex ? `Uploading ${uploadIndex} of ${files.length}…` : "Starting private draft…") : "Upload privately"}
         </button>
       </form>
       {story && (
@@ -146,6 +156,22 @@ export default function WebCreator() {
         <p role="status" style={{ marginTop: "1.5rem", maxWidth: 680 }}>
           {message}
         </p>
+      )}
+      {existingStories.length > 0 && (
+        <section className={styles["hosted-story-list"]} aria-labelledby="existing-drafts-title">
+          <p className="product-kicker">Your private shelf</p>
+          <h2 id="existing-drafts-title">Return to a draft.</h2>
+          <p>These stories belong to this anonymous browser session. Keep the session cookie to keep access.</p>
+          <div>
+            {existingStories.map(value => (
+              <a href={`/stories/${value.id}`} key={value.id}>
+                <span>{value.status}</span>
+                <strong>{value.title}</strong>
+                <span>Open →</span>
+              </a>
+            ))}
+          </div>
+        </section>
       )}
     </main>
   );

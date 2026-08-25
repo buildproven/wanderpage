@@ -123,6 +123,65 @@ describe("web story service", () => {
     expect((await service.unpublish(owner.rawSecret, draft.id)).status).toBe("draft");
   });
 
+  it("saves a private draft title without changing its generated story", async () => {
+    const { service, repository } = fixture(),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input),
+      draft = await repository.saveStory({ ...story, status: "draft", manifest: demoManifest() }, story.version),
+      updated = await service.updateStory(owner.rawSecret, draft.id, draft.version, {
+        title: "A slower Oregon Coast",
+        peopleMode: draft.peopleMode,
+        locationPrivacy: draft.locationPrivacy,
+      });
+
+    expect(updated).toMatchObject({ title: "A slower Oregon Coast", version: draft.version + 1, status: "draft" });
+    expect(updated.manifest?.title).toBe("A slower Oregon Coast");
+    expect(updated.manifest?.photos).toEqual(draft.manifest?.photos);
+  });
+
+  it("rejects a stale private draft edit without overwriting the newer tab", async () => {
+    const { service, repository } = fixture(),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input),
+      draft = await repository.saveStory({ ...story, status: "draft", manifest: demoManifest() }, story.version),
+      current = await service.updateStory(owner.rawSecret, draft.id, draft.version, {
+        title: "The latest private title",
+        peopleMode: draft.peopleMode,
+        locationPrivacy: draft.locationPrivacy,
+      });
+
+    await expect(
+      service.updateStory(owner.rawSecret, draft.id, draft.version, {
+        title: "An older tab title",
+        peopleMode: draft.peopleMode,
+        locationPrivacy: draft.locationPrivacy,
+      })
+    ).rejects.toMatchObject({ code: "STORY_VERSION_CONFLICT" });
+    expect(await repository.findStory(draft.id)).toMatchObject({ title: current.title, version: current.version });
+  });
+
+  it("allows a failed private run to retry while its confirmed sources remain available", async () => {
+    const { service, repository, starts } = fixture(),
+      owner = await service.createSession(input),
+      story = await service.createStory(owner.rawSecret, input);
+    await addConfirmedUploads(repository, story.id);
+    const queued = await service.queueGeneration(owner.rawSecret, story.id, "client-a"),
+      runId = queued.activeRunId;
+    if (!runId) throw new Error("Queued story did not receive a run id.");
+    const run = await repository.findRun(runId);
+    if (!run) throw new Error("Queued run disappeared.");
+    await repository.saveRun({ ...run, status: "failed", stage: "failed", errorCode: "PROCESSING_FAILED" });
+    const failed = await repository.findStory(story.id);
+    if (!failed) throw new Error("Failed story disappeared.");
+    await repository.saveStory({ ...failed, status: "failed", activeRunId: undefined }, failed.version);
+
+    const retried = await service.queueGeneration(owner.rawSecret, story.id, "client-a");
+
+    expect(retried.status).toBe("queued");
+    expect(retried.activeRunId).not.toBe(runId);
+    expect(starts).toHaveLength(2);
+  });
+
   it("rejects privacy-policy changes after source deletion without destroying the draft", async () => {
     const { service, repository } = fixture(),
       owner = await service.createSession(input),
