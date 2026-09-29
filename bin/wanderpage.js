@@ -60,19 +60,7 @@ async function scaffold() {
 
   console.log(`Creating a new Wanderpage project at ${targetDir}...`);
   await mkdir(targetDir, { recursive: true });
-  const skip = new Set([
-    "node_modules",
-    ".next",
-    "out",
-    ".git",
-    ".trip-cache",
-    ".trip-output",
-    ".vercel",
-    ".claude-kit",
-    ".github",
-    ".husky",
-    ".gitmodules",
-  ]);
+  const skip = new Set(["node_modules", ".next", "out", ".git", ".trip-cache", ".trip-output", ".vercel", ".github", ".husky"]);
   await cp(packageRoot, targetDir, {
     recursive: true,
     filter: source => {

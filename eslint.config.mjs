@@ -6,7 +6,6 @@ export default defineConfig([
   ...nextVitals,
   ...nextTs,
   globalIgnores([
-    ".claude-kit/**",
     ".next/**",
     ".wanderpage-test-*/**",
     "app/.well-known/**",
