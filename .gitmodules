@@ -1,3 +1,0 @@
-[submodule ".claude-kit"]
-	path = .claude-kit
-	url = https://github.com/buildproven/claude-kit.git
