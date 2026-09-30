@@ -1,0 +1,11 @@
+{
+  "checks": {
+    "lint": "pnpm lint",
+    "typecheck": "pnpm typecheck",
+    "build": "pnpm build",
+    "test": "pnpm test"
+  },
+  "testCommand": "pnpm test",
+  "linearProject": "Wanderpage",
+  "dailyBudgetUsd": 5
+}
