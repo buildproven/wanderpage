@@ -114,7 +114,7 @@
     "commander": "latest",
     "exifr": "latest",
     "motion": "latest",
-    "next": "latest",
+    "next": "^16.3.7",
     "openai": "latest",
     "p-limit": "latest",
     "react": "latest",
