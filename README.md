@@ -76,6 +76,26 @@ pnpm trip --input "/absolute/path/to/vacation-photos" --people exclude --max-pho
 
 Supported inputs are nested JPEG/JPG, PNG, WebP, HEIC, and HEIF folders. `--max-photos` accepts 12–60. Add `--dry-run` for local reports only, `--force` to invalidate caches, and `--deploy` to build and create a Vercel preview deployment.
 
+## Agent-safe local CLI
+
+The local agent contract is `wanderpage/v1`. Its read-only commands do not call
+AI providers or change a workspace. Commands return one JSON result on standard
+output with `--json`; human-readable output goes to standard error.
+
+```bash
+pnpm wanderpage inspect "/absolute/path/to/vacation-photos" --json
+pnpm wanderpage draft:list --json
+pnpm wanderpage draft:show oregon-coast-2026 --json
+pnpm wanderpage draft:validate oregon-coast-2026 --json
+pnpm wanderpage draft:publish oregon-coast-2026 --json
+pnpm wanderpage draft:unpublish oregon-coast-2026 --json
+```
+
+Use `--workspace /absolute/path/to/wanderpage` from outside a project. Publish
+and unpublish are explicit local state changes; publish always revalidates the
+manifest and private derivative tree before changing publication state. The
+CLI has no hosted-generation, deployment, release, or remote-agent command.
+
 ## Deterministic demo
 
 No API key or private photos are needed:

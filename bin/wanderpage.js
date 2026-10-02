@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 const execute = promisify(execFile),
   packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), ".."),
   args = process.argv.slice(2),
+  commandNames = new Set(["inspect", "draft:list", "draft:show", "draft:validate", "draft:publish", "draft:unpublish"]),
   targetArg = args.find(arg => !arg.startsWith("--")),
   targetDir = resolve(targetArg ?? "./wanderpage"),
   skipOpen = args.includes("--no-open"),
@@ -103,6 +104,19 @@ async function launchStudio() {
   });
 }
 
+async function runCommand() {
+  await new Promise((resolvePromise, reject) => {
+    const child = spawn(pnpmCommand, ["exec", "tsx", join(packageRoot, "scripts", "wanderpage.ts"), ...args], {
+      cwd: process.cwd(),
+      stdio: "inherit",
+      env: process.env,
+    });
+    child.on("exit", (code, signal) =>
+      code === 0 ? resolvePromise(undefined) : reject(new Error(`wanderpage command exited with code ${code ?? signal}`))
+    );
+  });
+}
+
 try {
   const hasPnpm = await checkCommand(pnpmCommand);
   if (!hasPnpm) {
@@ -110,6 +124,10 @@ try {
     console.log("Install it with: npm install -g pnpm");
     console.log(`Then run: npx @buildproven/wanderpage ${targetArg ?? ""}`);
     process.exit(1);
+  }
+  if (commandNames.has(args[0] ?? "")) {
+    await runCommand();
+    process.exit(0);
   }
   await scaffold();
   await launchStudio();
