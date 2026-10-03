@@ -9,8 +9,10 @@ import { copySiteScaffold, createPhotoFolder, createTempWorkspace, removeTempWor
 
 const execute = promisify(execFile);
 type Outcome = { code: number; stdout: string; stderr: string };
+const tsxCli = join(repoRoot, "node_modules/tsx/dist/cli.mjs");
 const tsx = (script: string, args: string[], env: Record<string, string> = {}) =>
-  execute("pnpm", ["exec", "tsx", join(repoRoot, script), ...args], {
+  // Run tsx directly: pnpm can print its own warnings on stdout, which are not the tool's output.
+  execute(process.execPath, [tsxCli, join(repoRoot, script), ...args], {
     cwd: repoRoot,
     env: { ...process.env, OPENAI_API_KEY: "", ...env },
   }).then(
@@ -53,7 +55,7 @@ async function snapshot(path = workspace): Promise<Record<string, string>> {
 const agent = (args: string[]) => tsx("scripts/wanderpage.ts", [...args, "--json", "--workspace", workspace]);
 const one = (outcome: Outcome) => {
   const lines = outcome.stdout.trim().split("\n");
-  expect(lines).toHaveLength(1);
+  expect(lines, `stdout was: ${outcome.stdout}`).toHaveLength(1);
   return JSON.parse(lines[0]!) as {
     contractVersion: string;
     operation: string;

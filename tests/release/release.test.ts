@@ -7,12 +7,21 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { removeTempWorkspace, repoRoot } from "../helpers/workspace";
 
 const execute = promisify(execFile);
+// Inside a git hook GIT_DIR and friends point at the outer repository; the fixture repositories must never see them.
+const cleanEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_"))) as NodeJS.ProcessEnv;
 let sandbox = "",
   work = "";
 const git = (cwd: string, ...args: string[]) =>
-  execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args], { cwd, encoding: "utf8" }).trim();
+  execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args], {
+    cwd,
+    encoding: "utf8",
+    env: cleanEnv(),
+  }).trim();
 const script = (name: string, ...args: string[]) =>
-  execute("pnpm", ["exec", "tsx", join(repoRoot, "scripts", name), ...args], { cwd: work }).then(
+  execute(process.execPath, [join(repoRoot, "node_modules/tsx/dist/cli.mjs"), join(repoRoot, "scripts", name), ...args], {
+    cwd: work,
+    env: cleanEnv(),
+  }).then(
     ({ stdout, stderr }) => ({ code: 0, stdout, stderr }),
     (error: { code: number; stdout: string; stderr: string }) => ({ code: error.code, stdout: error.stdout, stderr: error.stderr })
   );
