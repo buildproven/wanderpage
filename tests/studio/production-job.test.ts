@@ -17,7 +17,7 @@ beforeAll(async () => {
   await cp(join(repoRoot, "assets"), join(workspace, "assets"), { recursive: true });
   await mkdir(join(workspace, "scripts"), { recursive: true });
   await cp(join(repoRoot, "scripts/static-export.ts"), join(workspace, "scripts/static-export.ts"));
-  for (const file of ["postcss.config.mjs", "next-env.d.ts"]) await cp(join(repoRoot, file), join(workspace, file));
+  for (const file of ["postcss.config.mjs"]) await cp(join(repoRoot, file), join(workspace, file));
   await symlink(join(repoRoot, "node_modules"), join(workspace, "node_modules"), "dir");
   input = await createPhotoFolder(workspace, { count: 8, gps: false });
   delete process.env.OPENAI_API_KEY;
