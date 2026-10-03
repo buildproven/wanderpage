@@ -20,7 +20,7 @@ export type RunOptions = {
   people: "include" | "exclude";
   title?: string;
   maxPhotos: number;
-  privacy: "hidden" | "broad" | "approximate" | "exact";
+  privacy: "hidden" | "broad" | "approximate" | "precise";
   force: boolean;
   dryRun: boolean;
   demo: boolean;
@@ -137,8 +137,8 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
         id: p.id,
         captureTime: p.captureTime,
         categories: options.privacy === "broad" || options.privacy === "hidden" ? undefined : p.semantic?.categories,
-        captionSeed: options.privacy === "approximate" || options.privacy === "exact" ? p.semantic?.captionSeed : undefined,
-        locationClues: options.privacy === "approximate" || options.privacy === "exact" ? p.semantic?.possibleLocations : undefined,
+        captionSeed: options.privacy === "approximate" || options.privacy === "precise" ? p.semantic?.captionSeed : undefined,
+        locationClues: options.privacy === "approximate" || options.privacy === "precise" ? p.semantic?.possibleLocations : undefined,
       })),
       destinations: safeDestinations.map(d => ({
         name: d.confidence >= 0.55 ? d.name : undefined,
@@ -231,7 +231,7 @@ async function makeManifest(
             : broaden(destination.name),
       confidence: destination.confidence,
       approximateCoordinate:
-        options.privacy === "approximate" || options.privacy === "exact"
+        options.privacy === "approximate" || options.privacy === "precise"
           ? {
               lat: roundedCoordinate(destination.lat, options.privacy),
               lon: roundedCoordinate(destination.lon, options.privacy),

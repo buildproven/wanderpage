@@ -5,7 +5,7 @@ export type StudioJobRequest = {
   title?: string;
   people: "include" | "exclude";
   maxPhotos: number;
-  privacy: "approximate" | "exact";
+  privacy: "approximate" | "precise";
 };
 export type StudioProgress = { stage: string; progress: number; message: string; at: string };
 export type StudioSelection = { selected: string[]; rejected: Array<{ id: string; reason?: string }>; reasons: Record<string, string> };

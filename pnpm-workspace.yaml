@@ -9,6 +9,7 @@ overrides:
   brace-expansion: ">=5.0.12"
   devalue: ">=5.9.3"
   fast-uri: 3.1.4
+  "@workflow/nest": "-"
   nanoid: 5.1.16
   piscina: ">=4.9.4"
   postcss: ">=8.5.18"
