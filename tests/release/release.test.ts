@@ -3,8 +3,11 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { removeTempWorkspace, repoRoot } from "../helpers/workspace";
+
+// These tests spawn git and Node repeatedly while heavy builds run in parallel, so the 5 s default is too tight.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const execute = promisify(execFile);
 // Inside a git hook GIT_DIR and friends point at the outer repository; the fixture repositories must never see them.
