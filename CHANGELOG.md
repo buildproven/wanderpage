@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 — 2026-10-03
+
+- Upgrade `workflow` to 4.8.12 and `@workflow/next` to 4.1.16: removes the deprecation warning every install printed (a queue-transport bug in the
+  hosted pipeline's runtime, which the local tool does not use).
+
 ## 0.3.1 — 2026-10-03
 
 - **Fix:** `npx @buildproven/wanderpage draft:list` (and the other agent commands) failed in 0.3.0 with `Cannot find package '@/lib'`, because tsx does
