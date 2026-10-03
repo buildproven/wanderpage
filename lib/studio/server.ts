@@ -19,7 +19,7 @@ const execute = promisify(execFile),
     title: z.string().trim().max(120).optional(),
     people: z.enum(["include", "exclude"]),
     maxPhotos: z.number().int().min(12).max(60),
-    privacy: z.enum(["approximate", "exact"]),
+    privacy: z.enum(["approximate", "precise"]),
   }),
   draftSchema = z.object({ manifest: TripManifestSchema });
 export type StudioRunner = (

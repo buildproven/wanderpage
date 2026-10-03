@@ -9,7 +9,7 @@ const program = new Command()
   .option("--people <mode>", "Whether photos containing people may be published")
   .option("--title <text>", "Story title")
   .option("--max-photos <number>", "Maximum selected photos", "36")
-  .option("--privacy <mode>", "Route precision: approximate or exact", "approximate")
+  .option("--privacy <mode>", "Route precision: approximate (~11 km) or precise (~1 km)", "approximate")
   .option("--force", "Ignore cached analysis", false)
   .option("--dry-run", "Analyze and report without updating the site", false)
   .option("--demo", "Generate the deterministic demo", false)
@@ -30,14 +30,14 @@ if (!options.demo && !options.people) program.error("--people include|exclude is
 if (options.people && !["include", "exclude"].includes(options.people)) program.error("--people must be include or exclude");
 const maxPhotos = Number(options.maxPhotos);
 if (!Number.isInteger(maxPhotos) || maxPhotos < 12 || maxPhotos > 60) program.error("--max-photos must be an integer from 12 to 60");
-if (!["approximate", "exact"].includes(options.privacy)) program.error("--privacy must be approximate or exact");
+if (!["approximate", "precise"].includes(options.privacy)) program.error("--privacy must be approximate or precise");
 try {
   await runTrip({
     input: options.input,
     people: (options.people ?? "exclude") as "include" | "exclude",
     title: options.title,
     maxPhotos,
-    privacy: options.privacy as "approximate" | "exact",
+    privacy: options.privacy as "approximate" | "precise",
     force: options.force,
     dryRun: options.dryRun,
     demo: options.demo,

@@ -16,7 +16,7 @@ export default function Studio() {
   const [folder, setFolder] = useState(""),
     [title, setTitle] = useState(""),
     [people, setPeople] = useState<"include" | "exclude">("include"),
-    [privacy, setPrivacy] = useState<"approximate" | "exact">("approximate"),
+    [privacy, setPrivacy] = useState<"approximate" | "precise">("approximate"),
     [maxPhotos, setMaxPhotos] = useState(36);
   const [job, setJob] = useState<StudioJob>(),
     [error, setError] = useState(""),
@@ -306,8 +306,8 @@ export default function Studio() {
                       <Choice
                         label="Closer"
                         detail="Still rounded; never exact GPS."
-                        checked={privacy === "exact"}
-                        onChange={() => setPrivacy("exact")}
+                        checked={privacy === "precise"}
+                        onChange={() => setPrivacy("precise")}
                       />
                     </div>
                   </fieldset>

@@ -14,6 +14,6 @@ describe("deterministic photo pipeline", () => {
   });
   it("never exposes source precision in approximate mode", () => {
     expect(roundedCoordinate(45.123456, "approximate")).toBe(45.1);
-    expect(roundedCoordinate(-123.987654, "exact")).toBe(-123.99);
+    expect(roundedCoordinate(-123.987654, "precise")).toBe(-123.99);
   });
 });

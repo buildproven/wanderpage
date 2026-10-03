@@ -69,7 +69,7 @@ async function nearestEntity(lat: number, lon: number, userAgent: string) {
   const entity = json.query?.geosearch?.[0];
   return entity && entity.dist <= maximumEntityDistanceMeters ? entity : undefined;
 }
-export function roundedCoordinate(value: number, privacy: "approximate" | "exact") {
-  const precision = privacy === "exact" ? 2 : 1;
+export function roundedCoordinate(value: number, privacy: "approximate" | "precise") {
+  const precision = privacy === "precise" ? 2 : 1;
   return Number(value.toFixed(precision));
 }
