@@ -36,6 +36,8 @@ OPENAI_API_KEY=sk-...
 On a Mac you can double-click `Open Wanderpage.command` instead; it asks for the path to an existing env file if it cannot find a key. The key stays on
 your machine and is never printed, stored in output, or uploaded to anything except OpenAI.
 
+Wanderpage is tested on macOS and Linux. It should also run on Windows, but that is not tested.
+
 ## Your privacy choices
 
 | Choice               | Options                                                                                                                                 |
@@ -48,7 +50,8 @@ report path, or a configured secret.
 
 ## Share your page
 
-`out/` is a complete static website. Copy it to any static host (GitHub Pages, Netlify, S3, a USB stick) or preview it locally:
+`out/` is a complete static website, and its home page is your story (or a list of your stories). Put the folder on any static host — for example
+drag it onto [Netlify Drop](https://app.netlify.com/drop), or upload it to GitHub Pages, Cloudflare Pages, or S3 — or preview it locally:
 
 ```bash
 npm run preview:static     # serves out/ at http://127.0.0.1:4174

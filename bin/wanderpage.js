@@ -32,7 +32,11 @@ async function isEmptyOrMissing(path) {
 
 function npmInstall(cwd) {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(npmCommand, ["install", "--no-audit", "--no-fund", "--loglevel=error"], { cwd, stdio: "inherit" });
+    const child = spawn(npmCommand, ["install", "--no-audit", "--no-fund", "--loglevel=error"], {
+      cwd,
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    });
     child.on("error", reject);
     child.on("exit", (code, signal) => {
       if (code === 0) resolvePromise(undefined);
