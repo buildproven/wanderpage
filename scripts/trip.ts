@@ -45,11 +45,8 @@ try {
     demo: options.demo,
   });
   if (options.deploy && !options.dryRun) {
-    const { spawn } = await import("node:child_process");
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn("pnpm", ["static:export"], { stdio: "inherit" });
-      child.on("exit", code => (code === 0 ? resolve() : reject(new Error(`Static export exited ${code}`))));
-    });
+    const { runStaticExport } = await import("@/lib/static-export-run");
+    await runStaticExport(process.env.WANDERPAGE_WORKSPACE ?? process.cwd());
     const { deploy } = await import("./deploy");
     await deploy();
   }

@@ -1,10 +1,11 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { access, mkdir, mkdtemp, symlink } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { localEdition } from "../../bin/local-edition.js";
 import { validateStaticExport } from "@/lib/publishing/privacy";
 import type { StudioJob } from "@/lib/studio/types";
 import { createPhotoFolder, removeTempWorkspace, repoRoot } from "../helpers/workspace";
@@ -26,23 +27,35 @@ const freePort = () =>
     });
   });
 
-// Everything below runs against the *packed* package, started exactly as `pnpm studio` starts it, with no prior `out/` build.
+// Everything below runs against the *packed* package, set up the way the launcher sets up a user's project (light manifest, hosted files left
+// out, and only the light dependency list installed), started exactly as Studio starts, with no prior `out/` build.
 beforeAll(async () => {
   sandbox = await mkdtemp(join(tmpdir(), "wanderpage-studio-"));
   const { stdout } = await execute("npm", ["pack", "--pack-destination", sandbox, "--ignore-scripts", "--json"], { cwd: repoRoot });
   workspace = join(sandbox, "project");
   await mkdir(workspace);
+  const leftOut = ["db", "workflows", "proxy.ts", "pnpm-workspace.yaml", "next.config.ts"].map(name => `--exclude=package/${name}`);
   await execute("tar", [
     "-xzf",
     join(sandbox, (JSON.parse(stdout) as Array<{ filename: string }>)[0]!.filename),
     "-C",
     workspace,
     "--strip-components=1",
+    ...leftOut,
   ]);
-  await symlink(join(repoRoot, "node_modules"), join(workspace, "node_modules"), "dir");
+  const local = localEdition(JSON.parse(await readFile(join(workspace, "package.json"), "utf8")));
+  await writeFile(join(workspace, "package.json"), JSON.stringify(local, null, 2));
+  const modules = join(workspace, "node_modules");
+  await mkdir(modules);
+  await symlink(join(repoRoot, "node_modules/.bin"), join(modules, ".bin"));
+  for (const name of [...Object.keys(local.dependencies), ...Object.keys(local.devDependencies)]) {
+    const [scope, rest] = name.startsWith("@") ? name.split("/") : [undefined, name];
+    if (scope) await mkdir(join(modules, scope), { recursive: true });
+    await symlink(join(repoRoot, "node_modules", name), join(modules, scope ? join(scope, rest!) : name));
+  }
   input = await createPhotoFolder(workspace, { count: 8, gps: false });
   const port = await freePort();
-  studio = spawn(process.execPath, [join(repoRoot, "node_modules/tsx/dist/cli.mjs"), "scripts/studio.ts", "--no-open"], {
+  studio = spawn(process.execPath, [join(workspace, "node_modules/tsx/dist/cli.mjs"), "scripts/studio.ts", "--no-open"], {
     cwd: workspace,
     env: { ...process.env, OPENAI_API_KEY: "", WANDERPAGE_PORT: String(port) },
     stdio: ["ignore", "pipe", "pipe"],
@@ -74,7 +87,7 @@ const exists = (path: string) =>
     () => false
   );
 
-// @verifies DES-CLI-LAUNCH, ARCH-CLI, ARCH-STUDIO, REQ-CLI-01, REQ-UI-01, SN-06
+// @verifies DES-CLI-LAUNCH, ARCH-CLI, ARCH-STUDIO, REQ-CLI-01, REQ-CLI-06, REQ-UI-01, SN-06
 describe("a new user's first launch (packed package, no prior build)", () => {
   it("serves the Studio page and the landing page instead of 'Not found'", async () => {
     const page = await fetch(`${base}/studio`);

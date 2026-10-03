@@ -11,7 +11,16 @@ const root = await realpath(resolve(process.env.WANDERPAGE_WORKSPACE ?? process.
 try {
   for (const directory of ["app", "components", "lib", "public", "data"])
     await cp(join(root, directory), join(buildRoot, directory), { recursive: true });
-  for (const serverOnly of ["app/.well-known", "app/api", "app/create", "app/stories", "app/s"])
+  for (const serverOnly of [
+    "app/.well-known",
+    "app/api",
+    "app/create",
+    "app/stories",
+    "app/s",
+    "components/WebCreator.tsx",
+    "components/DraftControls.tsx",
+    "components/DraftControls.test.tsx",
+  ])
     await rm(join(buildRoot, serverOnly), { recursive: true, force: true });
   const layoutPath = join(buildRoot, "app/layout.tsx"),
     layout = await readFile(layoutPath, "utf8");

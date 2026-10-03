@@ -266,8 +266,16 @@ The system shall ship a permanent `/demo` page that requires no setup.
 
 ### REQ-CLI-01 Start with one command
 
-`npx @buildproven/wanderpage` shall scaffold a project folder (or reuse an existing one), install dependencies, and open Studio, and shall
-report a missing prerequisite with the exact fix.
+`npx @buildproven/wanderpage` shall set up a project folder (or reuse an existing one), install it, and open Studio, needing nothing
+installed beyond Node.js and npm, show the user which of three steps it is on, and report an unsupported Node.js version in plain words with
+the fix.
+
+- **Needs:** SN-06
+
+### REQ-CLI-06 Keep the first run light
+
+The project the launcher installs for a user shall contain only what Studio, the pipeline, and the static export need: no test, lint,
+browser-automation, or hosted-service packages, and no hosted-service source in the install.
 
 - **Needs:** SN-06
 

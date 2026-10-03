@@ -168,12 +168,13 @@ dates, and photo ids), so a re-run updates its page and a different trip gets a 
 
 ### DES-PUB-EXPORT Atomic static export
 
-`static-export.ts` builds the static site in an isolated workspace that excludes hosted API routes, then `replaceStaticOutput` swaps it
+`static-export.ts` builds the static site in an isolated workspace that excludes hosted routes and hosted-only components, then `replaceStaticOutput` swaps it
 into `out/` by renaming the previous artifact aside and restoring it on failure. `recoverStaticOutput` restores a preserved artifact if an
-interruption left `out/` absent and removes swap residue.
+interruption left `out/` absent and removes swap residue. `runStaticExport` runs that script with the project's own `tsx` through `node`, so no
+package manager has to be on PATH.
 
 - **Realizes:** ARCH-PUBLISH
-- **Code:** lib/static-output.ts, scripts/static-export.ts
+- **Code:** lib/static-output.ts, lib/static-export-run.ts, scripts/static-export.ts
 
 ## Studio
 
@@ -182,7 +183,7 @@ interruption left `out/` absent and removes swap residue.
 `createStudioServer` binds 127.0.0.1 and serves `/api/status`, `/api/folders/pick`, `/api/trips`, per-trip publish/unpublish/delete and
 assets, `/api/jobs` (create, poll), `/report/<slug>`, and the static project output. It rejects any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`, or whose `Origin` (when present) is not the same, validates job bodies with Zod (absolute readable directory, people mode, privacy `hidden|broad|approximate|precise`, 12–60 photos), allows one
 active job, keeps the last jobs in memory, and returns the selection, rejected reasons, and report link. After a job and after every
-publish, unpublish, or delete it runs `pnpm static:export` (the shareable site in `out/` — not the hosted `pnpm build`), scans `out/` with
+publish, unpublish, or delete it runs `runStaticExport` (the shareable site in `out/` — not the hosted build), scans `out/` with
 `validateStaticExport`, and restores the previous draft and site if the build or scan fails. Static serving resolves paths
 under `out/` and refuses traversal.
 
@@ -229,21 +230,24 @@ manifest during export, and `/demo` renders the bundled demo with product contex
 
 ### DES-CLI-LAUNCH Launcher
 
-`bin/wanderpage.js` resolves the package root and a target folder. For the six agent commands it runs the packaged `tsx` directly with the
-package's tsconfig (no pnpm, no project, any directory) and propagates the contract's exit code. Otherwise it checks for pnpm — printing
-the exact install command and exiting 1 if missing — copies the package (excluding build, cache, git, CI folders) into an empty target or
-reuses an existing project, runs `pnpm install` once, seeds `.env.local` from `.env.example`, warns if no API key is set, and starts Studio,
-exiting cleanly on SIGINT/SIGTERM. `private.ts` and
-`studio.ts` build, open the browser, and listen on 127.0.0.1.
+`bin/wanderpage.js` first checks the Node.js version (`nodeVersionProblem`; older than 24 prints the fix and exits 1). For the six agent
+commands it runs the packaged `tsx` directly with the package's tsconfig (no project, any directory) and propagates the contract's exit
+code. Otherwise it prints three numbered steps: (1) copies the package into an empty target, skipping the names in `notCopied` (build,
+cache, git, CI, `pnpm-workspace.yaml`, `db`, `workflows`, `proxy.ts`, `next.config.ts`) and rewrites `package.json` with `localEdition` — runtime
+dependencies minus the hosted-service packages, only `typescript` and the `@types/*` build types as dev dependencies, and only the user-facing
+scripts; (2) runs `npm install --no-audit --no-fund --loglevel=error`, which ships with Node; (3) starts Studio with `node` and the project's
+`tsx`, exiting cleanly on SIGINT/SIGTERM. An existing project is reused and only reinstalled if `node_modules` is missing. `.env.local` is
+seeded from `.env.example`. A missing API key is announced as a basic edit. `private.ts` and `studio.ts` build the static interface, open the
+browser, and listen on 127.0.0.1; the double-click macOS launcher needs only Node.
 
 - **Realizes:** ARCH-CLI
-- **Code:** bin/wanderpage.js, scripts/private.ts, scripts/studio.ts
+- **Code:** bin/wanderpage.js, bin/local-edition.js, bin/local-edition.d.ts, scripts/private.ts, scripts/studio.ts
 
 ### DES-CLI-TRIP Trip and publish commands
 
 `trip.ts` validates `--people` (required unless `--demo`), `--max-photos` (integer 12–60), and `--privacy`
 (`hidden|broad|approximate|precise`, default `approximate`) before
-calling `runTrip`. `trip-publish.ts` lists, publishes, and unpublishes by slug and re-syncs assets. `--deploy` runs `pnpm static:export` and `deploy.ts` creates a Vercel preview
+calling `runTrip`. `trip-publish.ts` lists, publishes, and unpublishes by slug and re-syncs assets. `--deploy` runs the static export (`runStaticExport`) and `deploy.ts` creates a Vercel preview
 of `out/` on explicit request.
 
 - **Realizes:** ARCH-CLI

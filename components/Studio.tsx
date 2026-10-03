@@ -265,7 +265,8 @@ export default function Studio() {
                       }}
                     >
                       No OpenAI key found: Wanderpage will make a basic edit ranked by photo quality only, with no AI captions and no people
-                      detection. Add OPENAI_API_KEY to .env.local for the full edit.
+                      detection. Add OPENAI_API_KEY to {status.projectPath ?? "your project folder"}/.env.local and restart Studio for the
+                      full edit.
                     </p>
                   )}
                   <label className="studio-field studio-folder">
@@ -423,6 +424,12 @@ export default function Studio() {
                     {numberValue(job?.result?.summary ?? {}, "duplicatesRemoved")} duplicates removed
                   </p>
                 </div>
+                {job?.result?.summary?.basicEdit === true && (
+                  <p role="status" style={{ margin: "0 0 1.2rem", fontSize: "0.85rem", lineHeight: 1.5, opacity: 0.85 }}>
+                    This is a basic edit, so the title and captions are generic. Rewrite them below, or add an OpenAI key and build again
+                    for an AI edit.
+                  </p>
+                )}
                 <div className="studio-review-strip">
                   {currentManifest.photos.slice(0, 5).map((photo, index) => (
                     <motion.div
@@ -637,6 +644,12 @@ export default function Studio() {
                       <span>{saving ? "Saving…" : "Publish this story"}</span>
                       <b>→</b>
                     </button>
+                  )}
+                  {currentManifest.published && (
+                    <p role="status" style={{ flexBasis: "100%", margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.5 }}>
+                      Your shareable site is the folder <strong>{status?.projectPath ?? "your project folder"}/out</strong>. Copy it to any
+                      web host to share it.
+                    </p>
                   )}
                   {currentManifest.published && (
                     <a className="studio-build" href={`/trips/${currentTrip.slug}`} target="_blank" rel="noreferrer">

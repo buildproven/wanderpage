@@ -9,19 +9,20 @@ Turn a folder of travel photos into a private, cinematic trip page you can host 
 
 ## Quickstart
 
-You need [Node.js](https://nodejs.org) 24 (24.18 or newer) and [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`). Then run:
+You need one thing: [Node.js](https://nodejs.org) 24 or newer (the current LTS download). Then run:
 
 ```bash
 npx @buildproven/wanderpage
 ```
 
-That creates a `./wanderpage` folder, installs it, and opens **Studio** in your browser. Choose a photo folder, pick your privacy settings, and select
-**Build my Wanderpage**. Review the draft, then **Publish this story**. Your shareable site is the `out/` folder.
+It shows three steps — set up, install (about a minute, once), start Studio (about 30 seconds the first time) — then opens **Studio** in your
+browser. Choose a photo folder, pick your privacy settings, and select **Build my Wanderpage**. Review the draft, then **Publish this story**.
+Your shareable site is the `out/` folder inside the project (`./wanderpage` by default).
 
-To try it with no key and no photos, open the built-in demo at `/demo`, or run `pnpm trip:demo`.
+To try it with no key and no photos, open the built-in demo at `/demo`, or run `npm run trip:demo` inside the project.
 
-Run the same command later to relaunch Studio in the existing project. Pass a folder name to put the project somewhere else
-(`npx @buildproven/wanderpage my-trips`).
+Run the same command later to reopen Studio in the existing project. Pass a folder name to put the project somewhere else
+(`npx @buildproven/wanderpage my-trips`). If you made a project with 0.3.0–0.3.2, delete that folder and run the command again.
 
 ### Add your OpenAI key for the full edit
 
@@ -50,19 +51,19 @@ report path, or a configured secret.
 `out/` is a complete static website. Copy it to any static host (GitHub Pages, Netlify, S3, a USB stick) or preview it locally:
 
 ```bash
-pnpm preview:static     # serves out/ at http://127.0.0.1:4174
+npm run preview:static     # serves out/ at http://127.0.0.1:4174
 ```
 
 New trips are **private drafts**; their images stay out of the site until you publish. In Studio use **Publish this story** and **Unpublish**.
-From the command line use `pnpm trip:list`, then `pnpm trip:publish <name>` or `pnpm trip:unpublish <name>`, and `pnpm static:export` to rebuild
-`out/`. To put a preview online with the Vercel CLI, add `--deploy` to `pnpm trip` (it needs `vercel` installed and logged in).
+From the command line use `npm run trip:list`, then `npm run trip:publish -- <name>` or `npm run trip:unpublish -- <name>`, and
+`npm run static:export` to rebuild `out/`. To put a preview online with the Vercel CLI, add `--deploy` to `npm run trip --` (it needs `vercel` installed and logged in).
 
 ## Command line
 
 ```bash
-pnpm trip --input "/path/to/photos" --people include --title "Oregon Coast 2026"
-pnpm trip --input "/path/to/photos" --people exclude --max-photos 36 --privacy broad
-pnpm trip --input "/path/to/photos" --people include --dry-run     # report only, publish nothing
+npm run trip -- --input "/path/to/photos" --people include --title "Oregon Coast 2026"
+npm run trip -- --input "/path/to/photos" --people exclude --max-photos 36 --privacy broad
+npm run trip -- --input "/path/to/photos" --people include --dry-run     # report only, publish nothing
 ```
 
 | Option                      | Meaning                                                                   |
@@ -102,7 +103,7 @@ re-run the privacy scan, and report the digests of what they published. Details:
 
 | You see                                                         | Do this                                                                                            |
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `Wanderpage needs pnpm once…`                                   | `npm install -g pnpm`, then re-run the same command.                                               |
+| `Wanderpage needs Node.js 24 or newer…`                         | Install the current LTS from nodejs.org, then re-run the same command.                             |
 | "No OpenAI key found" banner in Studio                          | Add `OPENAI_API_KEY` to `.env.local` and restart, or continue with the basic edit.                 |
 | `OPENAI_API_KEY is required for strict --people exclude`        | Strict exclusion needs the vision model. Add a key, or choose **Include**.                         |
 | `No supported JPEG, PNG, WebP, HEIC, or HEIF photos were found` | Check the folder path; subfolders are searched automatically.                                      |
