@@ -1,8 +1,8 @@
 // @design DES-PUB-STORE
 import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
-import { removeTripAssets, syncPublishedAssets } from "@/lib/trips/assets";
+import { TripManifestSchema, type TripManifest } from "../schemas/trip";
+import { removeTripAssets, syncPublishedAssets } from "./assets";
 
 export async function listTrips(root: string) {
   const directory = join(root, "data/trips"),

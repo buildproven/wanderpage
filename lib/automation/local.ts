@@ -1,11 +1,12 @@
 // @design DES-CLI-AGENT
+// Relative imports only: tsx does not apply tsconfig "@/" paths to files under node_modules, which is where `npx` runs this.
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
-import { discoverPhotos } from "@/lib/photos/ingest";
-import { validateStaticExport } from "@/lib/publishing/privacy";
-import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
-import { getTrip, listTrips, setTripPublished } from "@/lib/trips/publish";
+import { discoverPhotos } from "../photos/ingest";
+import { validateStaticExport } from "../publishing/privacy";
+import { TripManifestSchema, type TripManifest } from "../schemas/trip";
+import { getTrip, listTrips, setTripPublished } from "../trips/publish";
 
 export const contractVersion = "wanderpage/v1";
 export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

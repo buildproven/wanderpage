@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readdir, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { removeTempWorkspace, repoRoot } from "../helpers/workspace";
@@ -48,4 +48,28 @@ describe("the published package", () => {
     });
     expect((await stat(join(unpacked, ".next"))).isDirectory()).toBe(true);
   }, 300_000);
+});
+
+// @verifies DES-CLI-LAUNCH, DES-CLI-AGENT, ARCH-CLI, REQ-CLI-03, SN-09
+describe("the package installed under node_modules", () => {
+  it("runs the agent commands from any directory (tsx ignores tsconfig paths inside node_modules)", async () => {
+    const installedRoot = join(sandbox, "consumer/node_modules"),
+      installed = join(installedRoot, "@buildproven/wanderpage"),
+      workspace = join(sandbox, "agent-workspace");
+    await mkdir(installed, { recursive: true });
+    await mkdir(join(workspace, "data/trips"), { recursive: true });
+    const tarball = (await readdir(sandbox)).find(name => name.endsWith(".tgz"))!;
+    await execute("tar", ["-xzf", join(sandbox, tarball), "-C", installed, "--strip-components=1"]);
+    for (const name of await readdir(join(repoRoot, "node_modules")))
+      if (!name.startsWith(".")) await symlink(join(repoRoot, "node_modules", name), join(installedRoot, name));
+    const { stdout } = await execute(
+      process.execPath,
+      [join(installed, "bin/wanderpage.js"), "draft:list", "--json", "--workspace", workspace],
+      {
+        cwd: tmpdir(),
+        env: { ...process.env, PATH: dirname(process.execPath) },
+      }
+    );
+    expect(JSON.parse(stdout)).toMatchObject({ contractVersion: "wanderpage/v1", operation: "list", ok: true, data: { drafts: [] } });
+  }, 60_000);
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 — 2026-10-03
+
+- **Fix:** `npx @buildproven/wanderpage draft:list` (and the other agent commands) failed in 0.3.0 with `Cannot find package '@/lib'`, because tsx does
+  not apply tsconfig path aliases to files under `node_modules`. The agent CLI now uses relative imports, and a test runs the packed package from a
+  `node_modules` layout. Studio and project scaffolding were not affected.
+
 ## 0.3.0 — 2026-10-03
 
 - **Honest basic edit.** Without an `OPENAI_API_KEY` a run is now labeled a basic edit in Studio, on the command line, and in the report.

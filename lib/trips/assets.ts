@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { cp, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { TripManifestSchema } from "@/lib/schemas/trip";
+import { TripManifestSchema } from "../schemas/trip";
 
 export function tripAssetsDirectory(root: string, slug: string) {
   return join(root, ".trip-assets", slug);
