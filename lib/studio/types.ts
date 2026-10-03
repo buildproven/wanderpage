@@ -32,4 +32,4 @@ export type StudioJob = {
   result?: StudioJobResult;
   error?: string;
 };
-export type StudioStatus = { ready: true; openaiConfigured: boolean; platform: string; activeJobId?: string };
+export type StudioStatus = { ready: true; openaiConfigured: boolean; platform: string; projectPath: string; activeJobId?: string };

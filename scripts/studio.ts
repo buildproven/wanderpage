@@ -1,16 +1,14 @@
 #!/usr/bin/env node
 // @design DES-CLI-LAUNCH
-import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import { promisify } from "node:util";
+import { runStaticExport } from "@/lib/static-export-run";
 import { createStudioServer } from "@/lib/studio/server";
 import { loadStudioEnvironment } from "@/lib/studio/environment";
 
 const root = process.cwd();
 await loadStudioEnvironment(root);
-const execute = promisify(execFile),
-  port = Number(process.env.WANDERPAGE_PORT ?? 4317);
+const port = Number(process.env.WANDERPAGE_PORT ?? 4317);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("WANDERPAGE_PORT must be a valid port number.");
 const existingBuild = await stat(join(root, "out/studio.html"))
     .then(() => true)
@@ -18,8 +16,8 @@ const existingBuild = await stat(join(root, "out/studio.html"))
   skipBuild = process.argv.includes("--no-build") && existingBuild;
 if (!skipBuild) {
   console.log("Preparing Wanderpage Studio (the first launch builds the interface and takes about a minute)…");
-  // Studio and the shareable site are the static export in out/; `pnpm build` is the hosted server build and does not produce it.
-  await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["static:export"], { cwd: root, maxBuffer: 10_000_000 });
+  // Studio and the shareable site are the static export in out/; the hosted server build does not produce it.
+  await runStaticExport(root);
 }
 const studio = createStudioServer({ root, port }),
   url = await studio.start();

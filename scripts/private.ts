@@ -20,36 +20,36 @@ if (!process.env.OPENAI_API_KEY) {
 if (!process.env.OPENAI_API_KEY && input.isTTY && output.isTTY) {
   const readline = createInterface({ input, output });
   const answer = await readline.question(
-    "Wanderpage needs OPENAI_API_KEY for real curation. Enter the path to your existing .env file (or press Return to cancel): "
+    "Wanderpage uses OPENAI_API_KEY for the full edit. Enter the path to your existing .env file (or press Return to continue with a basic edit): "
   );
   readline.close();
   if (answer.trim()) await loadEnvironmentFile(expandPath(answer.trim(), root), { overrideEmpty: true });
 }
 
-if (!process.env.OPENAI_API_KEY) {
-  console.error(
-    "No OPENAI_API_KEY found. Put it in .env.local, set WANDERPAGE_ENV_FILE=/path/to/.env, or run pnpm trip:demo for the deterministic demo."
+if (!process.env.OPENAI_API_KEY)
+  console.log(
+    "No OPENAI_API_KEY found, so Studio will make a basic edit (no AI captions, no people detection). Put the key in .env.local or set WANDERPAGE_ENV_FILE=/path/to/.env for the full edit."
   );
-  process.exitCode = 1;
-} else {
-  const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-  const child = spawn(command, ["studio", ...process.argv.slice(2)], {
+const child = spawn(
+  process.execPath,
+  [join(root, "node_modules/tsx/dist/cli.mjs"), join(root, "scripts/studio.ts"), ...process.argv.slice(2)],
+  {
     cwd: root,
     env: process.env,
     stdio: "inherit",
-  });
-  child.once("error", error => {
-    console.error(`Could not start Wanderpage Studio: ${error.message}`);
+  }
+);
+child.once("error", error => {
+  console.error(`Could not start Wanderpage Studio: ${error.message}`);
+  process.exitCode = 1;
+});
+child.once("exit", (code, signal) => {
+  if (signal) {
     process.exitCode = 1;
-  });
-  child.once("exit", (code, signal) => {
-    if (signal) {
-      process.exitCode = 1;
-    } else {
-      process.exitCode = code ?? 1;
-    }
-  });
-}
+  } else {
+    process.exitCode = code ?? 1;
+  }
+});
 
 async function loadFirstExisting(paths: string[]) {
   for (const filePath of paths) {

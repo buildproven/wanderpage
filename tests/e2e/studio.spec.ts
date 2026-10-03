@@ -13,7 +13,8 @@ test("creates a story through the local Studio interface", async ({ page, contex
   await page.route("**/api/**", async route => {
     const request = route.request(),
       path = new URL(request.url()).pathname;
-    if (path === "/api/status") return route.fulfill({ json: { ready: true, openaiConfigured: true, platform: "darwin" } });
+    if (path === "/api/status")
+      return route.fulfill({ json: { ready: true, openaiConfigured: false, platform: "darwin", projectPath: "/Users/test/wanderpage" } });
     if (path === "/api/trips") return route.fulfill({ json: { trips: [] } });
     if (path === "/api/folders/pick") return route.fulfill({ json: { path: "/Users/test/Pictures/Oregon" } });
     if (path === "/api/jobs" && request.method() === "POST") return route.fulfill({ status: 202, json: { id: "fixture-job" } });
@@ -26,7 +27,7 @@ test("creates a story through the local Studio interface", async ({ page, contex
             status: "running",
             createdAt: "2026-07-15T12:00:00Z",
             updatedAt: "2026-07-15T12:00:01Z",
-            request: { input: "/Users/test/Pictures/Oregon", people: "exclude", maxPhotos: 36, privacy: "approximate" },
+            request: { input: "/Users/test/Pictures/Oregon", people: "include", maxPhotos: 36, privacy: "approximate" },
             progress: { stage: "analyze", progress: 56, message: "Analyzing contact sheet 1 of 1", at: "2026-07-15T12:00:01Z" },
           },
         });
@@ -36,12 +37,12 @@ test("creates a story through the local Studio interface", async ({ page, contex
           status: "complete",
           createdAt: "2026-07-15T12:00:00Z",
           updatedAt: "2026-07-15T12:00:03Z",
-          request: { input: "/Users/test/Pictures/Oregon", people: "exclude", maxPhotos: 36, privacy: "approximate" },
+          request: { input: "/Users/test/Pictures/Oregon", people: "include", maxPhotos: 36, privacy: "approximate" },
           progress: { stage: "complete", progress: 100, message: "Your trip page is ready", at: "2026-07-15T12:00:03Z" },
           result: {
             path: "/trips/a-line-along-the-pacific",
             manifest,
-            summary: { inputPhotos: 8, selectedPhotos: 8, duplicatesRemoved: 0 },
+            summary: { inputPhotos: 8, selectedPhotos: 8, duplicatesRemoved: 0, basicEdit: true },
             selection: { selected: manifest.photos.map(photo => photo.id), rejected: [], reasons: {} },
           },
         },
@@ -66,7 +67,9 @@ test("creates a story through the local Studio interface", async ({ page, contex
   await expect(page.getByText("Draft ready for review")).toBeVisible();
   await expect(page.getByRole("heading", { name: "A Line Along the Pacific" })).toBeVisible();
   await expect(page.getByText("Privacy check")).toBeVisible();
+  await expect(page.getByText("This is a basic edit, so the title and captions are generic")).toBeVisible();
   await page.getByRole("button", { name: /Publish this story/ }).click();
+  await expect(page.getByText(/Your shareable site is the folder/)).toContainText("/Users/test/wanderpage/out");
   const popupPromise = context.waitForEvent("page");
   await page.getByRole("link", { name: /Open published story/ }).click();
   const story = await popupPromise;
@@ -89,7 +92,7 @@ test("keeps a failed edit visible in the Studio docket", async ({ page }) => {
           status: "failed",
           createdAt: "2026-07-15T12:00:00Z",
           updatedAt: "2026-07-15T12:00:01Z",
-          request: { input: "/Users/test/Pictures/Oregon", people: "exclude", maxPhotos: 36, privacy: "approximate" },
+          request: { input: "/Users/test/Pictures/Oregon", people: "include", maxPhotos: 36, privacy: "approximate" },
           progress: { stage: "ingest", progress: 4, message: "Reading photo folder", at: "2026-07-15T12:00:01Z" },
           error: "Photo folder is no longer readable.",
         },

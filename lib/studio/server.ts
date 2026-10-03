@@ -8,6 +8,7 @@ import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "no
 import { promisify } from "node:util";
 import { z } from "zod";
 import { runTrip } from "@/lib/pipeline/run";
+import { runStaticExport } from "@/lib/static-export-run";
 import { validateStaticExport } from "@/lib/publishing/privacy";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
 import { removeTripAssets, syncPublishedAssets } from "@/lib/trips/assets";
@@ -54,6 +55,7 @@ export function createStudioServer({
         ready: true,
         openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
         platform: process.platform,
+        projectPath: projectRoot,
         activeJobId: active?.id,
       };
       json(response, 200, status);
@@ -227,8 +229,8 @@ async function runProductionJob(
 
 async function buildAndValidate(root: string, onProgress?: (stage: string, progress: number, message: string) => void) {
   onProgress?.("build", 91, "Building the private static website");
-  // The shareable site is the static export in out/; `pnpm build` is the hosted server build and does not produce it.
-  await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["static:export"], { cwd: root, maxBuffer: 10_000_000 });
+  // The shareable site is the static export in out/; the hosted server build does not produce it.
+  await runStaticExport(root);
   onProgress?.("privacy", 97, "Checking metadata, paths, and secrets");
   const secrets = [process.env.OPENAI_API_KEY, process.env.VERCEL_TOKEN].filter((value): value is string => Boolean(value));
   const privacy = await validateStaticExport(join(root, "out"), secrets);

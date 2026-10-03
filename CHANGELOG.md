@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — 2026-10-03
+
+- **Easier first run.** Node.js is now the only prerequisite: pnpm is no longer needed. The launcher shows three numbered steps, explains an
+  unsupported Node.js version in plain words, and installs a light local edition (about 130 packages / 430 MB instead of about 1,070 / 870 MB).
+  Developer tooling and the hosted service are no longer installed for people who just want to make a trip page.
+- Project commands are now `npm run …` (for example `npm run trip -- --input …`); contributors working from a clone still use pnpm.
+- Running without an OpenAI key no longer blocks the double-click launcher; it starts and says it will make a basic edit.
+- Static export and Studio no longer need a package manager on PATH.
+
 ## 0.3.3 — 2026-10-03
 
 - **Fix (important):** a fresh `npx @buildproven/wanderpage` project showed "Not found" at `/studio` in 0.3.0–0.3.2, because the launcher built the
