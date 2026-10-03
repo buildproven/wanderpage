@@ -226,6 +226,15 @@ manifest during export, and `/demo` renders the bundled demo with product contex
 - **Realizes:** ARCH-SITE
 - **Code:** components/Landing.tsx, app/page.tsx, app/layout.tsx
 
+### DES-SITE-HOME Home page of the shareable site
+
+During export `assets/static-home-page.tsx` replaces `app/page.tsx`. It lists the published manifests: none shows the product `Landing`,
+exactly one renders that `Story` at `/` (the story also stays at `/trips/<name>`), several render `StoryIndex`, a server-rendered list of cards
+(hero photo as a background image with a text label, title, subtitle, link) in the order the drafts were made.
+
+- **Realizes:** ARCH-SITE
+- **Code:** assets/static-home-page.tsx, components/StoryIndex.tsx
+
 ## Command line
 
 ### DES-CLI-LAUNCH Launcher

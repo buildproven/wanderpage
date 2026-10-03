@@ -187,15 +187,15 @@ export default function Studio() {
           <span>WP / LOCAL EDIT</span>
           <span>ROLL 001</span>
         </div>
-        <div className="studio-route-mark">
-          <i />
-          <i />
-          <i />
-          <span>folder</span>
-          <span>edit</span>
-          <span>story</span>
-        </div>
         <div className="studio-atmosphere-copy">
+          <div className="studio-route-mark" style={{ position: "relative", inset: "auto", marginBottom: "1.6rem" }}>
+            <i />
+            <i />
+            <i />
+            <span>folder</span>
+            <span>edit</span>
+            <span>story</span>
+          </div>
           <span>Wanderpage Studio</span>
           <p>
             Your originals stay here.

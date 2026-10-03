@@ -97,7 +97,7 @@ describe("a new user's first launch (packed package, no prior build)", () => {
   });
 });
 
-// @verifies DES-STUDIO-SERVER, ARCH-STUDIO, ARCH-PUBLISH, ARCH-PIPELINE, REQ-UI-02, REQ-UI-03, REQ-PUB-03, REQ-PUB-04, REQ-PUB-06, REQ-AI-05, SN-01, SN-05, SN-06
+// @verifies DES-STUDIO-SERVER, ARCH-STUDIO, ARCH-PUBLISH, ARCH-PIPELINE, REQ-UI-02, REQ-UI-03, REQ-PUB-03, REQ-PUB-04, REQ-PUB-06, REQ-UI-07, REQ-AI-05, ARCH-SITE, SN-01, SN-05, SN-06
 describe("Studio production job (real pipeline, real static export)", () => {
   it("turns a photo folder into a private draft, then publishes it into the shareable static site", async () => {
     const created = await call("/api/jobs", "POST", {
@@ -126,6 +126,9 @@ describe("Studio production job (real pipeline, real static export)", () => {
     expect(published.status).toBe(200);
     expect(await exists("out/trips/studio-production.html")).toBe(true);
     expect((await validateStaticExport(join(workspace, "out"))).errors).toEqual([]);
+    const home = await (await fetch(`${base}/`)).text();
+    expect(home).toContain("Studio Production");
+    expect(home).not.toContain("beautifully edited");
     const page = await fetch(`${base}/trips/studio-production`);
     expect(page.status).toBe(200);
     expect(await page.text()).toContain("Studio Production");
@@ -133,5 +136,6 @@ describe("Studio production job (real pipeline, real static export)", () => {
     const unpublished = await call("/api/trips/studio-production/unpublish", "POST");
     expect(unpublished.status).toBe(200);
     expect(await exists("out/trips/studio-production.html")).toBe(false);
+    expect(await (await fetch(`${base}/`)).text()).toContain("beautifully edited");
   }, 420_000);
 });

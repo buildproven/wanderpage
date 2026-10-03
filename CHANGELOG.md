@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — 2026-10-03
+
+- **Your site opens on your story.** The home page of the shareable `out/` site now shows your published story (or an index of your stories when
+  you have several) instead of the Wanderpage product page, which appears only while nothing is published.
+- The Studio start screen no longer overlaps two labels; the README now says how to put your site online and that Windows is untested.
+
 ## 0.4.0 — 2026-10-03
 
 - **Easier first run.** Node.js is now the only prerequisite: pnpm is no longer needed. The launcher shows three numbered steps, explains an
