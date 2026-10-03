@@ -1,5 +1,5 @@
 // @design DES-PHOTO-INGEST
-import type { PhotoSemanticAnalysis } from "@/lib/schemas/analysis";
+import type { PhotoSemanticAnalysis } from "../schemas/analysis";
 
 export type TechnicalScores = {
   sharpness: number;

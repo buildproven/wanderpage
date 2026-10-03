@@ -12,7 +12,7 @@ import {
   validateDraft,
   workspace,
   type Operation,
-} from "@/lib/automation/local";
+} from "../lib/automation/local";
 
 const program = new Command()
   .name("wanderpage")
