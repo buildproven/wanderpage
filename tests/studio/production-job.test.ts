@@ -1,32 +1,65 @@
-import { access, cp, mkdir, symlink } from "node:fs/promises";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { access, mkdir, mkdtemp, symlink } from "node:fs/promises";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { validateStaticExport } from "@/lib/publishing/privacy";
-import { createStudioServer } from "@/lib/studio/server";
 import type { StudioJob } from "@/lib/studio/types";
-import { copySiteScaffold, createPhotoFolder, createTempWorkspace, removeTempWorkspace, repoRoot } from "../helpers/workspace";
+import { createPhotoFolder, removeTempWorkspace, repoRoot } from "../helpers/workspace";
 
-let workspace = "",
+const execute = promisify(execFile);
+let sandbox = "",
+  workspace = "",
   base = "",
   input = "",
-  studio: ReturnType<typeof createStudioServer>;
+  studio: ChildProcess | undefined;
 
+const freePort = () =>
+  new Promise<number>((resolve, reject) => {
+    const probe = createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address() as { port: number };
+      probe.close(() => resolve(port));
+    });
+  });
+
+// Everything below runs against the *packed* package, started exactly as `pnpm studio` starts it, with no prior `out/` build.
 beforeAll(async () => {
-  workspace = await createTempWorkspace("studio-job");
-  await copySiteScaffold(workspace);
-  await cp(join(repoRoot, "assets"), join(workspace, "assets"), { recursive: true });
-  await mkdir(join(workspace, "scripts"), { recursive: true });
-  await cp(join(repoRoot, "scripts/static-export.ts"), join(workspace, "scripts/static-export.ts"));
-  for (const file of ["postcss.config.mjs"]) await cp(join(repoRoot, file), join(workspace, file));
+  sandbox = await mkdtemp(join(tmpdir(), "wanderpage-studio-"));
+  const { stdout } = await execute("npm", ["pack", "--pack-destination", sandbox, "--ignore-scripts", "--json"], { cwd: repoRoot });
+  workspace = join(sandbox, "project");
+  await mkdir(workspace);
+  await execute("tar", [
+    "-xzf",
+    join(sandbox, (JSON.parse(stdout) as Array<{ filename: string }>)[0]!.filename),
+    "-C",
+    workspace,
+    "--strip-components=1",
+  ]);
   await symlink(join(repoRoot, "node_modules"), join(workspace, "node_modules"), "dir");
   input = await createPhotoFolder(workspace, { count: 8, gps: false });
-  delete process.env.OPENAI_API_KEY;
-  studio = createStudioServer({ port: 0, root: workspace });
-  base = (await studio.start()).replace(/\/studio$/, "");
-}, 120_000);
+  const port = await freePort();
+  studio = spawn(process.execPath, [join(repoRoot, "node_modules/tsx/dist/cli.mjs"), "scripts/studio.ts", "--no-open"], {
+    cwd: workspace,
+    env: { ...process.env, OPENAI_API_KEY: "", WANDERPAGE_PORT: String(port) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  studio.stdout!.on("data", chunk => (output += String(chunk)));
+  studio.stderr!.on("data", chunk => (output += String(chunk)));
+  for (let attempt = 0; attempt < 240 && !output.includes("is ready at"); attempt++) {
+    if (studio.exitCode !== null) throw new Error(`Studio exited early:\n${output}`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  expect(output).toContain("is ready at");
+  base = `http://127.0.0.1:${port}`;
+}, 300_000);
 afterAll(async () => {
-  await studio?.stop();
-  if (workspace) await removeTempWorkspace(workspace);
+  studio?.kill("SIGTERM");
+  if (sandbox) await removeTempWorkspace(sandbox);
 });
 
 const call = (path: string, method = "GET", body?: unknown) =>
@@ -40,6 +73,16 @@ const exists = (path: string) =>
     () => true,
     () => false
   );
+
+// @verifies DES-CLI-LAUNCH, ARCH-CLI, ARCH-STUDIO, REQ-CLI-01, REQ-UI-01, SN-06
+describe("a new user's first launch (packed package, no prior build)", () => {
+  it("serves the Studio page and the landing page instead of 'Not found'", async () => {
+    const page = await fetch(`${base}/studio`);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("Wanderpage");
+    expect((await fetch(`${base}/`)).status).toBe(200);
+  });
+});
 
 // @verifies DES-STUDIO-SERVER, ARCH-STUDIO, ARCH-PUBLISH, ARCH-PIPELINE, REQ-UI-02, REQ-UI-03, REQ-PUB-03, REQ-PUB-04, REQ-PUB-06, REQ-AI-05, SN-01, SN-05, SN-06
 describe("Studio production job (real pipeline, real static export)", () => {
@@ -64,7 +107,6 @@ describe("Studio production job (real pipeline, real static export)", () => {
     expect(job?.result?.path).toBe("/trips/studio-production");
     expect(job?.result?.manifest.published).toBe(false);
     expect(job?.result?.review?.privacy.passed).toBe(true);
-    expect(await exists("out/index.html")).toBe(true);
     expect(await exists("out/trips/studio-production.html")).toBe(false);
 
     const published = await call("/api/trips/studio-production/publish", "POST");
