@@ -17,8 +17,9 @@ const existingBuild = await stat(join(root, "out/studio.html"))
     .catch(() => false),
   skipBuild = process.argv.includes("--no-build") && existingBuild;
 if (!skipBuild) {
-  console.log("Preparing Wanderpage Studio…");
-  await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["build"], { cwd: root, maxBuffer: 10_000_000 });
+  console.log("Preparing Wanderpage Studio (the first launch builds the interface and takes about a minute)…");
+  // Studio and the shareable site are the static export in out/; `pnpm build` is the hosted server build and does not produce it.
+  await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["static:export"], { cwd: root, maxBuffer: 10_000_000 });
 }
 const studio = createStudioServer({ root, port }),
   url = await studio.start();

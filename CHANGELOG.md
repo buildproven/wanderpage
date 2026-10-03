@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 — 2026-10-03
+
+- **Fix (important):** a fresh `npx @buildproven/wanderpage` project showed "Not found" at `/studio` in 0.3.0–0.3.2, because the launcher built the
+  hosted app instead of the static interface. Studio now builds the right thing, and a test starts the packed package with no prior build and
+  loads the page. If you installed an earlier 0.3.x, upgrade by re-running `npx @buildproven/wanderpage@latest`.
+
 ## 0.3.2 — 2026-10-03
 
 - Upgrade `workflow` to 4.8.12 and `@workflow/next` to 4.1.16: removes the deprecation warning every install printed (a queue-transport bug in the
