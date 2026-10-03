@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-10-03
 
 - **Honest basic edit.** Without an `OPENAI_API_KEY` a run is now labeled a basic edit in Studio, on the command line, and in the report.
 - **Privacy fix.** In `hidden` and `broad` location modes a photo's raw vision caption could be published as a fallback caption and name a
