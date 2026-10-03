@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { storyDto } from "@/lib/web/dto";
 
+// @verifies DES-WEB-HTTP, ARCH-WEB-EDGE, REQ-WEB-10
 describe("story API DTO", () => {
   it("does not expose the IP-derived admission identifier", () => {
     const dto = storyDto({

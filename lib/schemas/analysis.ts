@@ -1,3 +1,4 @@
+// @design DES-VISION-SHEET
 import { z } from "zod";
 
 export const photoCategorySchema = z.enum([

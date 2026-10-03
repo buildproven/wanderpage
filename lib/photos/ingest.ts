@@ -1,3 +1,4 @@
+// @design DES-PHOTO-INGEST
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";

@@ -1,152 +1,158 @@
 # Wanderpage
 
-Wanderpage turns travel photos into a private, cinematic story. The local-first flow is ready today; the hosted browser creator is implemented behind a preview and operator-admission gate and remains labeled **coming soon** until its credentialed acceptance run is complete. Originals are never modified; generated WebP derivatives remove metadata; people are never identified.
+Turn a folder of travel photos into a private, cinematic trip page you can host anywhere as plain static files.
 
-## Hosted browser app (preview-gated)
-
-The server-backed Next.js creator is implemented, but `/create` stays preview-gated until an isolated Vercel deployment passes the hosted acceptance sequence. To activate a preview, deploy the application to Vercel, connect a private Vercel Blob store and Neon Postgres database, and apply every SQL file in [`db/migrations`](db/migrations) in numeric order inside one deployment transaction. Then set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `WANDERPAGE_SESSION_PEPPER`, `WANDERPAGE_ADMISSION_PEPPER`, `WANDERPAGE_GENERATION_ENABLED=true`, `WANDERPAGE_DAILY_GENERATION_LIMIT`, `CRON_SECRET`, `WANDERPAGE_OPERATOR_SECRET`, and `OPENAI_API_KEY`. Vercel Workflow is compiled through `next.config.ts` and processes durable draft jobs. Follow [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); provisioning services and enabling generation require explicit operator approval.
-
-This does not require Stripe, payments, a native app, or an Apple developer account. The detailed privacy, ownership, retention, and deployment decisions are recorded in [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
-
-When the hosted preview is enabled, the private draft desk lets a creator return to anonymous-session drafts, watch upload and curation status, retry a failed run, edit the title and pre-processing privacy choices, and publish or revoke a story explicitly. It does not replace the credentialed preview acceptance sequence above, and generation remains disabled until that sequence passes.
-
-The credentialed preview activation sequence and Vercel settings are documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+- **Private by default.** Nothing is public until you publish it. Your originals are never modified or uploaded.
+- **No people identified. No exact GPS.** Place names and map points appear only when the evidence supports them, rounded, and only as precisely as you allow.
+- **Metadata removed.** Published images are resized WebP files with no camera, GPS, or file-path data.
+- **Local first.** One command on your machine. No account, server, or database.
 
 ## Quickstart
 
-Requirements: Node.js 24.18.0, [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`), and macOS `sips` for HEIC fallback when Sharp/libvips cannot decode a file. If pnpm is missing, `npx @buildproven/wanderpage` tells you so and exits — install it and re-run the same command.
+You need [Node.js](https://nodejs.org) 24 (24.18 or newer) and [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`). Then run:
 
 ```bash
 npx @buildproven/wanderpage
 ```
 
-This creates a `./wanderpage` project folder, installs dependencies, and opens Studio in your browser — nothing runs anywhere but your machine. Pass a folder name to scaffold somewhere else (`npx @buildproven/wanderpage my-trips`), or re-run the same command later to relaunch Studio in an existing project.
+That creates a `./wanderpage` folder, installs it, and opens **Studio** in your browser. Choose a photo folder, pick your privacy settings, and select
+**Build my Wanderpage**. Review the draft, then **Publish this story**. Your shareable site is the `out/` folder.
 
-For real vision analysis and narrative generation, Wanderpage needs your `OPENAI_API_KEY`. The easiest personal setup is to double-click `Open Wanderpage.command`: on the first run it installs dependencies, checks .env.local and .env, and if needed asks for the path to an existing env file. The key stays on your machine and is never printed or uploaded by the launcher. The model names and Wikimedia user agent are configurable in `.env.example`.
+To try it with no key and no photos, open the built-in demo at `/demo`, or run `pnpm trip:demo`.
 
-## Cloning instead
+Run the same command later to relaunch Studio in the existing project. Pass a folder name to put the project somewhere else
+(`npx @buildproven/wanderpage my-trips`).
 
-If you'd rather work from a git clone (for contributing, or to track the source directly):
+### Add your OpenAI key for the full edit
+
+Without a key, Wanderpage makes a **basic edit**: photos are ranked by technical quality only, with generic captions and **no people detection**.
+Studio, the command line, and the report all say so. For AI curation, captions, and strict people exclusion, put your key in `.env.local`:
+
+```
+OPENAI_API_KEY=sk-...
+```
+
+On a Mac you can double-click `Open Wanderpage.command` instead; it asks for the path to an existing env file if it cannot find a key. The key stays on
+your machine and is never printed, stored in output, or uploaded to anything except OpenAI.
+
+## Your privacy choices
+
+| Choice               | Options                                                                                                                                 |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **People**           | **Include** (nobody is identified) or **Exclude** (every photo with a visible person is dropped; needs an OpenAI key and fails closed). |
+| **Location privacy** | **No locations**, **Region only**, **Approximate** (about 11 km, the default), or **Closer** (about 1 km, `precise`).                   |
+
+Before anything leaves your machine, Wanderpage scans the exact site it built and refuses to continue if it finds image metadata, a local file path, a
+report path, or a configured secret.
+
+## Share your page
+
+`out/` is a complete static website. Copy it to any static host (GitHub Pages, Netlify, S3, a USB stick) or preview it locally:
 
 ```bash
-git clone https://github.com/buildproven/wanderpage.git
-cd wanderpage
+pnpm preview:static     # serves out/ at http://127.0.0.1:4174
+```
+
+New trips are **private drafts**; their images stay out of the site until you publish. In Studio use **Publish this story** and **Unpublish**.
+From the command line use `pnpm trip:list`, then `pnpm trip:publish <name>` or `pnpm trip:unpublish <name>`, and `pnpm static:export` to rebuild
+`out/`. To put a preview online with the Vercel CLI, add `--deploy` to `pnpm trip` (it needs `vercel` installed and logged in).
+
+## Command line
+
+```bash
+pnpm trip --input "/path/to/photos" --people include --title "Oregon Coast 2026"
+pnpm trip --input "/path/to/photos" --people exclude --max-photos 36 --privacy broad
+pnpm trip --input "/path/to/photos" --people include --dry-run     # report only, publish nothing
+```
+
+| Option                      | Meaning                                                                   |
+| --------------------------- | ------------------------------------------------------------------------- |
+| `--people include\|exclude` | Required (except with `--demo`).                                          |
+| `--privacy`                 | `hidden`, `broad`, `approximate` (default), or `precise`.                 |
+| `--max-photos 12..60`       | Upper bound on photos in the story (default 36).                          |
+| `--title "…"`               | Story title. Pages get readable names such as `/trips/oregon-coast-2026`. |
+| `--dry-run` / `--force`     | Report without publishing / ignore cached analysis.                       |
+| `--demo`                    | Rebuild the deterministic demo (no key, no photos).                       |
+
+Supported inputs are nested JPEG, PNG, WebP, HEIC, and HEIF files. HEIC is converted with macOS `sips` when the image library cannot decode it; on other
+systems an undecodable file is skipped with a message and the run continues.
+
+Every run writes a plain-language report to `.trip-output/report/index.html` that says why each photo was kept or left out. Cache files live in
+`.trip-cache/`. Neither folder is ever part of the published site.
+
+## For scripts and AI agents
+
+A versioned, read-mostly contract (`wanderpage/v1`) lets tools drive the local workflow. Each command prints exactly one JSON result on standard output
+with `--json`.
+
+```bash
+npx @buildproven/wanderpage inspect "/path/to/photos" --json
+npx @buildproven/wanderpage draft:list --json
+npx @buildproven/wanderpage draft:show oregon-coast-2026 --json
+npx @buildproven/wanderpage draft:validate oregon-coast-2026 --json
+npx @buildproven/wanderpage draft:publish oregon-coast-2026 --json
+npx @buildproven/wanderpage draft:unpublish oregon-coast-2026 --json
+```
+
+Add `--workspace /path/to/wanderpage` when running from another directory. Exit codes: `0` success, `2` invalid arguments, `3` policy or validation
+failure, `4` missing target, `10` unexpected error. `inspect`, `list`, `show`, and `validate` never change anything; `publish` and `unpublish` are explicit,
+re-run the privacy scan, and report the digests of what they published. Details: [`docs/decisions/ADR-agent-ready-cli.md`](docs/decisions/ADR-agent-ready-cli.md).
+
+## Troubleshooting
+
+| You see                                                         | Do this                                                                                            |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `Wanderpage needs pnpm once…`                                   | `npm install -g pnpm`, then re-run the same command.                                               |
+| "No OpenAI key found" banner in Studio                          | Add `OPENAI_API_KEY` to `.env.local` and restart, or continue with the basic edit.                 |
+| `OPENAI_API_KEY is required for strict --people exclude`        | Strict exclusion needs the vision model. Add a key, or choose **Include**.                         |
+| `No supported JPEG, PNG, WebP, HEIC, or HEIF photos were found` | Check the folder path; subfolders are searched automatically.                                      |
+| A photo is listed as skipped                                    | It could not be decoded (corrupt, or HEIC on a non-Mac system). The rest of the run is unaffected. |
+| Studio port is busy                                             | Set `WANDERPAGE_PORT` to another port.                                                             |
+| `Privacy validation failed…`                                    | The message names the file and the rule. Nothing was published; fix the cause and rebuild.         |
+
+## Configuration
+
+Set these in `.env.local` (see `.env.example`) or your shell.
+
+- `OPENAI_API_KEY` — enables the full edit and strict people exclusion.
+- `OPENAI_VISION_MODEL`, `OPENAI_WRITER_MODEL` — model names (defaults in `.env.example`).
+- `WIKIMEDIA_USER_AGENT` — descriptive user agent for the optional Wikipedia/Open-Meteo lookups. These lookups are the only other network calls; if they
+  fail, the page is simply photo-led.
+- `WANDERPAGE_PORT` — Studio port (default 4317, bound to 127.0.0.1 only).
+- `WANDERPAGE_ENV_FILE` — path to an existing private env file to read without copying it.
+- `WANDERPAGE_WORKSPACE` — advanced: write data, cache, and output somewhere other than the project folder.
+- `VERCEL_TOKEN` — optional, only for `--deploy` when the Vercel CLI is not already logged in.
+
+## Hosted browser creator (preview, coming soon)
+
+A server-backed creator (anonymous private drafts, direct private uploads, durable processing, short retention, operator takedown) is implemented behind
+an operator-admission gate and is labeled **coming soon** until its credentialed acceptance run passes. You do not need it to use Wanderpage. To deploy and
+accept a preview yourself, follow [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); the design is in
+[`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
+
+## How it is built and verified
+
+Wanderpage is specified and verified as a V-model, and a script keeps the layers honest:
+
+| Level                      | Document                                                   | Verified by                 |
+| -------------------------- | ---------------------------------------------------------- | --------------------------- |
+| Needs and requirements     | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md)             | Acceptance and system tests |
+| Architecture               | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)             | Integration tests           |
+| Detailed design and code   | [`docs/DESIGN.md`](docs/DESIGN.md)                         | Unit tests                  |
+| Matrix of all of the above | [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md) (generated) | `pnpm trace`                |
+
+How the IDs, tags, and the gate work: [`docs/V-MODEL.md`](docs/V-MODEL.md).
+
+```bash
+git clone https://github.com/buildproven/wanderpage.git && cd wanderpage
 pnpm install
-cp .env.example .env.local
-```
-
-## Open the local app
-
-On macOS, double-click `Open Wanderpage.command`. Or launch the same personal flow from a terminal:
-
-```bash
-pnpm private
-```
-
-You can point the launcher at an existing env file without copying it:
-
-```bash
-WANDERPAGE_ENV_FILE="/absolute/path/to/.env" pnpm private
-```
-
-Use `pnpm studio` when you want the lower-level launcher and already have the environment configured.
-
-Wanderpage builds the interface, opens it in the default browser, and listens only on 127.0.0.1. Choose a photo folder, set the people and route privacy controls, and select **Build my Wanderpage**. The app shows live progress, the selected edit, rejected-photo counts, the local decision report, and the finished trip. Only one trip runs at a time.
-
-The permanent sample stays at `/demo`. Generated trips receive readable title-based pages such as `/trips/oregon-coast`; separate titles are preserved as separate pages under `data/trips/`.
-
-## Generate a story
-
-```bash
-pnpm trip --input "/absolute/path/to/vacation-photos" --people include --title "Oregon Coast 2026"
-pnpm trip:list
-pnpm trip:publish oregon-coast-2026
-pnpm build
-pnpm static:export
-pnpm preview
-```
-
-New trips are private drafts: their images stay outside the static site until you publish them. In Studio, review the draft and use **Publish this story**. From the CLI, use `pnpm trip:list` to find the generated slug, then `pnpm trip:publish <slug>` before building. `pnpm trip:unpublish <slug>` removes a trip and its assets from the next static export.
-
-Strict people exclusion requires the vision API so the tool can conservatively filter visible people:
-
-```bash
-pnpm trip --input "/absolute/path/to/vacation-photos" --people exclude --max-photos 36 --privacy approximate
-```
-
-Supported inputs are nested JPEG/JPG, PNG, WebP, HEIC, and HEIF folders. `--max-photos` accepts 12–60. Add `--dry-run` for local reports only, `--force` to invalidate caches, and `--deploy` to build and create a Vercel preview deployment.
-
-## Agent-safe local CLI
-
-The local agent contract is `wanderpage/v1`. Its read-only commands do not call
-AI providers or change a workspace. Commands return one JSON result on standard
-output with `--json`; human-readable output goes to standard error.
-
-```bash
-pnpm wanderpage inspect "/absolute/path/to/vacation-photos" --json
-pnpm wanderpage draft:list --json
-pnpm wanderpage draft:show oregon-coast-2026 --json
-pnpm wanderpage draft:validate oregon-coast-2026 --json
-pnpm wanderpage draft:publish oregon-coast-2026 --json
-pnpm wanderpage draft:unpublish oregon-coast-2026 --json
-```
-
-Use `--workspace /absolute/path/to/wanderpage` from outside a project. Publish
-and unpublish are explicit local state changes; publish always revalidates the
-manifest and private derivative tree before changing publication state. The
-CLI has no hosted-generation, deployment, release, or remote-agent command.
-
-## Deterministic demo
-
-No API key or private photos are needed:
-
-```bash
-pnpm trip:demo
-pnpm build
-pnpm preview
-```
-
-Local-only reports are written under `.trip-output/`; cache artifacts live under `.trip-cache/`. Neither directory is exposed by the hosted app.
-
-## Quality gates
-
-```bash
-pnpm typecheck
-pnpm lint
-pnpm test
-pnpm trip:demo
-pnpm build
-pnpm privacy
 pnpm exec playwright install chromium
-pnpm test:e2e
+pnpm check          # types, lint, traceability, unit + integration + system tests, builds, privacy scan, browser tests
 ```
 
-`pnpm test` includes a fixture-driven integration test that creates a temporary nested photo folder with JPEG, WebP, duplicate, EXIF/GPS, and (on macOS) HEIC inputs. It runs the production pipeline, builds an isolated static Next.js export, applies the privacy and 90 MB budget checks, then opens the generated story in Chromium. Temporary originals and outputs are removed after the run.
+`pnpm test:live` (needs `OPENAI_API_KEY`, costs a little) additionally exercises the real OpenAI path. Release steps for maintainers are in
+[`CLAUDE.md`](CLAUDE.md); changes are listed in [`CHANGELOG.md`](CHANGELOG.md); report vulnerabilities as described in [`SECURITY.md`](SECURITY.md).
 
-`pnpm build` creates the hosted server application. `pnpm static:export` creates the local-only rollback site under `out/` in an isolated build workspace that excludes hosted API routes. `pnpm privacy` validates that exact artifact. The required `pnpm test` gate rebuilds and validates both server and static modes before browser tests.
+## License
 
-The external OpenAI path is an explicit paid/network smoke test rather than part of every local test run:
-
-```bash
-OPENAI_API_KEY=... pnpm test:live
-```
-
-It sends a small contact sheet through the configured vision model using Structured Outputs, generates the narrative, and validates the resulting manifest. Wikipedia/Wikimedia and weather remain graceful network enrichments; deterministic test substitutes cover their pipeline contracts during the default integration test.
-
-## Environment
-
-- `OPENAI_API_KEY`: required for real AI-backed generation and strict people exclusion.
-- `DATABASE_URL`: required for hosted owner sessions, stories, and runs.
-- `WANDERPAGE_ADMISSION_PEPPER`: dedicated HMAC key for short-lived abuse-control identifiers; identifiers are cleared after 24 hours.
-- `WANDERPAGE_OPERATOR_SECRET`: separate bearer credential for emergency revocation through `DELETE /api/operator/stories/{storyId}`. The route immediately removes public visibility and starts idempotent object cleanup.
-- `BLOB_READ_WRITE_TOKEN`: required for private direct uploads and private derivative delivery.
-- `WANDERPAGE_SESSION_PEPPER`: required to hash anonymous owner-session cookies; use a long, random value.
-- `OPENAI_VISION_MODEL`: defaults to `gpt-5.6-luna`.
-- `OPENAI_WRITER_MODEL`: defaults to `gpt-5.6-terra`.
-- `WIKIMEDIA_USER_AGENT`: descriptive API user agent.
-- `WANDERPAGE_PORT`: optional local Studio port; defaults to `4317` on 127.0.0.1.
-- `WANDERPAGE_ENV_FILE`: optional path to an existing private env file; the personal launcher reads it without copying it into this project.
-- `VERCEL_TOKEN`: optional when the Vercel CLI is already authenticated.
-- `WANDERPAGE_WORKSPACE`: optional advanced override for writing generated data, cache, reports, and public assets into an isolated workspace; the integration suite uses this to protect the repository checkout.
-
-Online enrichment uses Wikipedia/Wikimedia and Open-Meteo during generation only. Their failure degrades to a complete photo-led story without unsupported facts; the exported site makes no runtime API calls.
+MIT — see [`LICENSE`](LICENSE).

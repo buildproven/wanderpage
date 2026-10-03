@@ -1,3 +1,4 @@
+// @design DES-STUDIO-UI
 import type { Metadata } from "next";
 import Studio from "@/components/Studio";
 

@@ -1,3 +1,4 @@
+// @design DES-PUB-IMAGES
 import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";

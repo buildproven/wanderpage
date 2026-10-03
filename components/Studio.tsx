@@ -1,3 +1,4 @@
+// @design DES-STUDIO-UI
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
@@ -16,7 +17,7 @@ export default function Studio() {
   const [folder, setFolder] = useState(""),
     [title, setTitle] = useState(""),
     [people, setPeople] = useState<"include" | "exclude">("include"),
-    [privacy, setPrivacy] = useState<"approximate" | "precise">("approximate"),
+    [privacy, setPrivacy] = useState<"hidden" | "broad" | "approximate" | "precise">("approximate"),
     [maxPhotos, setMaxPhotos] = useState(36);
   const [job, setJob] = useState<StudioJob>(),
     [error, setError] = useState(""),
@@ -250,6 +251,23 @@ export default function Studio() {
                   <p>Wanderpage will score, edit, and arrange the strongest frames. It may leave photos out.</p>
                 </div>
                 <form className="studio-form" onSubmit={submit}>
+                  {status && !status.openaiConfigured && (
+                    <p
+                      className="studio-notice"
+                      role="status"
+                      style={{
+                        margin: "0 0 1rem",
+                        padding: "0.8rem 0",
+                        borderBottom: "1px solid currentColor",
+                        fontSize: "0.78rem",
+                        lineHeight: 1.45,
+                        opacity: 0.85,
+                      }}
+                    >
+                      No OpenAI key found: Wanderpage will make a basic edit ranked by photo quality only, with no AI captions and no people
+                      detection. Add OPENAI_API_KEY to .env.local for the full edit.
+                    </p>
+                  )}
                   <label className="studio-field studio-folder">
                     <span>Photo folder</span>
                     <div>
@@ -295,13 +313,25 @@ export default function Studio() {
                     </div>
                   </fieldset>
                   <fieldset className="studio-field studio-choice">
-                    <legend>Map precision</legend>
+                    <legend>Location privacy</legend>
                     <div>
                       <Choice
                         label="Approximate"
                         detail="Recommended. Broader public route."
                         checked={privacy === "approximate"}
                         onChange={() => setPrivacy("approximate")}
+                      />
+                      <Choice
+                        label="Region only"
+                        detail="Names a broad region; no map points."
+                        checked={privacy === "broad"}
+                        onChange={() => setPrivacy("broad")}
+                      />
+                      <Choice
+                        label="No locations"
+                        detail="No places, route, or map."
+                        checked={privacy === "hidden"}
+                        onChange={() => setPrivacy("hidden")}
                       />
                       <Choice
                         label="Closer"

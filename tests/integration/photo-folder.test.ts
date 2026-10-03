@@ -30,6 +30,7 @@ describe("photo folder to deployed-site artifact", () => {
     if (workspace) await removeTempWorkspace(workspace);
   });
 
+  // @verifies ARCH-INGEST, ARCH-CURATE, ARCH-VISION, ARCH-PLACE, ARCH-PIPELINE, ARCH-PUBLISH, ARCH-SITE, REQ-ING-01, REQ-ING-02, REQ-ING-05, REQ-SEL-01, REQ-SEL-02, REQ-AI-01, REQ-LOC-02, REQ-PUB-02, REQ-PUB-03, REQ-PUB-04, REQ-PUB-07, REQ-UI-05, SN-01, SN-02, SN-03, SN-04, SN-08
   it("ingests real image files, edits them, builds the static site, and opens it in a browser", async () => {
     const originalHashes = await fileHashes(input);
     const provider = new RecordingProvider();
@@ -130,6 +131,7 @@ describe("photo folder to deployed-site artifact", () => {
     }
   }, 180_000);
 
+  // @verifies ARCH-CLI, ARCH-PIPELINE, REQ-ING-02, REQ-PUB-03, REQ-PUB-04, SN-01, SN-04
   it("runs the documented photo-folder CLI against an isolated workspace", async () => {
     const cliWorkspace = await createTempWorkspace("cli");
     try {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertOperatorRequest } from "@/lib/web/operator-auth";
 
+// @verifies DES-WEB-OPERATOR, REQ-WEB-08
 describe("operator authentication", () => {
   it("requires the exact configured bearer secret", () => {
     expect(() => assertOperatorRequest(new Request("https://example.test"), "operator-secret")).toThrow("OPERATOR_AUTH_REQUIRED");

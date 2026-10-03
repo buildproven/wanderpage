@@ -1,3 +1,4 @@
+// @design DES-PIPE-RUN
 import { cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
@@ -68,7 +69,14 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
       options.force
     )
   );
-  const provider = dependencies.aiProvider ?? (process.env.OPENAI_API_KEY ? new OpenAIProvider() : new MockAIProvider());
+  const basicEdit = !dependencies.aiProvider && !process.env.OPENAI_API_KEY,
+    provider = dependencies.aiProvider ?? (basicEdit ? new MockAIProvider() : new OpenAIProvider());
+  if (basicEdit) {
+    const message =
+      "Basic edit: no OPENAI_API_KEY is set, so photos are ranked by technical quality only (no AI captions, no people detection).";
+    console.warn(`\n${message}`);
+    dependencies.onProgress?.({ stage: "analyze", progress: 33, message });
+  }
   let apiCalls = 0;
   const candidates = photos.filter(photo => photo.rejectionReasons.length === 0 && !photo.duplicateOf);
   for (let offset = 0; offset < candidates.length; offset += 16) {
@@ -176,7 +184,8 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
     destinationsFound: destinations.filter(d => d.confidence >= 0.55).length,
     modelCalls: apiCalls,
     analysisImages: candidates.length,
-    provider: dependencies.aiProvider ? "injected-test-provider" : process.env.OPENAI_API_KEY ? "openai" : "deterministic-mock",
+    provider: dependencies.aiProvider ? "injected-test-provider" : basicEdit ? "deterministic-mock" : "openai",
+    basicEdit,
   };
   dependencies.onProgress?.({ stage: "report", progress: 94, message: "Writing the local review report" });
   await writeReports(output, photos, selection, destinations, summary);
@@ -301,7 +310,9 @@ async function makeManifest(
       return {
         ...asset,
         alt: text?.alt ?? "A selected photograph from the trip",
-        caption: text?.caption ?? photo.semantic?.captionSeed,
+        // The vision caption seed can name a place, so it is only a fallback when location is allowed.
+        caption:
+          text?.caption ?? (options.privacy === "approximate" || options.privacy === "precise" ? photo.semantic?.captionSeed : undefined),
         captureTime: photo.captureTime,
         destinationId: destination?.id,
         containsPeople: photo.semantic?.containsPeople ?? false,

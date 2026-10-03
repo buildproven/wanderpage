@@ -12,6 +12,7 @@ const input = {
   uploadConsentVersion: "2026-08-14-hobby-retention-v2",
 };
 
+// @verifies DES-WEB-UPLOAD, ARCH-WEB-UPLOAD, REQ-WEB-03
 describe("web upload service", () => {
   it("reserves an owner-scoped private upload with an application-owned path", async () => {
     const { stories, uploads } = fixture(),

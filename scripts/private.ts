@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @design DES-CLI-LAUNCH
 import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { homedir } from "node:os";

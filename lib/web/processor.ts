@@ -1,3 +1,4 @@
+// @design DES-WEB-PROCESS
 import { createWriteStream } from "node:fs";
 import { mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -11,6 +11,7 @@ const input = {
   uploadConsentVersion: "2026-08-14-hobby-retention-v2",
 };
 
+// @verifies DES-WEB-CLEANUP, ARCH-WEB-LIFECYCLE, REQ-WEB-07
 describe("source cleanup", () => {
   it("deletes confirmed and abandoned reserved objects after story expiry", async () => {
     const repository = new MemoryStoryRepository(),

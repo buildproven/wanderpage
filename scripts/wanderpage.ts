@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @design DES-CLI-AGENT
 import { Command } from "commander";
 import {
   drafts,

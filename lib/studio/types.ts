@@ -1,3 +1,4 @@
+// @design DES-STUDIO-SERVER
 import type { TripManifest } from "@/lib/schemas/trip";
 
 export type StudioJobRequest = {
@@ -5,7 +6,7 @@ export type StudioJobRequest = {
   title?: string;
   people: "include" | "exclude";
   maxPhotos: number;
-  privacy: "approximate" | "precise";
+  privacy: "hidden" | "broad" | "approximate" | "precise";
 };
 export type StudioProgress = { stage: string; progress: number; message: string; at: string };
 export type StudioSelection = { selected: string[]; rejected: Array<{ id: string; reason?: string }>; reasons: Record<string, string> };

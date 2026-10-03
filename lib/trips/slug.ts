@@ -1,3 +1,4 @@
+// @design DES-PUB-SLUG
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TripManifest } from "@/lib/schemas/trip";

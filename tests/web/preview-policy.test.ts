@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertPreviewUrl, readPreviewRunMode } from "@/lib/web/preview-policy";
 
+// @verifies DES-WEB-PREVIEW, ARCH-WEB-PREVIEW, REQ-WEB-11, SN-10
 describe("hosted preview acceptance policy", () => {
   it("accepts an exact operator-allowlisted preview URL", () => {
     expect(assertPreviewUrl("https://wanderpage-git-preview.vercel.app", ["wanderpage-git-preview.vercel.app"]).hostname).toBe(

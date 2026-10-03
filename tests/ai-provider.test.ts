@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { retry } from "@/lib/ai/provider";
 
+// @verifies DES-VISION-PROVIDER, REQ-AI-02, SN-07
 describe("OpenAI retry policy", () => {
   it("does not retry deterministic client errors", async () => {
     const task = vi.fn().mockRejectedValue(Object.assign(new Error("invalid request"), { status: 400 }));

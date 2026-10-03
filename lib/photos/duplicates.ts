@@ -1,3 +1,4 @@
+// @design DES-PHOTO-DUP
 import { hammingDistance } from "./scoring";
 import type { PhotoRecord } from "./types";
 

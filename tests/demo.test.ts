@@ -6,6 +6,7 @@ import { TripManifestSchema } from "@/lib/schemas/trip";
 import { copySiteScaffold, createTempWorkspace, removeTempWorkspace } from "./helpers/workspace";
 
 describe("deterministic demo", () => {
+  // @verifies DES-PIPE-RUN, ARCH-PIPELINE, REQ-PUB-07, REQ-AI-04, SN-06
   it("reports the size of the published responsive image set", async () => {
     const workspace = await createTempWorkspace("demo-size");
     try {
@@ -39,6 +40,7 @@ describe("deterministic demo", () => {
     }
   });
 
+  // @verifies DES-PIPE-RUN, REQ-PUB-01, SN-07
   it("reports a dangling manifest asset as an actionable error", async () => {
     const workspace = await createTempWorkspace("demo-missing-asset");
     try {

@@ -7,7 +7,9 @@ import { copySiteScaffold, createTempWorkspace, removeTempWorkspace } from "../h
 const workspaces: string[] = [];
 afterEach(async () => Promise.all(workspaces.splice(0).map(removeTempWorkspace)));
 
+// @verifies DES-CLI-AGENT, ARCH-AGENT
 describe("agent-ready local contract", () => {
+  // @verifies REQ-CLI-05, SN-09
   it("validates and publishes only a private workspace draft", async () => {
     const root = await fixture();
     const before = await readFile(join(root, "data/trips/fixture-trip.json"), "utf8");
@@ -20,6 +22,7 @@ describe("agent-ready local contract", () => {
     expect(await drafts(root)).toEqual([{ slug: "fixture-trip", title: "Fixture Trip", published: true }]);
   });
 
+  // @verifies REQ-CLI-04, SN-09
   it("rejects traversal rather than reading outside the workspace", async () => {
     const root = await fixture();
     await expect(readDraft(root, "../trip.demo")).rejects.toMatchObject({ code: "INVALID_ARGUMENT" } satisfies Partial<LocalCommandError>);

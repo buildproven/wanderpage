@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @design DES-CLI-TRIP
 import { Command } from "commander";
 import { listTrips, setTripPublished } from "@/lib/trips/publish";
 

@@ -1,3 +1,4 @@
+// @design DES-SITE-LANDING
 import type { Metadata } from "next";
 import "./globals.css";
 

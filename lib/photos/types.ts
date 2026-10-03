@@ -1,3 +1,4 @@
+// @design DES-PHOTO-INGEST
 import type { PhotoSemanticAnalysis } from "@/lib/schemas/analysis";
 
 export type TechnicalScores = {

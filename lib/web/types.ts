@@ -1,3 +1,4 @@
+// @design DES-WEB-STORY
 import type { TripManifest } from "@/lib/schemas/trip";
 
 export const StoryStatuses = ["uploading", "queued", "processing", "draft", "published", "failed", "deleting", "deleted"] as const;

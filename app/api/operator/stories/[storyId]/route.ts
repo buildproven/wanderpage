@@ -1,3 +1,4 @@
+// @design DES-WEB-OPERATOR
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { assertOperatorRequest } from "@/lib/web/operator-auth";

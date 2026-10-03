@@ -1,3 +1,4 @@
+// @design DES-WEB-PREVIEW
 import { chromium, type APIResponse, type BrowserContext, type Page } from "@playwright/test";
 import { currentDisclosureVersion } from "@/lib/consent";
 import { assertPreviewUrl, readPreviewRunMode } from "@/lib/web/preview-policy";

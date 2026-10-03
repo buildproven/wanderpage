@@ -1,3 +1,4 @@
+// @design DES-REL-RELEASE
 import { execFileSync } from "node:child_process";
 
 export function git(...args: string[]): string {

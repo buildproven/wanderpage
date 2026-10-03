@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { loadEnvironmentFile, loadStudioEnvironment } from "@/lib/studio/environment";
 import { createTempWorkspace, removeTempWorkspace } from "../helpers/workspace";
 
+// @verifies DES-STUDIO-ENV, ARCH-STUDIO, REQ-UI-04, SN-06
 describe("Studio environment", () => {
   const workspaces: string[] = [];
   const originalOpenAIKey = process.env.OPENAI_API_KEY,

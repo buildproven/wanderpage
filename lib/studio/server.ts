@@ -1,3 +1,4 @@
+// @design DES-STUDIO-SERVER
 import { randomUUID } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
@@ -19,7 +20,7 @@ const execute = promisify(execFile),
     title: z.string().trim().max(120).optional(),
     people: z.enum(["include", "exclude"]),
     maxPhotos: z.number().int().min(12).max(60),
-    privacy: z.enum(["approximate", "precise"]),
+    privacy: z.enum(["hidden", "broad", "approximate", "precise"]),
   }),
   draftSchema = z.object({ manifest: TripManifestSchema });
 export type StudioRunner = (
@@ -226,7 +227,8 @@ async function runProductionJob(
 
 async function buildAndValidate(root: string, onProgress?: (stage: string, progress: number, message: string) => void) {
   onProgress?.("build", 91, "Building the private static website");
-  await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["build"], { cwd: root, maxBuffer: 10_000_000 });
+  // The shareable site is the static export in out/; `pnpm build` is the hosted server build and does not produce it.
+  await execute(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["static:export"], { cwd: root, maxBuffer: 10_000_000 });
   onProgress?.("privacy", 97, "Checking metadata, paths, and secrets");
   const secrets = [process.env.OPENAI_API_KEY, process.env.VERCEL_TOKEN].filter((value): value is string => Boolean(value));
   const privacy = await validateStaticExport(join(root, "out"), secrets);

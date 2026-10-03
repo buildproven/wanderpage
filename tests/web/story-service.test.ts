@@ -12,7 +12,9 @@ const input = {
   uploadConsentVersion: "2026-08-14-hobby-retention-v2",
 };
 
+// @verifies DES-WEB-STORY, ARCH-WEB-STORY, SN-10
 describe("web story service", () => {
+  // @verifies REQ-WEB-01
   it("creates a private owner session and an uploading story", async () => {
     const service = fixture().service,
       session = await service.createSession(input),
@@ -29,6 +31,7 @@ describe("web story service", () => {
     expect(story.sourceExpiresAt.getTime() - story.createdAt.getTime()).toBe(24 * 60 * 60 * 1000);
   });
 
+  // @verifies REQ-WEB-02
   it("rejects creation without the current provider and retention disclosure", async () => {
     const repository = new MemoryStoryRepository(),
       service = new StoryService(
@@ -43,6 +46,7 @@ describe("web story service", () => {
     });
   });
 
+  // @verifies REQ-WEB-01
   it("does not expose a private story across anonymous owner sessions", async () => {
     const service = fixture().service,
       owner = await service.createSession(input),
@@ -55,6 +59,7 @@ describe("web story service", () => {
     await expect(service.listOwnedStories(intruder.rawSecret)).resolves.toEqual([]);
   });
 
+  // @verifies REQ-WEB-04
   it("requires a completed photo, then queues one durable run and rejects duplicates", async () => {
     const { service, starts, repository } = fixture(),
       owner = await service.createSession(input),
@@ -85,6 +90,7 @@ describe("web story service", () => {
     } satisfies Partial<StoryServiceError>);
   });
 
+  // @verifies REQ-WEB-07
   it("does not extend source-photo retention when generation starts", async () => {
     let now = new Date("2026-08-14T00:00:00Z");
     const repository = new MemoryStoryRepository(),
@@ -103,6 +109,7 @@ describe("web story service", () => {
     expect(queued.sourceExpiresAt).toEqual(story.sourceExpiresAt);
   });
 
+  // @verifies REQ-WEB-06
   it("requires a finalized private draft before explicit publication", async () => {
     const { service, repository } = fixture(),
       owner = await service.createSession(input),
@@ -123,6 +130,7 @@ describe("web story service", () => {
     expect((await service.unpublish(owner.rawSecret, draft.id)).status).toBe("draft");
   });
 
+  // @verifies REQ-WEB-06
   it("saves a private draft title without changing its generated story", async () => {
     const { service, repository } = fixture(),
       owner = await service.createSession(input),
@@ -139,6 +147,7 @@ describe("web story service", () => {
     expect(updated.manifest?.photos).toEqual(draft.manifest?.photos);
   });
 
+  // @verifies REQ-WEB-06
   it("rejects a stale private draft edit without overwriting the newer tab", async () => {
     const { service, repository } = fixture(),
       owner = await service.createSession(input),
@@ -160,6 +169,7 @@ describe("web story service", () => {
     expect(await repository.findStory(draft.id)).toMatchObject({ title: current.title, version: current.version });
   });
 
+  // @verifies REQ-WEB-04
   it("allows a failed private run to retry while its confirmed sources remain available", async () => {
     const { service, repository, starts } = fixture(),
       owner = await service.createSession(input),
@@ -182,6 +192,7 @@ describe("web story service", () => {
     expect(starts).toHaveLength(2);
   });
 
+  // @verifies REQ-WEB-05
   it("rejects privacy-policy changes after source deletion without destroying the draft", async () => {
     const { service, repository } = fixture(),
       owner = await service.createSession(input),
@@ -199,6 +210,7 @@ describe("web story service", () => {
     expect(await repository.findStory(draft.id)).toMatchObject({ status: "draft", manifest: demoManifest() });
   });
 
+  // @verifies REQ-WEB-05
   it("rejects public-manifest edits that violate privacy policy", async () => {
     const { service, repository } = fixture(),
       owner = await service.createSession(input),
@@ -215,6 +227,7 @@ describe("web story service", () => {
     expect((await repository.findStory(draft.id))?.title).toBe("Oregon Coast");
   });
 
+  // @verifies REQ-WEB-07
   it("denies owner reads as soon as deletion begins", async () => {
     const { service } = fixture(),
       owner = await service.createSession(input),
@@ -223,6 +236,7 @@ describe("web story service", () => {
     await expect(service.getOwnedStory(owner.rawSecret, story.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  // @verifies REQ-WEB-09
   it("fails closed before queueing when generation is disabled", async () => {
     const policy = { enabled: true, dailyLimit: 25 },
       { repository, service } = fixture(policy),
@@ -234,6 +248,7 @@ describe("web story service", () => {
     expect((await repository.findStory(story.id))?.status).toBe("uploading");
   });
 
+  // @verifies REQ-WEB-10
   it("limits story creation per owner and renews active session expiry", async () => {
     let now = new Date("2026-08-13T00:00:00Z");
     const repository = new MemoryStoryRepository(),

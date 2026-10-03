@@ -1,3 +1,4 @@
+// @design DES-WEB-HTTP
 import type { Story } from "@/lib/web/types";
 
 export function storyDto(story: Story) {

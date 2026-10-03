@@ -1,3 +1,4 @@
+// @design DES-WEB-UI
 "use client";
 
 import { upload } from "@vercel/blob/client";

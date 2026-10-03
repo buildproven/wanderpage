@@ -1,3 +1,4 @@
+// @design DES-SELECT-EDIT
 import type { PhotoRecord } from "@/lib/photos/types";
 
 export type SelectionResult = { selected: PhotoRecord[]; rejected: PhotoRecord[]; heroId: string; reasons: Record<string, string> };

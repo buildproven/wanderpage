@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { applyLocationPrivacy, validateHostedDerivative, validateHostedStoryOutput } from "@/lib/web/processor";
 
+// @verifies DES-WEB-PROCESS, ARCH-WEB-PROCESS, REQ-WEB-05, REQ-LOC-03, SN-10
 describe("hosted manifest privacy", () => {
   it("removes location-bearing narrative and metadata in hidden mode", () => {
     const hidden = applyLocationPrivacy(manifest(), "hidden");

@@ -6,6 +6,7 @@ import { TripManifestSchema } from "@/lib/schemas/trip";
 import { availableTripSlug, tripSlug } from "@/lib/trips/slug";
 import { createTempWorkspace, removeTempWorkspace } from "./helpers/workspace";
 
+// @verifies DES-PUB-SLUG, ARCH-PUBLISH, REQ-PUB-05
 describe("trip page names", () => {
   it("creates readable location and theme slugs", () => {
     expect(tripSlug("Oregon Coast — September Light")).toBe("oregon-coast-september-light");

@@ -1,3 +1,4 @@
+// @design DES-PUB-STORE
 import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";

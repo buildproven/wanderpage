@@ -1,3 +1,4 @@
+// @design DES-CLI-TRIP
 import { spawn } from "node:child_process";
 
 export async function deploy() {

@@ -1,3 +1,4 @@
+// @design DES-WEB-CLEANUP
 import type { StoryRepository } from "@/lib/web/types";
 import { cleanupStoryObjects } from "@/lib/web/object-cleanup";
 

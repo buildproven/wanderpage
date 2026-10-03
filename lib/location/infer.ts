@@ -1,3 +1,4 @@
+// @design DES-PLACE-INFER
 import type { PhotoRecord } from "@/lib/photos/types";
 
 export type DestinationEvidence = {

@@ -1,3 +1,4 @@
+// @design DES-WEB-STORE
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import type {
   GenerationLimits,

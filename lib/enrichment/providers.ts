@@ -1,3 +1,4 @@
+// @design DES-PLACE-ENRICH
 import type { DestinationEvidence } from "@/lib/location/infer";
 
 export type Enrichment = {

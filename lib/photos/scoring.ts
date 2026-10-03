@@ -1,3 +1,4 @@
+// @design DES-PHOTO-SCORE
 import sharp from "sharp";
 import type { TechnicalScores } from "./types";
 

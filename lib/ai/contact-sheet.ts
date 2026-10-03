@@ -1,3 +1,4 @@
+// @design DES-VISION-SHEET
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import sharp, { type OverlayOptions } from "sharp";

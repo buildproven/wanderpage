@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @design DES-CLI-LAUNCH
 // Scaffolds a local Wanderpage project (like `create-next-app`) and launches Studio there.
 // Studio is a full local app — it runs `pnpm build`, writes generated trip data back into
 // its own folder, and needs its own node_modules — so it cannot run as a stateless,
@@ -105,19 +106,27 @@ async function launchStudio() {
 }
 
 async function runCommand() {
+  // Agent commands only need the packaged tsx, not pnpm or a project, so they work from any directory.
+  const tsxCli = fileURLToPath(import.meta.resolve("tsx/cli"));
   await new Promise((resolvePromise, reject) => {
-    const child = spawn(pnpmCommand, ["exec", "tsx", join(packageRoot, "scripts", "wanderpage.ts"), ...args], {
+    const child = spawn(process.execPath, [tsxCli, join(packageRoot, "scripts", "wanderpage.ts"), ...args], {
       cwd: process.cwd(),
       stdio: "inherit",
-      env: process.env,
+      env: { ...process.env, TSX_TSCONFIG_PATH: join(packageRoot, "tsconfig.json") },
     });
     child.on("exit", (code, signal) =>
-      code === 0 ? resolvePromise(undefined) : reject(new Error(`wanderpage command exited with code ${code ?? signal}`))
+      code === 0
+        ? resolvePromise(undefined)
+        : reject(Object.assign(new Error(`wanderpage command exited with code ${code ?? signal}`), { exitCode: code ?? 1 }))
     );
   });
 }
 
 try {
+  if (commandNames.has(args[0] ?? "")) {
+    await runCommand();
+    process.exit(0);
+  }
   const hasPnpm = await checkCommand(pnpmCommand);
   if (!hasPnpm) {
     console.log("\nWanderpage needs pnpm once before it can run.");
@@ -125,13 +134,10 @@ try {
     console.log(`Then run: npx @buildproven/wanderpage ${targetArg ?? ""}`);
     process.exit(1);
   }
-  if (commandNames.has(args[0] ?? "")) {
-    await runCommand();
-    process.exit(0);
-  }
   await scaffold();
   await launchStudio();
 } catch (error) {
+  if (error && typeof error === "object" && "exitCode" in error && commandNames.has(args[0] ?? "")) process.exit(Number(error.exitCode));
   console.error(`\nWanderpage failed to start: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 }

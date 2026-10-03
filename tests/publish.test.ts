@@ -7,6 +7,7 @@ import { deleteTrip, getTrip, listTrips, setTripPublished, writeTrip } from "@/l
 import { TripManifestSchema } from "@/lib/schemas/trip";
 import { createTempWorkspace, removeTempWorkspace } from "./helpers/workspace";
 
+// @verifies DES-PUB-STORE, ARCH-PUBLISH, REQ-PUB-03, SN-05
 describe("trip publish controls", () => {
   it("keeps legacy manifests published when the flag is absent", () => {
     expect(TripManifestSchema.parse(rawManifest).published).toBe(true);

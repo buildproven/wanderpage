@@ -1,3 +1,4 @@
+// @design DES-PUB-SCHEMA
 import { z } from "zod";
 
 const dateRange = z.object({ start: z.string(), end: z.string() });

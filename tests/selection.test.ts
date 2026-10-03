@@ -29,6 +29,7 @@ const photo = (id: string, people = false, cluster?: string): PhotoRecord => ({
   rejectionReasons: [],
 });
 describe("selection privacy and diversity", () => {
+  // @verifies DES-SELECT-EDIT, ARCH-CURATE, REQ-SEL-01, REQ-SEL-02, SN-02
   it("strictly excludes people and duplicate clusters", () => {
     const photos = [
       photo("a", false, "x"),
@@ -42,6 +43,7 @@ describe("selection privacy and diversity", () => {
     expect(result.reasons.c).toMatch(/people/i);
   });
 
+  // @verifies DES-SELECT-EDIT, ARCH-CURATE, REQ-SEL-02, SN-02
   it("fails closed when people-safety analysis is unavailable", () => {
     const unclassified = photo("unclassified");
     delete unclassified.semantic;
