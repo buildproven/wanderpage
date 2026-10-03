@@ -15,6 +15,7 @@ declare global {
 const router = { push: vi.fn(), refresh: vi.fn() };
 const fetchMock = vi.fn();
 
+// @verifies DES-WEB-UI, ARCH-WEB-UI, REQ-WEB-06, REQ-WEB-02
 describe("DraftControls", () => {
   let host: HTMLDivElement;
   let root: Root;

@@ -2,6 +2,7 @@ import type { NeonQueryFunction } from "@neondatabase/serverless";
 import { describe, expect, it } from "vitest";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
 
+// @verifies DES-WEB-STORE, ARCH-WEB-STORE
 describe("Neon story repository", () => {
   it("maps PostgreSQL bigint upload sizes returned as decimal strings", async () => {
     const row = {

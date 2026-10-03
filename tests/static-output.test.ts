@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { recoverStaticOutput, replaceStaticOutput } from "@/lib/static-output";
 
+// @verifies DES-PUB-EXPORT, ARCH-PUBLISH, REQ-PUB-06, SN-07
 describe("static rollback artifact replacement", () => {
   const roots: string[] = [];
   afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

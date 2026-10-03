@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { proxy } from "@/proxy";
 import { assertInitialRequest } from "@/lib/web/session";
 
+// @verifies DES-WEB-HTTP, ARCH-WEB-EDGE, REQ-WEB-10, REQ-WEB-01
 describe("owner cookie renewal proxy", () => {
   it("renews an owner cookie on authenticated reads", () => {
     const response = proxy(
@@ -31,6 +32,7 @@ describe("owner cookie renewal proxy", () => {
   });
 });
 
+// @verifies DES-WEB-SESSION, ARCH-WEB-EDGE, REQ-WEB-10
 describe("initial story request", () => {
   it("requires same-origin JSON before creating an anonymous owner", () => {
     expect(() =>

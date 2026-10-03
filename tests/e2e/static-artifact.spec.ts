@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+// @verifies ARCH-SITE, REQ-UI-05, REQ-PUB-06, SN-08
 test("the exact static rollback artifact serves a complete story", async ({ page }) => {
   const failedResponses: string[] = [],
     consoleErrors: string[] = [];

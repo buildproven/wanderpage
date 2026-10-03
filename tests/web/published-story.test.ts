@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { loadHostedPublishedStory } from "@/lib/web/published-story";
 
+// @verifies DES-WEB-MEDIA, ARCH-WEB-DELIVERY, REQ-WEB-09
 describe("hosted published story loading", () => {
   const originalDatabaseUrl = process.env.DATABASE_URL;
 

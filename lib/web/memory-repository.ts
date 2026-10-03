@@ -1,3 +1,4 @@
+// @design DES-WEB-STORE
 import type {
   GenerationLimits,
   OwnerSession,

@@ -16,6 +16,7 @@ const photo = (id: string): PhotoRecord => ({
   rejectionReasons: [],
 });
 
+// @verifies DES-PLACE-INFER, ARCH-PLACE, REQ-LOC-01, SN-03
 describe("destination inference", () => {
   afterEach(() => vi.unstubAllGlobals());
 

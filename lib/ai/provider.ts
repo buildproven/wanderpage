@@ -1,3 +1,4 @@
+// @design DES-VISION-PROVIDER
 import { readFile } from "node:fs/promises";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";

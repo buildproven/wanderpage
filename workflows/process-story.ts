@@ -1,3 +1,4 @@
+// @design DES-WEB-PROCESS
 import { FatalError } from "workflow";
 import { del } from "@vercel/blob";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";

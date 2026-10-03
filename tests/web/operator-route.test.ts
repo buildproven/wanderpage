@@ -10,6 +10,7 @@ vi.mock("@/lib/web/neon-repository", () => ({ NeonStoryRepository: { fromEnviron
 
 import { DELETE } from "@/app/api/operator/stories/[storyId]/route";
 
+// @verifies DES-WEB-OPERATOR, ARCH-WEB-LIFECYCLE, REQ-WEB-08, REQ-WEB-10
 describe("operator takedown route", () => {
   beforeEach(() => vi.clearAllMocks());
 

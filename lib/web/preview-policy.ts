@@ -1,3 +1,4 @@
+// @design DES-WEB-PREVIEW
 export type PreviewRunMode = "smoke" | "acceptance";
 
 type PreviewEnvironment = Record<string, string | undefined>;

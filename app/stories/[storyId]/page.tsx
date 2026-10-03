@@ -1,3 +1,4 @@
+// @design DES-WEB-UI
 import { notFound } from "next/navigation";
 import DraftControls from "@/components/DraftControls";
 import Story from "@/components/Story";

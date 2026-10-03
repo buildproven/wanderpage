@@ -8,6 +8,6 @@ if ! command -v pnpm >/dev/null 2>&1; then
 fi
 if [ ! -d node_modules ]; then
   print "First run: installing Wanderpage dependencies…"
-  pnpm install --frozen-lockfile
+  if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install; fi
 fi
 exec pnpm private

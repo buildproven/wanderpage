@@ -1,3 +1,4 @@
+// @design DES-WEB-OPERATOR
 import { timingSafeEqual } from "node:crypto";
 
 export function assertOperatorRequest(request: Request, secret = process.env.WANDERPAGE_OPERATOR_SECRET) {

@@ -1,3 +1,4 @@
+// @design DES-PUB-STORE
 import { randomUUID } from "node:crypto";
 import { cp, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";

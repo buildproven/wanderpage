@@ -7,6 +7,7 @@ const manifest = {
   published: false,
 };
 
+// @verifies DES-STUDIO-UI, ARCH-STUDIO, REQ-UI-02, REQ-UI-03, SN-01, SN-05
 test("creates a story through the local Studio interface", async ({ page, context }) => {
   let jobReads = 0;
   await page.route("**/api/**", async route => {
@@ -73,6 +74,7 @@ test("creates a story through the local Studio interface", async ({ page, contex
   expect(story.url()).toMatch(/\/trips\/a-line-along-the-pacific/);
 });
 
+// @verifies DES-STUDIO-UI, REQ-UI-02, SN-07
 test("keeps a failed edit visible in the Studio docket", async ({ page }) => {
   await page.route("**/api/**", async route => {
     const request = route.request(),
@@ -100,4 +102,21 @@ test("keeps a failed edit visible in the Studio docket", async ({ page }) => {
   await page.getByRole("button", { name: /Build my Wanderpage/ }).click();
   await expect(page.getByText("EDIT FAILED")).toBeVisible();
   await expect(page.locator(".studio-error")).toHaveText("Photo folder is no longer readable.");
+});
+
+// @verifies DES-STUDIO-UI, ARCH-STUDIO, REQ-AI-05, REQ-LOC-03, SN-06, SN-07
+test("says so plainly when no API key is set and offers every location privacy level", async ({ page }) => {
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/status") return route.fulfill({ json: { ready: true, openaiConfigured: false, platform: "darwin" } });
+    if (path === "/api/trips") return route.fulfill({ json: { trips: [] } });
+    return route.fulfill({ status: 404, json: { error: "Not found" } });
+  });
+  await page.goto("/studio");
+  await expect(page.getByRole("status")).toContainText("basic edit");
+  await expect(page.getByRole("status")).toContainText("no people detection");
+  await expect(page.getByRole("radio", { name: /Exclude/ })).toBeDisabled();
+  const privacy = page.getByRole("group", { name: "Location privacy" });
+  for (const label of ["Approximate", "Region only", "No locations", "Closer"])
+    await expect(privacy.getByRole("radio", { name: new RegExp(label) })).toBeVisible();
 });

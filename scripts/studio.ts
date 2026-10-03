@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @design DES-CLI-LAUNCH
 import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";

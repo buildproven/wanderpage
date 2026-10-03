@@ -1,3 +1,4 @@
+// @design DES-PUB-EXPORT
 import { cp, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";

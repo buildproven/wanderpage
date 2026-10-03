@@ -1,3 +1,4 @@
+// @design DES-SITE-LANDING
 "use client";
 
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";

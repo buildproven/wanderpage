@@ -1,3 +1,4 @@
+// @design DES-CLI-AGENT
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";

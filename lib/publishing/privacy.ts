@@ -1,3 +1,4 @@
+// @design DES-PUB-PRIVACY
 import { readdir, readFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import sharp from "sharp";

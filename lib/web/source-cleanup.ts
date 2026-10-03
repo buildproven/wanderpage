@@ -1,3 +1,4 @@
+// @design DES-WEB-CLEANUP
 import { del } from "@vercel/blob";
 import type { StoryRepository, StoryUpload } from "@/lib/web/types";
 

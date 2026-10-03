@@ -18,6 +18,7 @@ vi.mock("@/lib/web/processor", () => ({
 
 import { processStoryWorkflow } from "@/workflows/process-story";
 
+// @verifies DES-WEB-PROCESS, ARCH-WEB-PROCESS, REQ-WEB-04, REQ-WEB-05
 describe("story workflow recovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();

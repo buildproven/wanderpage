@@ -4,6 +4,7 @@ import { cleanupStoryObjects } from "@/lib/web/object-cleanup";
 import { cleanupExpiredPrivateStories } from "@/lib/web/story-retention";
 import type { OwnerSession, Story, StoryRun } from "@/lib/web/types";
 
+// @verifies DES-WEB-CLEANUP, DES-WEB-STORE, ARCH-WEB-LIFECYCLE, ARCH-WEB-STORE, REQ-WEB-07, SN-10
 describe("hosted lifecycle cleanup", () => {
   it("does not persist a provisional session when client admission fails", async () => {
     const repository = new MemoryStoryRepository(),
@@ -16,6 +17,7 @@ describe("hosted lifecycle cleanup", () => {
     await expect(repository.findSessionBySecretHash(rejected.session.secretHash)).resolves.toBeUndefined();
   });
 
+  // @verifies REQ-WEB-04
   it("atomically claims a run and resumes the same claim idempotently", async () => {
     const repository = new MemoryStoryRepository(),
       now = new Date("2026-08-13T00:00:00Z"),
@@ -317,6 +319,7 @@ describe("hosted lifecycle cleanup", () => {
     await expect(repository.renewSession(session.secretHash, boundary, new Date("2026-09-01T00:00:00Z"))).resolves.toBeUndefined();
   });
 
+  // @verifies REQ-WEB-08
   it("lets an authenticated operator immediately revoke a published story", async () => {
     const repository = new MemoryStoryRepository(),
       now = new Date("2026-08-13T00:00:00Z"),

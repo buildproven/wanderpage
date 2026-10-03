@@ -1,3 +1,4 @@
+// @design DES-SITE-STORY
 import type { Metadata } from "next";
 import Story from "@/components/Story";
 import rawManifest from "@/data/trip.demo.json";

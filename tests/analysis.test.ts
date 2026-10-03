@@ -15,6 +15,7 @@ const analysis = (photoId: string): PhotoSemanticAnalysis => ({
   captionSeed: "Visible landscape.",
 });
 
+// @verifies DES-VISION-SHEET, REQ-AI-01
 describe("contact-sheet analysis", () => {
   it("rejects an incomplete response instead of leaving a photo unclassified", () => {
     expect(() => requireCompleteContactSheetAnalysis([analysis("one")], ["one", "two"])).toThrow(/missing: two/);

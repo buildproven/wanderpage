@@ -1,3 +1,4 @@
+// @design DES-PUB-EXPORT
 import { randomUUID } from "node:crypto";
 import { access, cp, readdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";

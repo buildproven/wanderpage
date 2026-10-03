@@ -1,3 +1,4 @@
+// @design DES-REL-RELEASE
 import { assertOnCleanUpToDateMain } from "./release-git";
 
 assertOnCleanUpToDateMain("A release");

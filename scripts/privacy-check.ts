@@ -1,3 +1,4 @@
+// @design DES-PUB-PRIVACY
 import { resolve } from "node:path";
 import { validateStaticExport } from "@/lib/publishing/privacy";
 

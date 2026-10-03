@@ -1,3 +1,4 @@
+// @design DES-REL-RELEASE
 import { assertOnCleanUpToDateMain, git, run } from "./release-git";
 
 const bump = process.argv[2];

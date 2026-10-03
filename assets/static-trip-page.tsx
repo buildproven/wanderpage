@@ -1,3 +1,4 @@
+// @design DES-SITE-STORY
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Metadata } from "next";

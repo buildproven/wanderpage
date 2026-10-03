@@ -35,6 +35,7 @@ describe("local Studio server", () => {
     if (workspace) await removeTempWorkspace(workspace);
   });
 
+  // @verifies DES-STUDIO-SERVER, ARCH-STUDIO, REQ-UI-01, SN-03
   it("serves only the local interface and rejects untrusted origins", async () => {
     const page = await fetch(`${base}/studio`);
     expect(page.status).toBe(200);
@@ -46,6 +47,7 @@ describe("local Studio server", () => {
     expect(await status.json()).toMatchObject({ ready: true });
   });
 
+  // @verifies DES-STUDIO-SERVER, ARCH-STUDIO, REQ-UI-02
   it("validates requests, exposes progress, prevents overlapping jobs, and returns results", async () => {
     const invalid = await post("/api/jobs", { input: "relative/photos", people: "include", maxPhotos: 36, privacy: "approximate" });
     expect(invalid.status).toBe(400);
@@ -75,6 +77,7 @@ describe("local Studio server", () => {
       .toBe("complete");
   });
 
+  // @verifies DES-STUDIO-SERVER, ARCH-STUDIO, REQ-UI-03, SN-05
   it("lists and saves local draft manifests", async () => {
     const listed = await fetch(`${base}/api/trips`, { headers: { Origin: base } });
     expect(listed.status).toBe(200);

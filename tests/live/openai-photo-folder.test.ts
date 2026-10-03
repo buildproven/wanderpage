@@ -19,6 +19,7 @@ describe.skipIf(!enabled)("live OpenAI photo-folder smoke test", () => {
     if (workspace) await removeTempWorkspace(workspace);
   });
 
+  // @verifies REQ-AI-01
   it("uses contact-sheet vision Structured Outputs and narrative generation in the real pipeline", async () => {
     const result = await runTrip(
       {
