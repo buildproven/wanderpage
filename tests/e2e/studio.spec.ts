@@ -123,3 +123,20 @@ test("says so plainly when no API key is set and offers every location privacy l
   for (const label of ["Approximate", "Region only", "No locations", "Closer"])
     await expect(privacy.getByRole("radio", { name: new RegExp(label) })).toBeVisible();
 });
+
+// @verifies DES-STUDIO-UI, ARCH-STUDIO, REQ-UI-02, SN-06
+test("the first screen's decorative route marker never overlaps the tagline", async ({ page }) => {
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/status")
+      return route.fulfill({ json: { ready: true, openaiConfigured: true, platform: "darwin", projectPath: "/p" } });
+    if (path === "/api/trips") return route.fulfill({ json: { trips: [] } });
+    return route.fulfill({ status: 404, json: { error: "Not found" } });
+  });
+  await page.goto("/studio");
+  const marker = page.locator(".studio-route-mark"),
+    tagline = page.locator(".studio-atmosphere-copy p");
+  test.skip(!(await marker.isVisible()), "the decorative panel is hidden at this screen size");
+  const [markerBox, taglineBox] = [await marker.boundingBox(), await tagline.boundingBox()];
+  expect(markerBox!.y + markerBox!.height).toBeLessThanOrEqual(taglineBox!.y);
+});
