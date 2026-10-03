@@ -258,6 +258,13 @@ photo alternative text, and use landmark regions for assistive technology.
 
 - **Needs:** SN-08
 
+### REQ-UI-07 Open on the user's own story
+
+The home page of the shareable site shall show the user's published story (or an index of their stories when there are several) and shall
+show the product page only while nothing is published.
+
+- **Needs:** SN-08, SN-01
+
 ### REQ-UI-06 Ship a permanent demo
 
 The system shall ship a permanent `/demo` page that requires no setup.

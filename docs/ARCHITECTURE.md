@@ -89,7 +89,7 @@ and lets the user review, edit, publish, unpublish, and delete drafts. Loads the
 The static Next.js pages that render a manifest: landing page, the permanent demo, and each published trip (the export substitutes
 `assets/static-trip-page.tsx` for the hosted trip route). No runtime API calls.
 
-- **Satisfies:** REQ-UI-05, REQ-UI-06, REQ-PUB-02
+- **Satisfies:** REQ-UI-05, REQ-UI-06, REQ-UI-07, REQ-PUB-02
 
 ### ARCH-CLI Launcher and command-line tools
 
