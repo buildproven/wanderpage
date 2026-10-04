@@ -36,7 +36,8 @@ echo "🔐 Running security scans..."
 # 1. Secret scanning with gitleaks
 if command -v gitleaks &> /dev/null; then
   echo "  → Scanning for secrets..."
-  gitleaks detect --no-git --verbose --exit-code=1 || {
+  # Scan committed history, not the working directory: git-ignored local files (.env.local) are secrets by design and never leave the machine.
+  gitleaks detect --verbose --exit-code=1 || {
     echo "❌ Secrets detected! Remove them before pushing."
     exit 1
   }

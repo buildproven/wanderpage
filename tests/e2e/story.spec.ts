@@ -7,6 +7,8 @@ test("explains Wanderpage and opens a complete static story", async ({ page }) =
   await expect(page.getByRole("heading", { name: /A camera roll is evidence/ })).toBeVisible();
   await expect(page.locator(".product-hero-folio")).toContainText("Four-day edit");
   await expect(page.locator(".product-hero-folio")).not.toContainText(/\d+\.\d+°/);
+  // Hosted creation is not part of v1, so the exported site must not point at a page it does not contain.
+  await expect(page.locator('a[href="/create"]')).toHaveCount(0);
   await page.getByRole("link", { name: /Explore a finished story/ }).click();
   await expect(page).toHaveURL(/\/demo\/?$/);
   await expect(page.getByRole("heading", { name: "A Line Along the Pacific" })).toBeVisible();

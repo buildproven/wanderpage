@@ -156,7 +156,7 @@ absent.
 
 ### ARCH-WEB-UI Hosted creator interface
 
-The `/create` page, the private draft desk, and publish controls. Labeled "coming soon" unless the operator admits the deployment.
+The `/create` page, the private draft desk, and publish controls. Not offered in v1: the landing page links to it only when the operator enables generation.
 
 - **Satisfies:** REQ-WEB-02, REQ-WEB-06
 

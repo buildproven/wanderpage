@@ -73,4 +73,4 @@ Source files in scope: `app/`, `assets/`, `components/`, `lib/`, `scripts/`, `bi
   It is an additional check for `REQ-AI-01`, not its only evidence.
 - The hosted creator's _credentialed_ acceptance run (`pnpm hosted:preview`, see [`DEPLOYMENT.md`](DEPLOYMENT.md)) needs real Vercel, Neon, Blob,
   and OpenAI accounts and an operator's consent to spend money. Its deterministic behavior is covered by the tests above; the live run is
-  what must pass before the hosted creator stops saying "coming soon".
+  what must pass before the hosted creator is offered to anyone.

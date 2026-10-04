@@ -23,3 +23,9 @@ branch).
 3. `git checkout main && git pull`, then `pnpm release:tag`. This creates
    and pushes the version tag from the merged `main` commit, which triggers
    `release.yml` to publish to npm (no local token or OTP needed).
+
+## Known limits
+
+- `app/globals.css` (a hand-layered stylesheet) fails stylelint's `no-duplicate-selectors` and `no-descending-specificity`, and the
+  pre-commit hook lints any CSS file you touch. Put new styles inline or in a new, lint-clean file; do not reorder the legacy file without
+  screenshot checks of every Studio state.

@@ -37,9 +37,11 @@ export default function Landing({ hostedCreatorEnabled = false }: { hostedCreato
           <Link href="/demo" className="product-nav-link">
             View the demo ↗
           </Link>
-          <Link href="/create" className="product-nav-link">
-            {hostedCreatorEnabled ? "Create a story ↗" : "Create a story · coming soon ↗"}
-          </Link>
+          {hostedCreatorEnabled && (
+            <Link href="/create" className="product-nav-link">
+              Create a story ↗
+            </Link>
+          )}
         </nav>
         <motion.div
           className="product-hero-copy"
@@ -71,9 +73,11 @@ export default function Landing({ hostedCreatorEnabled = false }: { hostedCreato
           <span>Review before sharing</span>
           <span>Share when ready</span>
         </div>
-        <Link href="/create" className="product-nav-link" style={{ position: "absolute", right: "6vw", bottom: "3rem" }}>
-          {hostedCreatorEnabled ? "Create a private story →" : "Create a private story · coming soon →"}
-        </Link>
+        {hostedCreatorEnabled && (
+          <Link href="/create" className="product-nav-link" style={{ position: "absolute", right: "6vw", bottom: "3rem" }}>
+            Create a private story →
+          </Link>
+        )}
       </section>
 
       <section className="product-premise" aria-labelledby="premise-title">

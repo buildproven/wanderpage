@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0 — 2026-10-04
+
+The first stable release. Version 1 is the local-first tool: `npx @buildproven/wanderpage` turns a folder of photos into a private trip page, with a
+traced and tested specification (`docs/REQUIREMENTS.md` → architecture → design → code → tests).
+
+- The hosted browser creator is built and tested but **not part of v1**; the site and landing page no longer mention or link to it.
+- The pre-push secret scan now checks committed history instead of git-ignored local files such as `.env.local`.
+- Known limits: Windows is untested; a stylesheet lint backlog in `app/globals.css` is documented in `CLAUDE.md`.
+
 ## 0.5.0 — 2026-10-03
 
 - **Your site opens on your story.** The home page of the shareable `out/` site now shows your published story (or an index of your stories when
