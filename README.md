@@ -127,12 +127,11 @@ Set these in `.env.local` (see `.env.example`) or your shell.
 - `WANDERPAGE_WORKSPACE` — advanced: write data, cache, and output somewhere other than the project folder.
 - `VERCEL_TOKEN` — optional, only for `--deploy` when the Vercel CLI is not already logged in.
 
-## Hosted browser creator (preview, coming soon)
+## Hosted browser creator (not part of v1)
 
-A server-backed creator (anonymous private drafts, direct private uploads, durable processing, short retention, operator takedown) is implemented behind
-an operator-admission gate and is labeled **coming soon** until its credentialed acceptance run passes. You do not need it to use Wanderpage. To deploy and
-accept a preview yourself, follow [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); the design is in
-[`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md).
+A server-backed creator (anonymous private drafts, direct private uploads, durable processing, short retention, operator takedown) is built and
+tested, but it is not offered in v1: running it means operating paid services for other people. You do not need it. If you want to run it yourself,
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) has the steps and [`docs/decisions/ADR-web-story-creator.md`](docs/decisions/ADR-web-story-creator.md) the design.
 
 ## How it is built and verified
 

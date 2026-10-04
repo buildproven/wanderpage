@@ -221,7 +221,7 @@ manifest during export, and `/demo` renders the bundled demo with product contex
 ### DES-SITE-LANDING Landing page and layout
 
 `Landing` explains the product, links to the demo, and states the privacy promises; `layout.tsx` sets metadata and system font stacks, and
-`page.tsx` renders the landing page. Hosted creation is shown as "coming soon" unless `WANDERPAGE_GENERATION_ENABLED=true`.
+`page.tsx` renders the landing page. Hosted creation is linked only when `WANDERPAGE_GENERATION_ENABLED=true`.
 
 - **Realizes:** ARCH-SITE
 - **Code:** components/Landing.tsx, app/page.tsx, app/layout.tsx
@@ -365,7 +365,7 @@ private cache headers. `loadHostedPublishedStory` validates the slug and fails c
 ### DES-WEB-UI Hosted creator interface
 
 `WebCreator` collects consent, title, people and location choices, and uploads files directly to Blob; `DraftControls` shows draft status,
-retry, title edit, publish, and revoke; `/create` is gated by admission and otherwise shows "coming soon"; `/stories/<id>` is the private
+retry, title edit, publish, and revoke; `/create` is gated by admission and otherwise says creation is not available yet; `/stories/<id>` is the private
 draft desk.
 
 - **Realizes:** ARCH-WEB-UI

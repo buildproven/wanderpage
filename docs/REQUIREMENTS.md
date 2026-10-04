@@ -5,8 +5,9 @@ identifier in this file. [`TRACEABILITY.md`](TRACEABILITY.md) is the generated m
 is missing. See [`V-MODEL.md`](V-MODEL.md) for the conventions.
 
 **Product.** Wanderpage turns a folder of travel photos into a curated, private-by-default trip page that can be hosted anywhere as plain
-static files. The shipped product is the local-first tool (`npx @buildproven/wanderpage`). A browser-based hosted creator exists behind an
-operator-admission gate and is labeled "coming soon" until its credentialed acceptance run passes (see [`DEPLOYMENT.md`](DEPLOYMENT.md)).
+static files. **Version 1 is the local-first tool** (`npx @buildproven/wanderpage`). A browser-based hosted creator (SN-10 and the `REQ-WEB-*`
+requirements) is built and fully tested but is deliberately **not part of v1**: running it means operating paid services for strangers
+(see [`DEPLOYMENT.md`](DEPLOYMENT.md)), so the exported site and landing page do not offer it.
 
 **Scope boundary.** Out of scope: identifying people, payments, accounts, video, RAW files, social features, and any claim about a place that
 the evidence does not support.
