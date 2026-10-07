@@ -10,5 +10,9 @@
   "dailyBudgetUsd": 5,
   "acceptance": {
     "audit": "pnpm audit --audit-level high --prod"
-  }
+  },
+  "review": true,
+  "heldOutAuthorTier": 3,
+  "smoke": "curl -fsS -o /dev/null --max-time 30 \"$KEEL_DEPLOY_URL\"",
+  "install": "pnpm install --frozen-lockfile"
 }

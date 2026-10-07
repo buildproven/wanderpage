@@ -1,0 +1,77 @@
+# Written by keel init (REQ-PROJ-7). Smoke-tests production after each deploy; on failure rolls back and reverts.
+name: keel post-deploy
+
+on: deployment_status
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: keel-post-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+          fetch-depth: 0
+
+      - name: Smoke-test production
+        id: smoke
+        env:
+          KEEL_DEPLOY_URL: ${{ github.event.deployment_status.environment_url }}
+        run: |
+          cmd="$(jq -r '.smoke // empty' keel.json)"
+          if [ -z "$cmd" ]; then
+            echo "::warning::keel.json has no smoke command, so this deploy was not verified"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if bash -c "$cmd"; then exit 0; fi
+            echo "smoke attempt $attempt failed"
+            sleep 20
+          done
+          exit 1
+
+      - name: Roll back production
+        if: failure() && steps.smoke.outcome == 'failure'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::no VERCEL_TOKEN secret, so production was not rolled back"
+            exit 1
+          fi
+          npx --yes vercel@latest rollback --token "$VERCEL_TOKEN" --non-interactive
+
+      - name: Revert the change
+        if: failure() && steps.smoke.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.KEEL_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.deployment.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          base="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
+          short="$(git rev-parse --short "$SHA")"
+          git config user.name "keel post-deploy"
+          git config user.email "keel-post-deploy@users.noreply.github.com"
+          git fetch origin "$base"
+          git checkout -b "keel/revert-$short" "origin/$base"
+          if [ "$(git rev-list --parents -n 1 "$SHA" | wc -w)" -gt 2 ]; then
+            git revert --no-edit -m 1 "$SHA"
+          else
+            git revert --no-edit "$SHA"
+          fi
+          git push origin "keel/revert-$short"
+          url="$(gh pr create --base "$base" --head "keel/revert-$short" \
+            --title "revert: $short failed the post-deploy smoke test" \
+            --body "Production smoke test failed after deploying $SHA: $RUN_URL. Production was rolled back on Vercel; this PR reverts the change on $base.")"
+          gh pr merge "$url" --auto --squash
