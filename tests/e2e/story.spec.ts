@@ -75,3 +75,14 @@ test("the story is readable without a mouse or horizontal scrolling and describe
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+// @verifies DES-SITE-STORY, ARCH-SITE, REQ-UI-05, SN-08
+test("the story prints without navigation and with every chapter visible", async ({ page }) => {
+  await page.goto("/demo");
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".hero-nav")).toBeHidden();
+  const chapters = page.locator(".chapter-heading");
+  expect(await chapters.count()).toBeGreaterThan(1);
+  const opacities = await chapters.evaluateAll(items => items.map(item => getComputedStyle(item).opacity));
+  expect(opacities.every(opacity => opacity === "1")).toBe(true);
+});

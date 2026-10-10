@@ -38,6 +38,12 @@ export default function Story({ trip, showProductContext = false }: { trip: Trip
     return () => window.removeEventListener("keydown", onKey);
   }, [close, move]);
   useEffect(() => {
+    // Lazy images the reader never scrolled to would print as empty frames.
+    const loadAll = () => document.querySelectorAll<HTMLImageElement>("img[loading=lazy]").forEach(image => (image.loading = "eager"));
+    window.addEventListener("beforeprint", loadAll);
+    return () => window.removeEventListener("beforeprint", loadAll);
+  }, []);
+  useEffect(() => {
     document.body.style.overflow = active === null ? "" : "hidden";
     return () => {
       document.body.style.overflow = "";

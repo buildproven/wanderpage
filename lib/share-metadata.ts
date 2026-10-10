@@ -31,7 +31,11 @@ export function storyShareMetadata(trip: TripManifest, siteUrl = process.env.WAN
 function parseSiteUrl(value: string | undefined) {
   const text = value?.trim();
   if (!text) return undefined;
-  const url = new URL(text.endsWith("/") ? text : `${text}/`);
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("WANDERPAGE_SITE_URL must start with https:// or http://");
+  const url = URL.parse(text);
+  if (!url || (url.protocol !== "https:" && url.protocol !== "http:"))
+    throw new Error(`WANDERPAGE_SITE_URL must be a full address such as https://trips.example.com (got "${text}")`);
+  // Story images are root-absolute (/trip/...), so the site must live at the root of its host; a path would break the preview image.
+  if (url.pathname !== "/" || url.search || url.hash)
+    throw new Error(`WANDERPAGE_SITE_URL must be just the site origin, without a path (got "${text}")`);
   return url;
 }

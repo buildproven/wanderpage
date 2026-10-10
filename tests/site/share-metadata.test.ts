@@ -23,7 +23,10 @@ describe("shared-link preview", () => {
     expect(meta.twitter).toMatchObject({ card: "summary_large_image" });
   });
 
-  it("rejects a site address that is not http or https", () => {
-    expect(() => storyShareMetadata(trip, "ftp://example.com")).toThrow(/https:\/\//);
-  });
+  it.each(["ftp://example.com", "trips.example.com", "https://example.com/trips", "https://example.com/?x=1"])(
+    "rejects the site address %s with an actionable message",
+    value => {
+      expect(() => storyShareMetadata(trip, value)).toThrow(/WANDERPAGE_SITE_URL must be/);
+    }
+  );
 });
