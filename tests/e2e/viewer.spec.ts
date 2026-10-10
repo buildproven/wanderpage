@@ -17,10 +17,16 @@ test("the photo viewer plays a slideshow and answers a swipe", async ({ page }) 
   await expect(counter).toHaveText(/^2 \//);
 
   const media = page.locator(".lightbox-media");
-  await media.dispatchEvent("touchstart", { changedTouches: [{ identifier: 1, clientX: 300, clientY: 300 }] });
+  await media.dispatchEvent("touchstart", {
+    touches: [{ identifier: 1, clientX: 300, clientY: 300 }],
+    changedTouches: [{ identifier: 1, clientX: 300, clientY: 300 }],
+  });
   await media.dispatchEvent("touchend", { changedTouches: [{ identifier: 1, clientX: 100, clientY: 300 }] });
   await expect(counter).toHaveText(/^3 \//);
-  await media.dispatchEvent("touchstart", { changedTouches: [{ identifier: 1, clientX: 100, clientY: 300 }] });
+  await media.dispatchEvent("touchstart", {
+    touches: [{ identifier: 1, clientX: 100, clientY: 300 }],
+    changedTouches: [{ identifier: 1, clientX: 100, clientY: 300 }],
+  });
   await media.dispatchEvent("touchend", { changedTouches: [{ identifier: 1, clientX: 110, clientY: 300 }] });
   await expect(counter).toHaveText(/^3 \//);
 });

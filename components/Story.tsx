@@ -20,12 +20,14 @@ const SWIPE_PX = 50;
 export default function Story({ trip, showProductContext = false }: { trip: TripManifest; showProductContext?: boolean }) {
   const [active, setActive] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const swipeStart = useRef<number | null>(null);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const heroScale = useTransform(scrollYProgress, [0, 0.18], [1, reduce ? 1 : 1.08]);
   const photos = useMemo(() => new Map(trip.photos.map(photo => [photo.id, photo])), [trip.photos]);
   const gallery = trip.photos.filter(photo => photo.source === "user");
+  // Autoplay needs something to advance to, and is not offered to readers who asked for less motion.
+  const canPlay = !reduce && gallery.length > 1;
   const close = useCallback(() => {
     setActive(null);
     setPlaying(false);
@@ -40,19 +42,20 @@ export default function Story({ trip, showProductContext = false }: { trip: Trip
       if (event.key === "Escape") close();
       if (event.key === "ArrowRight") move(1);
       if (event.key === "ArrowLeft") move(-1);
-      if (event.key === " " && active !== null) {
+      // Space activates a focused control; only a bare Space (no button focused) toggles the slideshow.
+      if (event.key === " " && canPlay && active !== null && !(event.target instanceof Element && event.target.closest("button"))) {
         event.preventDefault();
         setPlaying(value => !value);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, close, move]);
+  }, [active, canPlay, close, move]);
   useEffect(() => {
     if (!playing) return;
     const timer = window.setInterval(() => move(1), SLIDESHOW_MS);
     return () => window.clearInterval(timer);
-  }, [playing, move]);
+  }, [playing, active, move]);
   useEffect(() => {
     // Lazy images the reader never scrolled to would print as empty frames.
     const loadAll = () => document.querySelectorAll<HTMLImageElement>("img[loading=lazy]").forEach(image => (image.loading = "eager"));
@@ -289,13 +292,15 @@ export default function Story({ trip, showProductContext = false }: { trip: Trip
                 {active + 1} / {gallery.length}
               </span>
               <div className="lightbox-actions">
-                <button
-                  onClick={() => setPlaying(value => !value)}
-                  aria-pressed={playing}
-                  aria-label={playing ? "Pause slideshow" : "Play slideshow"}
-                >
-                  {playing ? "❚❚" : "▶"}
-                </button>
+                {canPlay && (
+                  <button
+                    onClick={() => setPlaying(value => !value)}
+                    aria-pressed={playing}
+                    aria-label={playing ? "Pause slideshow" : "Play slideshow"}
+                  >
+                    {playing ? "❚❚" : "▶"}
+                  </button>
+                )}
                 <button onClick={close} aria-label="Close lightbox">
                   ×
                 </button>
@@ -304,14 +309,20 @@ export default function Story({ trip, showProductContext = false }: { trip: Trip
             <div
               className="lightbox-media"
               onTouchStart={event => {
-                swipeStart.current = event.changedTouches[0]?.clientX ?? null;
+                const touch = event.touches.length === 1 ? event.changedTouches[0] : undefined;
+                swipeStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+              }}
+              onTouchCancel={() => {
+                swipeStart.current = null;
               }}
               onTouchEnd={event => {
                 const start = swipeStart.current,
-                  end = event.changedTouches[0]?.clientX;
+                  end = event.changedTouches[0];
                 swipeStart.current = null;
-                if (start === null || end === undefined || Math.abs(end - start) < SWIPE_PX) return;
-                move(end < start ? 1 : -1);
+                if (!start || !end) return;
+                const dx = end.clientX - start.x;
+                if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) <= Math.abs(end.clientY - start.y)) return;
+                move(dx < 0 ? 1 : -1);
               }}
             >
               <button onClick={() => move(-1)} aria-label="Previous photo">
