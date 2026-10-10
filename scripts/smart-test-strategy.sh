@@ -112,18 +112,18 @@ if [[ $RISK_SCORE -ge 7 ]]; then
   echo "🔴 HIGH RISK - Comprehensive validation (pre-push)"
   echo "   • Unit + integration tests + security audit"
   echo "   • (E2E and command tests run in CI only)"
-  # Runs: npm run test:medium 2>/dev/null || npm run test -- --testPathIgnorePatterns=e2e 2>/dev/null || npm test
-  npm run test:medium 2>/dev/null || npm run test -- --testPathIgnorePatterns=e2e 2>/dev/null || npm test
+  # Runs: npm run test:medium
+  npm run test:medium
 elif [[ $RISK_SCORE -ge 4 ]]; then
   echo "🟡 MEDIUM RISK - Standard validation"
   echo "   • Fast tests + integration (excludes slow tests)"
-  # Runs: npm run test:medium 2>/dev/null || npm run test -- --testPathIgnorePatterns=e2e
-  npm run test:medium 2>/dev/null || npm run test -- --testPathIgnorePatterns=e2e
+  # Runs: npm run test:medium
+  npm run test:medium
 elif [[ $RISK_SCORE -ge 2 || "$SPEED_BONUS" == "false" ]]; then
   echo "🟢 LOW RISK - Fast validation"
   echo "   • Unit tests only"
-  # Runs: npm run test:fast 2>/dev/null || npm run test -- --watch=false --coverage=false
-  npm run test:fast 2>/dev/null || npm run test -- --watch=false --coverage=false
+  # Runs: npm run test:fast
+  npm run test:fast
 else
   echo "⚪ MINIMAL RISK - Quality checks only"
   echo "   • Lint + format check"
