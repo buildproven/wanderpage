@@ -1,6 +1,7 @@
 // @design DES-SITE-LANDING
 import type { Metadata } from "next";
 import "./globals.css";
+import "./lightbox.css";
 import "./print.css";
 
 // Hosted pages must render per request so Next can apply the proxy-generated

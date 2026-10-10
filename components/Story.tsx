@@ -4,7 +4,7 @@
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TripManifest } from "@/lib/schemas/trip";
 
 const reveal = {
@@ -14,15 +14,24 @@ const reveal = {
   transition: { duration: 0.75, ease: [0.2, 0.7, 0.2, 1] as const },
 };
 const MotionImage = motion.create(Image);
+const SLIDESHOW_MS = 4000;
+const SWIPE_PX = 50;
 
 export default function Story({ trip, showProductContext = false }: { trip: TripManifest; showProductContext?: boolean }) {
   const [active, setActive] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const heroScale = useTransform(scrollYProgress, [0, 0.18], [1, reduce ? 1 : 1.08]);
   const photos = useMemo(() => new Map(trip.photos.map(photo => [photo.id, photo])), [trip.photos]);
   const gallery = trip.photos.filter(photo => photo.source === "user");
-  const close = useCallback(() => setActive(null), []);
+  // Autoplay needs something to advance to, and is not offered to readers who asked for less motion.
+  const canPlay = !reduce && gallery.length > 1;
+  const close = useCallback(() => {
+    setActive(null);
+    setPlaying(false);
+  }, []);
   const move = useCallback(
     (delta: number) => setActive(current => (current === null ? null : (current + delta + gallery.length) % gallery.length)),
     [gallery.length]
@@ -33,10 +42,20 @@ export default function Story({ trip, showProductContext = false }: { trip: Trip
       if (event.key === "Escape") close();
       if (event.key === "ArrowRight") move(1);
       if (event.key === "ArrowLeft") move(-1);
+      // Space activates a focused control; only a bare Space (no button focused) toggles the slideshow.
+      if (event.key === " " && canPlay && active !== null && !(event.target instanceof Element && event.target.closest("button"))) {
+        event.preventDefault();
+        setPlaying(value => !value);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [close, move]);
+  }, [active, canPlay, close, move]);
+  useEffect(() => {
+    if (!playing) return;
+    const timer = window.setInterval(() => move(1), SLIDESHOW_MS);
+    return () => window.clearInterval(timer);
+  }, [playing, active, move]);
   useEffect(() => {
     // Lazy images the reader never scrolled to would print as empty frames.
     const loadAll = () => document.querySelectorAll<HTMLImageElement>("img[loading=lazy]").forEach(image => (image.loading = "eager"));
@@ -272,11 +291,40 @@ export default function Story({ trip, showProductContext = false }: { trip: Trip
               <span>
                 {active + 1} / {gallery.length}
               </span>
-              <button onClick={close} aria-label="Close lightbox">
-                ×
-              </button>
+              <div className="lightbox-actions">
+                {canPlay && (
+                  <button
+                    onClick={() => setPlaying(value => !value)}
+                    aria-pressed={playing}
+                    aria-label={playing ? "Pause slideshow" : "Play slideshow"}
+                  >
+                    {playing ? "❚❚" : "▶"}
+                  </button>
+                )}
+                <button onClick={close} aria-label="Close lightbox">
+                  ×
+                </button>
+              </div>
             </div>
-            <div className="lightbox-media">
+            <div
+              className="lightbox-media"
+              onTouchStart={event => {
+                const touch = event.touches.length === 1 ? event.changedTouches[0] : undefined;
+                swipeStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+              }}
+              onTouchCancel={() => {
+                swipeStart.current = null;
+              }}
+              onTouchEnd={event => {
+                const start = swipeStart.current,
+                  end = event.changedTouches[0];
+                swipeStart.current = null;
+                if (!start || !end) return;
+                const dx = end.clientX - start.x;
+                if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) <= Math.abs(end.clientY - start.y)) return;
+                move(dx < 0 ? 1 : -1);
+              }}
+            >
               <button onClick={() => move(-1)} aria-label="Previous photo">
                 ←
               </button>
