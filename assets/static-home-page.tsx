@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Landing from "@/components/Landing";
 import Story from "@/components/Story";
 import StoryIndex from "@/components/StoryIndex";
+import { storyShareMetadata } from "@/lib/share-metadata";
 import { listTrips } from "@/lib/trips/publish";
 
 const root = process.env.WANDERPAGE_WORKSPACE ?? process.cwd();
@@ -11,7 +12,7 @@ const published = async () => (await listTrips(root)).filter(trip => trip.manife
 
 export async function generateMetadata(): Promise<Metadata> {
   const stories = await published();
-  if (stories.length === 1) return { title: `${stories[0]!.manifest.title} — Wanderpage`, description: stories[0]!.manifest.subtitle };
+  if (stories.length === 1) return storyShareMetadata(stories[0]!.manifest);
   return stories.length ? { title: "Trip stories — Wanderpage" } : {};
 }
 

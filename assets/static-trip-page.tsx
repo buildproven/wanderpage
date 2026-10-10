@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Story from "@/components/Story";
 import { TripManifestSchema } from "@/lib/schemas/trip";
+import { storyShareMetadata } from "@/lib/share-metadata";
 import { listTrips } from "@/lib/trips/publish";
 
 const root = process.env.WANDERPAGE_WORKSPACE ?? process.cwd();
@@ -17,7 +18,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const trip = await loadTrip((await params).slug);
-  return trip ? { title: `${trip.title} — Wanderpage`, description: trip.subtitle } : {};
+  return trip ? storyShareMetadata(trip) : {};
 }
 
 export default async function TripPage({ params }: { params: Promise<{ slug: string }> }) {

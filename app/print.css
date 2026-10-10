@@ -1,0 +1,23 @@
+@media print {
+  .hero {
+    min-height: 0;
+    height: 60vh;
+    break-after: page;
+  }
+
+  .hero-nav,
+  .scroll-cue,
+  .lightbox {
+    display: none;
+  }
+
+  .chapter,
+  .route-map {
+    break-inside: avoid;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
