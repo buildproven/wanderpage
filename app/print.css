@@ -1,0 +1,31 @@
+@media print {
+  .hero {
+    min-height: 0;
+    height: 7in;
+    break-after: page;
+  }
+
+  .hero-nav,
+  .scroll-cue,
+  .lightbox {
+    display: none;
+  }
+
+  /* Scroll-reveal starts elements at opacity 0 with inline styles, so unscrolled content would print blank. */
+  .chapter-heading,
+  .photo {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .chapter-heading,
+  .route-map {
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

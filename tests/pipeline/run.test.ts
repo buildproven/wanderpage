@@ -194,7 +194,7 @@ describe("location privacy modes", () => {
       expect(text).not.toContain("45.88213");
       expect(text).not.toContain("-123.96221");
     }
-  });
+  }, 30_000); // two full pipeline runs; the 5s default only holds on an idle machine
 });
 
 // @verifies DES-PIPE-RUN, ARCH-PLACE, REQ-LOC-01, REQ-LOC-04, REQ-AI-04, SN-06, SN-07

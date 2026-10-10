@@ -213,10 +213,12 @@ GPS · Originals untouched"). It surfaces a failed edit instead of hiding it.
 
 `Story` renders hero, chapters with five layouts, a gallery lightbox (keyboard: Escape/arrows, scroll lock), a route summary, sources, and a
 "how it was made" section; it respects reduced motion. `assets/static-trip-page.tsx` statically generates one page per published local
-manifest during export, and `/demo` renders the bundled demo with product context.
+manifest during export, and `/demo` renders the bundled demo with product context. `lib/share-metadata.ts` adds Open Graph and Twitter
+link-preview tags from already-public manifest fields; the hero image is included only when `WANDERPAGE_SITE_URL` gives an absolute origin.
+`app/print.css` makes the story print cleanly (no nav or lightbox, chapters not split across pages).
 
 - **Realizes:** ARCH-SITE
-- **Code:** components/Story.tsx, assets/static-trip-page.tsx, app/demo/page.tsx
+- **Code:** components/Story.tsx, assets/static-trip-page.tsx, app/demo/page.tsx, lib/share-metadata.ts
 
 ### DES-SITE-LANDING Landing page and layout
 

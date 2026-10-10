@@ -122,6 +122,7 @@ Set these in `.env.local` (see `.env.example`) or your shell.
 - `OPENAI_VISION_MODEL`, `OPENAI_WRITER_MODEL` — model names (defaults in `.env.example`).
 - `WIKIMEDIA_USER_AGENT` — descriptive user agent for the optional Wikipedia/Open-Meteo lookups. These lookups are the only other network calls; if they
   fail, the page is simply photo-led.
+- `WANDERPAGE_SITE_URL` — optional, e.g. `https://trips.example.com`. Adds the hero photo to link previews (Open Graph / Twitter); without it, previews carry the title and description only.
 - `WANDERPAGE_PORT` — Studio port (default 4317, bound to 127.0.0.1 only).
 - `WANDERPAGE_ENV_FILE` — path to an existing private env file to read without copying it.
 - `WANDERPAGE_WORKSPACE` — advanced: write data, cache, and output somewhere other than the project folder.
