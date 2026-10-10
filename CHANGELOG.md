@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 — 2026-10-10
+
+- **Shared links look right.** Your published pages now carry link-preview tags (Open Graph and Twitter), so iMessage, Slack and social apps show the
+  title and description. Set `WANDERPAGE_SITE_URL` (for example `https://trips.example.com`, no path) before exporting to add the hero photo to the
+  preview. Only information already public on the page is used.
+- **Prints cleanly.** The story prints without navigation or the photo viewer, with every chapter and photo visible.
+- **Better photo viewer.** Swipe left or right on a phone, or press play (or Space) for a slideshow that respects reduced-motion settings.
+- Security: updated Next.js to clear newly published advisories.
+
 ## 1.0.0 — 2026-10-04
 
 The first stable release. Version 1 is the local-first tool: `npx @buildproven/wanderpage` turns a folder of photos into a private trip page, with a
