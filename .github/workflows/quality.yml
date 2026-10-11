@@ -17,14 +17,8 @@ on:
       - "LICENSE"
       - ".gitignore"
       - ".editorconfig"
-  pull_request:
+  pull_request: # No paths-ignore: the required "summary" check must report on docs-only PRs
     branches: [main, master, develop]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "LICENSE"
-      - ".gitignore"
-      - ".editorconfig"
   schedule:
     - cron: "0 0 1 * *" # Monthly on 1st (security scans)
   workflow_dispatch: # Manual trigger
