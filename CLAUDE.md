@@ -7,7 +7,9 @@ trip page. Preserve originals, never identify people, never publish exact GPS,
 and omit unsupported location claims.
 
 Use pnpm. Run `pnpm check` before shipping. GitHub pull requests must pass the
-QA Architect workflow and `/bs:quality --merge` before reaching `main`.
+QA Architect workflow, `keel gate --base main --card <card.md>`, and an independent
+review (`/code-review` in Claude Code, `/review` in Codex) before reaching `main`;
+merge after green CI.
 
 ## Commands
 
@@ -47,8 +49,8 @@ branch).
 1. From an up-to-date, clean local `main`: `pnpm release:patch` (or
    `:minor`/`:major`). This bumps the version on a `chore/release-vX.Y.Z`
    branch and opens a PR — it does not touch `main` directly.
-2. Get that PR reviewed and merged (`/bs:quality --merge` squash-merges by
-   default, which is fine — the tag is created from `main`'s HEAD after
+2. Get that PR reviewed and merged (`keel gate`, an independent review, then a
+   squash merge after green CI, which is fine — the tag is created from `main`'s HEAD after
    merge, not carried over from the branch, so it doesn't matter which
    merge strategy was used).
 3. `git checkout main && git pull`, then `pnpm release:tag`. This creates
