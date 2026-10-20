@@ -265,7 +265,7 @@ folder). A mismatch, a missing platform build, or a failed download prints one p
 removed without recursive deletes. The private Node.js is put in front of PATH, with `npm_config_cache` set inside the private folder, only for
 the `npx --yes @buildproven/wanderpage "$@"` it then runs; profiles, the user or machine PATH, and the registry are never touched. The shell
 script runs inside `main()` so a truncated download cannot run half a script, and starts the launcher with stdin from `/dev/null` so the piped
-script is not read by it. The PowerShell script never calls `exit`, which would close the user's window under `iex`. The launcher
+script is not read by it. `irm | iex` runs in the user's own session, so the PowerShell script runs everything inside `& { … } @args` (its error preference, variables, and functions end with it), saves `PATH` and the two npm settings before changing them and restores them in `finally`, and never calls `exit`, which would close the user's window. The launcher
 (`bin/wanderpage.js`) is the only traced code: the scripts hand off to it and use its plain `node` and `npm` commands.
 
 - **Realizes:** ARCH-CLI

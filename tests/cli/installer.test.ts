@@ -200,6 +200,25 @@ describe("one-line installer for Windows", () => {
     expect(text).not.toMatch(/^\s*exit\b/m);
   });
 
+  it("leaves nothing behind in the user's session after `irm | iex`: child scope, and PATH and npm settings restored", async () => {
+    const code = (await script("install.ps1")).split("\n").filter(line => line.trim() && !line.trimStart().startsWith("#"));
+    // Everything runs inside `& { … } @args`, so the error preference, variables, and functions end with it.
+    expect(code[0]).toBe("& {");
+    expect(code.at(-1)).toBe("} @args");
+    expect(code.slice(1, -1).every(line => line.startsWith("  "))).toBe(true);
+    expect(code.filter(line => line.includes("$global:"))).toEqual(["    $global:LASTEXITCODE = 1"]);
+    // The process environment is not scoped, so each variable set for npx is saved first and put back in `finally`.
+    const text = code.join("\n"),
+      set = text.indexOf('$env:PATH = "$bin;$env:PATH"');
+    for (const name of ["PATH", "npm_config_cache", "npm_config_update_notifier"]) {
+      expect(text).toMatch(new RegExp(`foreach \\(\\$name in [^)]*'${name}'`));
+    }
+    expect(text.lastIndexOf("$saved[$name] = (Get-Item", set)).toBeGreaterThan(-1);
+    const restore = text.indexOf("finally {", set);
+    expect(restore).toBeGreaterThan(text.indexOf("& npx.cmd", set));
+    expect(text.slice(restore)).toMatch(/Remove-Item "Env:\$name"[\s\S]*Set-Item "Env:\$name" \$saved\[\$name\]/);
+  });
+
   it("requires the same Node.js major as the launcher", async () => {
     const launcher = await readFile(join(repoRoot, "bin/local-edition.js"), "utf8"),
       floor = /Number\(version\.split\("\."\)\[0\]\) >= (\d+)/.exec(launcher)?.[1];
