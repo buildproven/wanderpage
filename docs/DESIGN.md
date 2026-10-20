@@ -254,6 +254,23 @@ browser, and listen on 127.0.0.1; the double-click macOS launcher needs only Nod
 - **Realizes:** ARCH-CLI
 - **Code:** bin/wanderpage.js, bin/local-edition.js, bin/local-edition.d.ts, scripts/private.ts, scripts/studio.ts
 
+### DES-CLI-INSTALL One-line installers
+
+`install.sh` (POSIX `sh`, run as `curl -fsSL …/install.sh | sh`) and `install.ps1` (`irm …/install.ps1 | iex`) sit beside the package and are
+not part of the npm package. Both do the same: use a Node.js 24+ (the floor `nodeVersionProblem` enforces) with `npx` already on PATH; else
+reuse a private copy from an earlier run; else download one. The download reads `SHASUMS256.txt` from nodejs.org's `latest-v24.x` folder
+(`WANDERPAGE_NODE_BASE_URL` replaces the host for tests), picks the `.tar.gz` (macOS, Linux; x64 or arm64) or `.zip` (Windows) for this
+platform, compares its SHA-256, and only then unpacks it to `~/.wanderpage/node-v<version>-<platform>` (`WANDERPAGE_HOME` overrides the
+folder). A mismatch, a missing platform build, or a failed download prints one plain sentence and starts nothing; the temporary files are
+removed without recursive deletes. The private Node.js is put in front of PATH, with `npm_config_cache` set inside the private folder, only for
+the `npx --yes @buildproven/wanderpage "$@"` it then runs; profiles, the user or machine PATH, and the registry are never touched. The shell
+script runs inside `main()` so a truncated download cannot run half a script, and starts the launcher with stdin from `/dev/null` so the piped
+script is not read by it. `irm | iex` runs in the user's own session, so the PowerShell script runs everything inside `& { … } @args` (its error preference, variables, and functions end with it), saves `PATH` and the two npm settings before changing them and restores them in `finally`, and never calls `exit`, which would close the user's window. The launcher
+(`bin/wanderpage.js`) is the only traced code: the scripts hand off to it and use its plain `node` and `npm` commands.
+
+- **Realizes:** ARCH-CLI
+- **Code:** bin/wanderpage.js
+
 ### DES-CLI-TRIP Trip and publish commands
 
 `trip.ts` validates `--people` (required unless `--demo`), `--max-photos` (integer 12–60), and `--privacy`

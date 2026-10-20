@@ -93,10 +93,11 @@ The static Next.js pages that render a manifest: landing page, the permanent dem
 
 ### ARCH-CLI Launcher and command-line tools
 
-`npx` launcher (checks Node.js, sets up a light "local edition" of the package, installs it with npm, opens Studio), the private launcher,
+`npx` launcher (checks Node.js, sets up a light "local edition" of the package, installs it with npm, opens Studio), the one-line installers
+that provide a private Node.js when none is installed and then run that launcher, the private launcher,
 and the `trip` / `trip:publish` / `deploy` scripts with strict argument validation. Nothing at run time needs a package manager on PATH.
 
-- **Satisfies:** REQ-CLI-01, REQ-CLI-02, REQ-CLI-06, REQ-UI-04
+- **Satisfies:** REQ-CLI-01, REQ-CLI-02, REQ-CLI-06, REQ-INST-1, REQ-INST-2, REQ-UI-04
 
 ### ARCH-AGENT Agent-safe local contract
 
