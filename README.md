@@ -24,6 +24,28 @@ To try it with no key and no photos, open the built-in demo at `/demo`, or run `
 Run the same command later to reopen Studio in the existing project. Pass a folder name to put the project somewhere else
 (`npx @buildproven/wanderpage my-trips`). If you made a project with 0.3.0–0.3.2, delete that folder and run the command again.
 
+### No Node.js yet? One line does it
+
+The installer uses a Node.js 24+ you already have. If you have none, it downloads the official Node.js into `~/.wanderpage` (checking the
+download's SHA-256 against nodejs.org's published list first) and starts Wanderpage with it. It does not change your PATH, shell profile, or any
+system setting; delete `~/.wanderpage` to remove it.
+
+macOS and Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/buildproven/wanderpage/main/install.sh | sh
+```
+
+Windows (PowerShell; not tested yet, like the rest of Windows support):
+
+```powershell
+irm https://raw.githubusercontent.com/buildproven/wanderpage/main/install.ps1 | iex
+```
+
+Add a project folder or flags after `sh -s --` (`… | sh -s -- my-trips`), or on Windows run
+`& ([scriptblock]::Create((irm https://raw.githubusercontent.com/buildproven/wanderpage/main/install.ps1))) my-trips`.
+Set `WANDERPAGE_HOME` to keep the private Node.js somewhere else. Alpine Linux is not supported by the installer.
+
 ### Add your OpenAI key for the full edit
 
 Without a key, Wanderpage makes a **basic edit**: photos are ranked by technical quality only, with generic captions and **no people detection**.
@@ -106,7 +128,7 @@ re-run the privacy scan, and report the digests of what they published. Details:
 
 | You see                                                         | Do this                                                                                            |
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `Wanderpage needs Node.js 24 or newer…`                         | Install the current LTS from nodejs.org, then re-run the same command.                             |
+| `Wanderpage needs Node.js 24 or newer…`                         | Install the current LTS from nodejs.org, or use the one-line installer above, then re-run.         |
 | "No OpenAI key found" banner in Studio                          | Add `OPENAI_API_KEY` to `.env.local` and restart, or continue with the basic edit.                 |
 | `OPENAI_API_KEY is required for strict --people exclude`        | Strict exclusion needs the vision model. Add a key, or choose **Include**.                         |
 | `No supported JPEG, PNG, WebP, HEIC, or HEIF photos were found` | Check the folder path; subfolders are searched automatically.                                      |

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @design DES-CLI-LAUNCH
+// @design DES-CLI-LAUNCH, DES-CLI-INSTALL
 // Sets up a local Wanderpage project (like `create-next-app`) and launches Studio there. Studio writes generated trip data back into its own
 // folder and needs its own node_modules, so it cannot run as a stateless, ephemeral `npx` package. This entry copies a light "local edition"
 // of the package into a persistent project folder once, installs it with npm (which ships with Node, so nothing else has to be installed

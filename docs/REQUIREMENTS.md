@@ -280,6 +280,22 @@ the fix.
 
 - **Needs:** SN-06
 
+### REQ-INST-1 Install Node.js privately when it is missing
+
+When no Node.js 24 or newer is on the user's computer, the one-line installer (`install.sh` for macOS and Linux, `install.ps1` for Windows)
+shall download the official Node.js build into a private folder (`~/.wanderpage`), check its SHA-256 against nodejs.org's published list
+before unpacking it, and start Studio with it. A suitable Node.js already present is used as is. A checksum mismatch or failed download
+shall install and start nothing and say why.
+
+- **Needs:** SN-06
+
+### REQ-INST-2 Leave the computer's settings alone
+
+The installer shall not change the user's PATH, shell profile, registry, or any other system setting: the private Node.js is put in front of
+PATH only for the one command the installer starts.
+
+- **Needs:** SN-06
+
 ### REQ-CLI-06 Keep the first run light
 
 The project the launcher installs for a user shall contain only what Studio, the pipeline, and the static export need: no test, lint,
