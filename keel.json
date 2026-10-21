@@ -6,7 +6,7 @@
     "test": "pnpm test"
   },
   "testCommand": "pnpm test",
-  "testFilesCommand": "pnpm exec vitest run {files}",
+  "testFilesCommand": "pnpm exec vitest run --passWithNoTests {files}",
   "linearProject": "Wanderpage",
   "acceptance": {
     "audit": "pnpm audit --audit-level high --prod"
