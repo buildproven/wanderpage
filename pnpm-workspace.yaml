@@ -35,5 +35,5 @@ overrides:
   minimatch: ">=9.0.3"
   undici: ">=8.12.2"
   "body-parser@>=2.0.0 <2.4.0": ">=2.4.0"
-  "zod@<4.6.6": ">=4.6.6"
+  "zod@>=4.0.0 <4.6.6": ">=4.6.6 <5"
 verifyDepsBeforeRun: warn
