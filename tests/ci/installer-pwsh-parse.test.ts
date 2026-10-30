@@ -174,7 +174,8 @@ describe("quality workflow parses install.ps1 with PowerShell", () => {
   });
 
   // Runs where PowerShell exists (the CI tests job on ubuntu-latest); dev machines have none.
-  it.skipIf(!hasPwsh)("passes on the shipped install.ps1 and fails on a broken copy", async () => {
+  // Two cold pwsh starts on the hosted runner take longer than vitest's 5 s default.
+  it.skipIf(!hasPwsh)("passes on the shipped install.ps1 and fails on a broken copy", { timeout: 60_000 }, async () => {
     const { step } = findParseStep(await loadJobs())!;
     const sandbox = await mkdtemp(join(tmpdir(), "wanderpage-pwsh-parse-"));
     try {
