@@ -48,6 +48,8 @@ beforeAll(async () => {
   const modules = join(workspace, "node_modules");
   await mkdir(modules);
   await symlink(join(repoRoot, "node_modules/.bin"), join(modules, ".bin"));
+  // pnpm bin shims can exec "$basedir/../.pnpm/<pkg>/...", relative to the linked .bin.
+  await symlink(join(repoRoot, "node_modules/.pnpm"), join(modules, ".pnpm"));
   for (const name of [...Object.keys(local.dependencies), ...Object.keys(local.devDependencies)]) {
     const [scope, rest] = name.startsWith("@") ? name.split("/") : [undefined, name];
     if (scope) await mkdir(join(modules, scope), { recursive: true });
