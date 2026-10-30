@@ -10,7 +10,7 @@ labels: bug
 
 **Environment**
 
-- Wanderpage version (`npx @buildproven/wanderpage --version`):
+- Wanderpage version (the `version` field in your project folder's `package.json`):
 - OS:
 - Node.js version (`node --version`):
 - OpenAI key set (yes/no):

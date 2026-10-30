@@ -27,7 +27,7 @@ pnpm check         # typecheck, lint, traceability, and the full test suite
 
 ## Reporting a problem
 
-Open an issue with the version (`npx @buildproven/wanderpage --version`), your OS, and the steps you took. Report security problems privately
+Open an issue with the version (the `version` field in your project folder's `package.json`), your OS, and the steps you took. Report security problems privately
 (see [SECURITY.md](SECURITY.md)), never in a public issue.
 
 By contributing you agree that your work is released under the [MIT License](LICENSE).
