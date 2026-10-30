@@ -595,6 +595,33 @@ jobs:
           # Teams can enforce by adding 'error' level assertions in their lighthouserc
           echo "::notice::Lighthouse failures are warnings. Add 'error' assertions in .lighthouserc.js to enforce."
 
+  # Windows installer syntax: no dev machine has PowerShell, so CI parses
+  # install.ps1 with the PowerShell language parser (it does not run it).
+  installer-parse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Parse install.ps1 with PowerShell
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          $path = Join-Path $PWD 'install.ps1'
+          [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            foreach ($parseError in $parseErrors) {
+              Write-Output "::error file=install.ps1,line=$($parseError.Extent.StartLineNumber),col=$($parseError.Extent.StartColumnNumber)::$($parseError.Message)"
+            }
+            exit 1
+          }
+          Write-Output 'install.ps1 parsed with no errors.'
+
   # Step 5: Summary - report what checks ran
   summary:
     runs-on: ubuntu-latest
