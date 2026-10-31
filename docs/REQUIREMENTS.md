@@ -296,6 +296,13 @@ PATH only for the one command the installer starts.
 
 - **Needs:** SN-06
 
+### REQ-INST-3 Check the Windows installer's syntax in CI
+
+Every quality workflow run shall parse `install.ps1` with the PowerShell language parser on a Linux runner, without running the script, and
+shall fail that check, naming the line and column of each error, when the script does not parse.
+
+- **Needs:** SN-06
+
 ### REQ-CLI-06 Keep the first run light
 
 The project the launcher installs for a user shall contain only what Studio, the pipeline, and the static export need: no test, lint,
@@ -426,5 +433,19 @@ identity, never from a developer machine.
 
 The repository shall fail its quality gate when a need, requirement, architecture component, or design unit lacks an upward link, a
 downward realization, or a verifying test, or when a source file or test file is untraced.
+
+- **Needs:** SN-11
+
+### REQ-KEELCFG-1 Let Keel run only the tests a change touches
+
+The Keel configuration (`keel.json`) shall give a test-files command that runs vitest on the given files and passes when none of them is a
+file vitest runs (such as a Playwright spec under `tests/e2e`).
+
+- **Needs:** SN-11
+
+### REQ-KEELCFG-2 Gate Keel work with the repository's own checks
+
+The Keel configuration shall run the repository's own lint, typecheck, build, and test commands, install with the frozen lockfile, accept
+only a high-severity production dependency audit that passes, keep the cross-model review on, and report to the Wanderpage Linear project.
 
 - **Needs:** SN-11
