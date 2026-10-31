@@ -94,10 +94,10 @@ The static Next.js pages that render a manifest: landing page, the permanent dem
 ### ARCH-CLI Launcher and command-line tools
 
 `npx` launcher (checks Node.js, sets up a light "local edition" of the package, installs it with npm, opens Studio), the one-line installers
-that provide a private Node.js when none is installed and then run that launcher, the private launcher,
+that provide a private Node.js when none is installed and then run that launcher (CI parses the PowerShell one on every run), the private launcher,
 and the `trip` / `trip:publish` / `deploy` scripts with strict argument validation. Nothing at run time needs a package manager on PATH.
 
-- **Satisfies:** REQ-CLI-01, REQ-CLI-02, REQ-CLI-06, REQ-INST-1, REQ-INST-2, REQ-UI-04
+- **Satisfies:** REQ-CLI-01, REQ-CLI-02, REQ-CLI-06, REQ-INST-1, REQ-INST-2, REQ-INST-3, REQ-UI-04
 
 ### ARCH-AGENT Agent-safe local contract
 
@@ -175,9 +175,10 @@ Release scripts (version PR, tag from merged main), the allowlisted package cont
 
 ### ARCH-QA Quality gate and traceability
 
-`pnpm check` (types, lint, trace, unit, integration, build, privacy scan, browser tests) and the V-model traceability checker.
+`pnpm check` (types, lint, trace, unit, integration, build, privacy scan, browser tests), the V-model traceability checker, and the Keel
+configuration (`keel.json`) that gates automated work with the same commands.
 
-- **Satisfies:** REQ-QA-01, REQ-REL-01
+- **Satisfies:** REQ-QA-01, REQ-REL-01, REQ-KEELCFG-1, REQ-KEELCFG-2
 
 ## Data and ownership
 
