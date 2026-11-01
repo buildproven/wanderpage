@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { runTrip } from "@/lib/pipeline/run";
 import { runStaticExport } from "@/lib/static-export-run";
-import { validateStaticExport } from "@/lib/publishing/privacy";
+import { configuredSecrets, validateStaticExport } from "@/lib/publishing/privacy";
 import { TripManifestSchema, type TripManifest } from "@/lib/schemas/trip";
 import { removeTripAssets, syncPublishedAssets } from "@/lib/trips/assets";
 import { deleteTrip, getTrip, listTrips, setTripPublished, writeTrip } from "@/lib/trips/publish";
@@ -232,8 +232,7 @@ async function buildAndValidate(root: string, onProgress?: (stage: string, progr
   // The shareable site is the static export in out/; the hosted server build does not produce it.
   await runStaticExport(root);
   onProgress?.("privacy", 97, "Checking metadata, paths, and secrets");
-  const secrets = [process.env.OPENAI_API_KEY, process.env.VERCEL_TOKEN].filter((value): value is string => Boolean(value));
-  const privacy = await validateStaticExport(join(root, "out"), secrets);
+  const privacy = await validateStaticExport(join(root, "out"), configuredSecrets());
   if (privacy.errors.length) throw new Error(`Privacy validation failed:\n${privacy.errors.join("\n")}`);
   return privacy;
 }
