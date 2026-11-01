@@ -44,7 +44,7 @@ design → unit).
 | REQ-ING-05 | Detect duplicates | SN-01 | `tests/integration/photo-folder.test.ts` › ingests real image files, edits them, builds the static site, and opens it in a browser<br>`tests/photos/ingest.test.ts` › duplicate grouping |
 | REQ-INST-1 | Install Node.js privately when it is missing | SN-06 | `tests/ci/installer-pwsh-parse.test.ts` › quality workflow parses install.ps1 with PowerShell<br>`tests/cli/installer.test.ts` › one-line installer for Windows<br>`tests/cli/installer.test.ts` › one-line installer for macOS and Linux |
 | REQ-INST-2 | Leave the computer's settings alone | SN-06 | `tests/cli/installer.test.ts` › one-line installer for Windows<br>`tests/cli/installer.test.ts` › one-line installer for macOS and Linux |
-| REQ-INST-3 | Check the Windows installer's syntax in CI | SN-06 | `tests/ci/installer-parse-requirement.test.ts` › CI checks the Windows installer's syntax |
+| REQ-INST-3 | Check the Windows installer's syntax in CI | SN-06 | `tests/ci/installer-parse-requirement.test.ts` › CI checks the Windows installer's syntax<br>`tests/ci/summary-gate-installer-parse.test.ts` › the required summary check counts the Windows installer parse |
 | REQ-KEELCFG-1 | Let Keel run only the tests a change touches | SN-11 | `tests/config/keel-config.test.ts` › Keel runs only the tests a change touches |
 | REQ-KEELCFG-2 | Gate Keel work with the repository's own checks | SN-11 | `tests/config/keel-config.test.ts` › Keel gates work with the repository's own checks |
 | REQ-LOC-01 | Name a place only with evidence | SN-03 | `tests/location.test.ts` › destination inference<br>`tests/pipeline/run.test.ts` › offline sources |
