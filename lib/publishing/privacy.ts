@@ -28,3 +28,32 @@ export async function validateStaticExport(outputPath: string, secrets: string[]
   }
   return { files, errors };
 }
+
+export type PublishResult = { deployed: boolean; files: number; findings: string[] };
+
+/** Thrown when the privacy scan blocks a deploy; the message lists every finding. */
+export class PrivacyScanError extends Error {
+  constructor(readonly findings: string[]) {
+    super(`Privacy validation failed; nothing was deployed:\n${findings.join("\n")}`);
+    this.name = "PrivacyScanError";
+  }
+}
+
+export function configuredSecrets(env: NodeJS.ProcessEnv = process.env) {
+  return [env.OPENAI_API_KEY, env.VERCEL_TOKEN].filter((value): value is string => Boolean(value));
+}
+
+/**
+ * The single deploy gate: scan the static export first and call `deploy` only
+ * when the scan reports no findings. Every caller (CLI, Studio, MCP) goes through here.
+ */
+export async function deployAfterPrivacyScan(options: {
+  outputPath: string;
+  deploy: () => Promise<void>;
+  secrets?: string[];
+}): Promise<PublishResult> {
+  const { files, errors } = await validateStaticExport(options.outputPath, options.secrets ?? configuredSecrets());
+  if (errors.length) return { deployed: false, files: files.length, findings: errors };
+  await options.deploy();
+  return { deployed: true, files: files.length, findings: [] };
+}
