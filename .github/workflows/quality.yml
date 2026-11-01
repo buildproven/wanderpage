@@ -629,6 +629,7 @@ jobs:
       - audit-report
       - tests
       - documentation
+      - installer-parse
     if: always()
 
     steps:
@@ -692,6 +693,7 @@ jobs:
       # summary is the required status check: it must fail when a needed job
       # failed or was cancelled. detect-maturity must succeed — when it is
       # skipped every job skips and the gate would pass with nothing run (BUI-1755).
+      # installer-parse has no condition, so it must succeed too (BUI-1767).
       - name: Enforce check results
         if: always()
         env:
@@ -700,12 +702,15 @@ jobs:
           AUDIT_REPORT_RESULT: ${{ needs.audit-report.result }}
           TESTS_RESULT: ${{ needs.tests.result }}
           DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
+          INSTALLER_PARSE_RESULT: ${{ needs.installer-parse.result }}
         run: |
           failed=""
           check() {
             case "$1:$2" in
               detect-maturity:success) ;;
               detect-maturity:*) failed="$failed $1($2)" ;;
+              installer-parse:success) ;;
+              installer-parse:*) failed="$failed $1($2)" ;;
               *:success|*:skipped) ;;
               *) failed="$failed $1($2)" ;;
             esac
@@ -715,6 +720,7 @@ jobs:
           check audit-report "$AUDIT_REPORT_RESULT"
           check tests "$TESTS_RESULT"
           check documentation "$DOCUMENTATION_RESULT"
+          check installer-parse "$INSTALLER_PARSE_RESULT"
           if [ -n "$failed" ]; then
             echo "❌ Quality gate failed:$failed"
             echo "**❌ Quality gate failed:**$failed" >> "$GITHUB_STEP_SUMMARY"
