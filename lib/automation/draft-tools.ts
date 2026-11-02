@@ -84,13 +84,18 @@ async function recordReasons(root: string, slug: string, manifest: TripManifest)
     manifest.photos.flatMap(photo => (selection.reasons[photo.id] ? [[photo.id, selection.reasons[photo.id]]] : []))
   );
   await mkdir(join(root, ".trip-output/reasons"), { recursive: true });
-  await writeFile(join(root, ".trip-output/reasons", `${slug}.json`), JSON.stringify(reasons, null, 2));
+  // generatedAt ties the record to this run: a later draft under the same slug (after a delete or a re-run by Studio or the CLI) gets a new one.
+  await writeFile(
+    join(root, ".trip-output/reasons", `${slug}.json`),
+    JSON.stringify({ generatedAt: manifest.generatedAt, reasons }, null, 2)
+  );
 }
 
 async function recordedReasons(root: string, slug: string, manifest: TripManifest): Promise<Record<string, string>> {
-  const own = await readJson(join(root, ".trip-output/reasons", `${slug}.json`));
-  if (isStringMap(own)) return own;
-  // A draft made by Studio or the CLI has no per-draft record; the latest run's selection applies only if it produced this draft.
+  const own = (await readJson(join(root, ".trip-output/reasons", `${slug}.json`))) as
+    { generatedAt?: unknown; reasons?: unknown } | undefined;
+  if (own && typeof own === "object" && own.generatedAt === manifest.generatedAt && isStringMap(own.reasons)) return own.reasons;
+  // A draft made by Studio or the CLI has no current per-draft record; the latest run's selection applies only if it produced this draft.
   const selection = await readSelection(root);
   if (selection && manifest.photos.every(photo => selection.selected.includes(photo.id))) return selection.reasons;
   return {};

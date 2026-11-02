@@ -299,8 +299,9 @@ any thrown error into an MCP tool error (`isError`). Their logic lives in `lib/a
 and reads EXIF for GPS and capture dates without writing; `createDraft` (`draft-tools.ts`) validates the folder, runs `runTrip` one run
 at a time (runs share `.trip-output/`), defaults the maximum to 36 like `pnpm trip`, and returns the slug and a summary whose
 `selectedPhotos` is the count actually selected (with a note when it exceeds the requested maximum). After each run it saves the
-per-photo selection reasons to `.trip-output/reasons/<slug>.json`; `draftWithReasons` reads the draft through `readDraft` (slug grammar,
-no symlinks) and joins those reasons, falling back to `.trip-output/selection.json` only when that run selected every photo of the draft,
+per-photo selection reasons to `.trip-output/reasons/<slug>.json` with the manifest's `generatedAt`; `draftWithReasons` reads the draft
+through `readDraft` (slug grammar, no symlinks) and joins those reasons only when `generatedAt` matches (a later draft under the same
+slug ignores the old record), falling back to `.trip-output/selection.json` only when that run selected every photo of the draft,
 else `null`.
 
 - **Realizes:** ARCH-MCP
