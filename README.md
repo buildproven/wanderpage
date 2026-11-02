@@ -146,8 +146,8 @@ Tools: `inspect_photos` (photo count, GPS and dates found), `create_draft` (fold
 has fewer), `get_draft` (manifest and why each photo was selected), `list_drafts`, `edit_draft` (remove photos, set the hero, retitle, or
 change captions of an unpublished draft, with the same checks as Studio), `preview_draft` (contact-sheet images of the selected photos,
 built from the web images), and `publish_site` (publishes the draft, rebuilds `out/`, and runs the privacy scan; any finding is returned as
-an error and the draft goes back to private). `create_draft` with `people: "exclude"` needs `OPENAI_API_KEY` in the server's environment. Keep `--silent`: standard
-output carries only MCP messages, and without it some pnpm versions print a `> wanderpage mcp` banner there that the client cannot parse.
+an error, nothing is deployed, and the draft keeps the published state it had before the call). `create_draft` with `people: "exclude"`
+needs `OPENAI_API_KEY` in the server's environment. Keep `--silent`: standard output carries only MCP messages, and without it some pnpm versions print a `> wanderpage mcp` banner there that the client cannot parse.
 
 ## Troubleshooting
 
