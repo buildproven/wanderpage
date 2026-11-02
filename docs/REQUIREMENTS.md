@@ -333,8 +333,8 @@ workspace directories.
 
 ### REQ-MCP-1 Serve the local MCP tools
 
-When `pnpm mcp` starts, the system shall serve MCP over stdio with the tools `inspect_photos`, `create_draft`, `get_draft`, and
-`list_drafts`, each with a strict input schema that rejects unknown arguments.
+When `pnpm mcp` starts, the system shall serve MCP over stdio with the tools `inspect_photos`, `create_draft`, `get_draft`,
+`list_drafts`, `edit_draft`, `preview_draft`, and `publish_site`, each with a strict input schema that rejects unknown arguments.
 
 - **Needs:** SN-09
 
@@ -360,6 +360,28 @@ When `get_draft` is called with a slug, the system shall return the manifest and
 return each slug with its published state. Neither shall change a draft.
 
 - **Needs:** SN-09, SN-04
+
+### REQ-MCP-5 Edit a draft through MCP
+
+When `edit_draft` is called with a slug and changes (remove a photo, set the hero, retitle, edit a caption), the system shall apply them
+through the same draft check Studio uses (`normalizeDraft`), write the draft, and return the updated manifest; an invalid change shall
+return a tool error and leave the draft unchanged.
+
+- **Needs:** SN-09, SN-05
+
+### REQ-MCP-6 Preview a draft through MCP
+
+When `preview_draft` is called with a slug, the system shall return a contact-sheet image of the selected photos as an MCP image result,
+built with `buildContactSheet` from the published WebP files (never the originals).
+
+- **Needs:** SN-09, SN-04
+
+### REQ-MCP-7 Publish a site through MCP
+
+When `publish_site` is called with a slug, the system shall publish the draft, build the static site, run the privacy scan, and return the
+`out/` path and the scan result; when the scan finds anything, it shall return the findings as a tool error and deploy nothing.
+
+- **Needs:** SN-09, SN-03, SN-04
 
 ### REQ-CLI-05 Publish only a revalidated draft
 

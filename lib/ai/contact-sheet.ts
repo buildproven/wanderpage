@@ -4,7 +4,8 @@ import { dirname } from "node:path";
 import sharp, { type OverlayOptions } from "sharp";
 import type { PhotoRecord } from "@/lib/photos/types";
 
-export async function buildContactSheet(photos: PhotoRecord[], output: string) {
+/** Tiles up to 16 photos (4 x 4) from each photo's `analysisPath` image, labelled with its id. */
+export async function buildContactSheet(photos: Array<Pick<PhotoRecord, "id" | "analysisPath">>, output: string) {
   await mkdir(dirname(output), { recursive: true });
   const tileW = 300,
     tileH = 250;

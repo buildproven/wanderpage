@@ -56,10 +56,18 @@ const call = async (client: Client, name: string, args: Record<string, unknown>)
 // @verifies DES-MCP-TOOLS, ARCH-MCP
 describe("local MCP server", () => {
   // @verifies REQ-MCP-1
-  it("lists the four tools, each with a strict input schema", async () => {
+  it("lists the seven tools, each with a strict input schema", async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map(tool => tool.name).sort()).toEqual(["create_draft", "get_draft", "inspect_photos", "list_drafts"]);
+    expect(tools.map(tool => tool.name).sort()).toEqual([
+      "create_draft",
+      "edit_draft",
+      "get_draft",
+      "inspect_photos",
+      "list_drafts",
+      "preview_draft",
+      "publish_site",
+    ]);
     for (const tool of tools) expect(tool.inputSchema).toMatchObject({ type: "object", additionalProperties: false });
   });
 

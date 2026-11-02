@@ -17,9 +17,9 @@ export type CreateDraftInput = {
 /** Same default as `pnpm trip`. */
 export const defaultMaxPhotos = 36;
 
-// One pipeline run at a time: runs share `.trip-output/` and the process console.
+// One pipeline run or draft mutation at a time: runs share `.trip-output/`, the published assets, `out/`, and the process console.
 let queue: Promise<unknown> = Promise.resolve();
-function exclusive<T>(task: () => Promise<T>): Promise<T> {
+export function exclusive<T>(task: () => Promise<T>): Promise<T> {
   const next = queue.then(task, task);
   queue = next.catch(() => undefined);
   return next;
