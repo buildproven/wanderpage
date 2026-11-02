@@ -56,7 +56,7 @@ const call = async (client: Client, name: string, args: Record<string, unknown>)
 // @verifies DES-MCP-TOOLS, ARCH-MCP
 describe("local MCP server", () => {
   // @verifies REQ-MCP-1
-  it("lists the seven tools, each with a strict input schema", async () => {
+  it("lists the four tools, each with a strict input schema", async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
     expect(tools.map(tool => tool.name).sort()).toEqual([
