@@ -134,7 +134,7 @@ stay on this Mac; tools take folder paths. Add it to `claude_desktop_config.json
   "mcpServers": {
     "wanderpage": {
       "command": "pnpm",
-      "args": ["--dir", "/path/to/wanderpage", "mcp"],
+      "args": ["--silent", "--dir", "/path/to/wanderpage", "mcp"],
       "env": { "WANDERPAGE_WORKSPACE": "/path/to/wanderpage" }
     }
   }
@@ -144,7 +144,8 @@ stay on this Mac; tools take folder paths. Add it to `claude_desktop_config.json
 Tools: `inspect_photos` (photo count, GPS and dates found), `create_draft` (folder, `people`, `locationPrivacy`, optional `title` and
 `maxPhotos`; the draft stays private and the result states how many photos were selected, which is never fewer than 18 unless the folder
 has fewer), `get_draft` (manifest and why each photo was selected), and `list_drafts`. Publishing stays a deliberate step in Studio or
-`draft:publish`. `create_draft` with `people: "exclude"` needs `OPENAI_API_KEY` in the server's environment.
+`draft:publish`. `create_draft` with `people: "exclude"` needs `OPENAI_API_KEY` in the server's environment. Keep `--silent`: standard
+output carries only MCP messages, and without it some pnpm versions print a `> wanderpage mcp` banner there that the client cannot parse.
 
 ## Troubleshooting
 
