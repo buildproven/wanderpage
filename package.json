@@ -35,6 +35,7 @@
     "!components/**/*.test.tsx",
     "lib",
     "scripts",
+    "mcp",
     "workflows",
     "db",
     "proxy.ts",
@@ -57,6 +58,7 @@
     "studio": "tsx scripts/studio.ts",
     "wanderpage": "tsx scripts/wanderpage.ts",
     "mcp": "tsx mcp/server.ts",
+    "mcpb": "rm -rf dist/mcpb && mkdir -p dist/mcpb/extension && cp manifest.json dist/mcpb/extension/ && mcpb validate manifest.json && mcpb pack dist/mcpb/extension dist/mcpb/wanderpage.mcpb && cd skills && zip -qrX ../dist/mcpb/wanderpage-skill.zip wanderpage",
     "private": "tsx scripts/private.ts",
     "build": "next build --webpack",
     "static:export": "tsx scripts/static-export.ts",
@@ -129,6 +131,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@eslint/eslintrc": "^3.3.7",

@@ -7,6 +7,27 @@ Turn a folder of travel photos into a private, cinematic trip page you can host 
 - **Metadata removed.** Published images are resized WebP files with no camera, GPS, or file-path data.
 - **Local first.** One command on your machine. No account, server, or database.
 
+## Use Wanderpage in Claude
+
+Wanderpage is made to be driven from a chat with Claude: Claude calls the Wanderpage tools on your Mac, and your photos never leave it.
+First run `npx @buildproven/wanderpage` once (see [Quickstart](#quickstart)) to set up your project folder (`~/wanderpage` by default).
+Then use one of these:
+
+- **Claude Desktop extension.** In a checkout of this repository, run `pnpm install` and then `pnpm mcpb`. Open
+  `dist/mcpb/wanderpage.mcpb` in Claude Desktop (or drag it onto Settings > Extensions), select **Install**, and choose your Wanderpage
+  project folder. An OpenAI API key is optional; it enables the full edit and strict people exclusion.
+- **Skill.** `pnpm mcpb` also writes `dist/mcpb/wanderpage-skill.zip`. Upload that skill ZIP at Customize > Skills so Claude knows the
+  workflow (inspect a folder, create a draft, preview, edit, publish) and the privacy rules. In Claude Code, the skill loads from
+  `skills/wanderpage/` in this repository.
+- **Claude Code.** Add the server with `claude mcp add`:
+
+  ```bash
+  claude mcp add wanderpage -e WANDERPAGE_WORKSPACE="$HOME/wanderpage" -- \
+    node "$HOME/wanderpage/node_modules/tsx/dist/cli.mjs" --tsconfig "$HOME/wanderpage/tsconfig.json" "$HOME/wanderpage/mcp/server.ts"
+  ```
+
+Studio is frozen: it keeps working, but new features go to the Claude tools, not to Studio.
+
 ## Quickstart
 
 You need one thing: [Node.js](https://nodejs.org) 24 or newer (the current LTS download). Then run:
