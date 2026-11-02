@@ -1,0 +1,66 @@
+{
+  "manifest_version": "0.3",
+  "name": "wanderpage",
+  "display_name": "Wanderpage",
+  "version": "1.1.0",
+  "description": "Turn a folder of travel photos on this Mac into a private, curated static trip page.",
+  "long_description": "Wanderpage reads a photo folder, selects and orders the photos, and builds a static trip page you can host anywhere. It never identifies people, never publishes exact GPS, removes photo metadata, and runs a privacy scan before anything is published. The extension starts the MCP server from your Wanderpage project folder (the one `npx @buildproven/wanderpage` made, `~/wanderpage` by default), so your photos and drafts stay on this Mac.",
+  "author": {
+    "name": "BuildProven"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/buildproven/wanderpage"
+  },
+  "homepage": "https://github.com/buildproven/wanderpage",
+  "license": "MIT",
+  "keywords": ["travel", "photos", "static-site", "local-first", "privacy"],
+  "server": {
+    "type": "node",
+    "entry_point": "mcp/server.ts",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${user_config.project}/node_modules/tsx/dist/cli.mjs",
+        "--tsconfig",
+        "${user_config.project}/tsconfig.json",
+        "${user_config.project}/mcp/server.ts"
+      ],
+      "env": {
+        "WANDERPAGE_WORKSPACE": "${user_config.project}",
+        "OPENAI_API_KEY": "${user_config.openai_api_key}"
+      }
+    }
+  },
+  "user_config": {
+    "project": {
+      "type": "directory",
+      "title": "Wanderpage project folder",
+      "description": "The folder `npx @buildproven/wanderpage` set up (~/wanderpage by default). Drafts and the published site live here.",
+      "required": true
+    },
+    "openai_api_key": {
+      "type": "string",
+      "title": "OpenAI API key (optional)",
+      "description": "Enables the full edit and strict people exclusion. Without it, Wanderpage ranks photos by technical quality only.",
+      "sensitive": true,
+      "required": false,
+      "default": ""
+    }
+  },
+  "tools": [
+    { "name": "inspect_photos", "description": "Inspect a photo folder" },
+    { "name": "create_draft", "description": "Create a private trip draft" },
+    { "name": "get_draft", "description": "Read a trip draft" },
+    { "name": "list_drafts", "description": "List trip drafts" },
+    { "name": "edit_draft", "description": "Edit a trip draft" },
+    { "name": "preview_draft", "description": "Preview a trip draft" },
+    { "name": "publish_site", "description": "Publish a trip and build the site" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=24.0.0"
+    }
+  }
+}

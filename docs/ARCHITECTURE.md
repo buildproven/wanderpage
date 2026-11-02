@@ -113,7 +113,14 @@ folder paths. Drafts are created unpublished and edited through the same draft c
 publishes, and it goes through the privacy-gated deploy path (`deployAfterPrivacyScan`). Protocol output owns standard output, so pipeline
 logging is redirected to standard error.
 
-- **Satisfies:** REQ-MCP-1, REQ-MCP-2, REQ-MCP-3, REQ-MCP-4, REQ-MCP-5, REQ-MCP-6, REQ-MCP-7
+Delivery: `manifest.json` describes a Claude Desktop extension that carries no server code. Its `mcp_config` runs Claude Desktop's
+Node with the project's own `tsx` on `<project>/mcp/server.ts` (`--tsconfig` so `@/` imports resolve from any working directory) and sets
+`WANDERPAGE_WORKSPACE` to the project folder the user picks at install. The server needs the whole project (sharp, the static export),
+so it stays in the project that `npx @buildproven/wanderpage` installs; the npm package ships `mcp/` for that reason. `pnpm mcpb`
+validates the manifest, packs it with `@anthropic-ai/mcpb` into `dist/mcpb/wanderpage.mcpb`, and zips `skills/wanderpage/` (the
+workflow and privacy rules for Claude) into `dist/mcpb/wanderpage-skill.zip`.
+
+- **Satisfies:** REQ-MCP-1, REQ-MCP-2, REQ-MCP-3, REQ-MCP-4, REQ-MCP-5, REQ-MCP-6, REQ-MCP-7, REQ-AGENT-1, REQ-AGENT-2, REQ-AGENT-3
 
 ### ARCH-WEB-EDGE Hosted request edge
 

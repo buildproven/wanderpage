@@ -383,6 +383,28 @@ When `publish_site` is called with a slug, the system shall publish the draft, b
 
 - **Needs:** SN-09, SN-03, SN-04
 
+### REQ-AGENT-1 Give Claude the trip workflow as a skill
+
+The repository shall contain `skills/wanderpage/SKILL.md` whose `name` matches its folder and whose `description` is at most 1,024
+characters. Its body shall give the workflow (inspect a folder, create a draft, preview it, edit it, publish it) and the privacy rules:
+never identify a person, keep the chosen location precision, and never publish when the scan reports findings.
+
+- **Needs:** SN-09, SN-02, SN-03
+
+### REQ-AGENT-2 Package the MCP server as a desktop extension
+
+When `pnpm mcpb` runs, the system shall build a desktop extension (`.mcpb`, packed with `@anthropic-ai/mcpb`) from a `manifest.json`
+that launches the stdio server from the user's Wanderpage project folder, and a skill ZIP; `mcpb validate` shall pass.
+
+- **Needs:** SN-09, SN-06
+
+### REQ-AGENT-3 Lead the README with the Claude install paths
+
+The README shall start with "Use Wanderpage in Claude": install the `.mcpb` in Claude Desktop, upload the skill ZIP at Customize >
+Skills, or run `claude mcp add` for Claude Code. It shall state that Studio is frozen.
+
+- **Needs:** SN-09, SN-06
+
 ### REQ-CLI-05 Publish only a revalidated draft
 
 The agent CLI shall re-run privacy validation on the draft at publish time, report the manifest and asset-tree digests of what it
