@@ -109,10 +109,11 @@ a canonical workspace root confines every path. Interface: JSON envelope on stdo
 ### ARCH-MCP Local MCP server
 
 A stdio MCP server (`mcp/server.ts`) over the same local store and pipeline as the agent CLI. Photos stay on the machine and tools take
-folder paths. Drafts are created unpublished; the server has no publish tool. Protocol output owns standard output, so pipeline logging is
-redirected to standard error.
+folder paths. Drafts are created unpublished and edited through the same draft check as Studio; `publish_site` is the only tool that
+publishes, and it goes through the privacy-gated deploy path (`deployAfterPrivacyScan`). Protocol output owns standard output, so pipeline
+logging is redirected to standard error.
 
-- **Satisfies:** REQ-MCP-1, REQ-MCP-2, REQ-MCP-3, REQ-MCP-4
+- **Satisfies:** REQ-MCP-1, REQ-MCP-2, REQ-MCP-3, REQ-MCP-4, REQ-MCP-5, REQ-MCP-6, REQ-MCP-7
 
 ### ARCH-WEB-EDGE Hosted request edge
 

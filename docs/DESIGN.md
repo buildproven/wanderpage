@@ -152,10 +152,12 @@ configured secret. `privacy-check.ts` runs it against `out/` and exits non-zero 
 `writeTrip`, `getTrip`, `listTrips`, `deleteTrip`, and `setTripPublished` read and write `data/trips/<slug>.json` through the schema.
 `setTripPublished` flips only the `published` flag. `syncPublishedAssets` builds `public/trip/generated` from the private `.trip-assets`
 of published trips only, in a fresh directory that replaces the old one by rename with rollback, and fails if a published trip lacks its
-assets. `removeTripAssets` deletes one trip's private assets.
+assets. `removeTripAssets` deletes one trip's private assets. `normalizeDraft` (`draft.ts`) is the draft check every editor (Studio and
+MCP) applies before writing: at least one photo, no duplicate photo, a hero that is in the story (else the first photo), and chapters,
+route points, and destination links that point only at what remains.
 
 - **Realizes:** ARCH-PUBLISH
-- **Code:** lib/trips/publish.ts, lib/trips/assets.ts
+- **Code:** lib/trips/publish.ts, lib/trips/assets.ts, lib/trips/draft.ts
 
 ### DES-PUB-SLUG Readable unique page names
 
@@ -306,6 +308,22 @@ else `null`.
 
 - **Realizes:** ARCH-MCP
 - **Code:** lib/automation/draft-tools.ts
+
+### DES-MCP-PUBLISH MCP edit, preview, and publish tools
+
+`mcp/server.ts` also registers `edit_draft`, `preview_draft`, and `publish_site`; their logic lives in
+`lib/automation/publish-tools.ts`. Edits and publishes share the `createDraft` queue (`exclusive`), so they never interleave with a
+pipeline run. `editDraft` refuses a published draft and an empty change set, checks that every named photo is in the draft, that the
+hero is not also removed, and that no caption targets a removed photo, then runs `normalizeDraft` and writes the draft with `writeTrip`;
+any refusal throws before the write. `previewDraft` reads the draft through `readDraft`, maps each photo's `srcMedium` to
+`.trip-assets/<slug>/<id>-medium.webp` (through `assertPrivatePath`: no symlinks, no escape), tiles 16 photos per sheet with
+`buildContactSheet` in a temporary directory, and returns the JPEG sheets as MCP image content. `publishSite` revalidates the draft
+(`validateDraft`, writes nothing), sets it published, builds `out/` (`runStaticExport` by default), and calls `deployAfterPrivacyScan`
+with an optional hosting step (none by default: `out/` is the shareable site). Any later failure, a scan finding included, restores the
+original manifest, re-syncs the published assets, and rebuilds `out/` before the error is returned.
+
+- **Realizes:** ARCH-MCP
+- **Code:** lib/automation/publish-tools.ts
 
 ## Hosted creator
 

@@ -130,7 +130,8 @@ export async function realDirectory(input: string, label: string) {
   }
 }
 
-async function assertPrivatePath(root: string, child: string) {
+/** Resolves `child` inside `root`, refusing symbolic links and paths that leave the workspace. */
+export async function assertPrivatePath(root: string, child: string) {
   const candidate = resolve(root, child);
   if (relative(root, candidate).startsWith("..")) throw new LocalCommandError("INVALID_ARGUMENT", "Path escapes the workspace.");
   try {
