@@ -331,6 +331,36 @@ workspace directories.
 
 - **Needs:** SN-09, SN-04
 
+### REQ-MCP-1 Serve the local MCP tools
+
+When `pnpm mcp` starts, the system shall serve MCP over stdio with the tools `inspect_photos`, `create_draft`, `get_draft`, and
+`list_drafts`, each with a strict input schema that rejects unknown arguments.
+
+- **Needs:** SN-09
+
+### REQ-MCP-2 Inspect a folder through MCP
+
+When `inspect_photos` is called with a folder path, the system shall return the photo count and whether GPS data and capture dates were
+found, without writing anything.
+
+- **Needs:** SN-09
+
+### REQ-MCP-3 Create a private draft through MCP
+
+When `create_draft` is called with a folder, a people setting, a location-privacy mode, an optional title, and an optional maximum photo
+count, the system shall run the pipeline and return the slug and a draft summary that states the number of photos actually selected. The
+selection rule (at least 18 photos, or every photo when there are fewer) is unchanged, so a smaller maximum is exceeded and the summary
+says so. With people excluded and no vision provider configured, the system shall refuse with a tool error.
+
+- **Needs:** SN-09, SN-05
+
+### REQ-MCP-4 Read drafts through MCP
+
+When `get_draft` is called with a slug, the system shall return the manifest and the reason each photo was selected; `list_drafts` shall
+return each slug with its published state. Neither shall change a draft.
+
+- **Needs:** SN-09, SN-04
+
 ### REQ-CLI-05 Publish only a revalidated draft
 
 The agent CLI shall re-run privacy validation on the draft at publish time, report the manifest and asset-tree digests of what it

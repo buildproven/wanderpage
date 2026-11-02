@@ -292,6 +292,20 @@ operation, ok, data, receipt}` or an error envelope, with exit codes 0 / 2 inval
 - **Realizes:** ARCH-AGENT
 - **Code:** lib/automation/local.ts, scripts/wanderpage.ts
 
+### DES-MCP-TOOLS MCP draft tools
+
+`mcp/server.ts` registers `inspect_photos`, `create_draft`, `get_draft`, and `list_drafts` with `z.strictObject` input schemas and turns
+any thrown error into an MCP tool error (`isError`). Their logic lives in `lib/automation`: `inspectPhotos` (`local.ts`) counts photos
+and reads EXIF for GPS and capture dates without writing; `createDraft` (`draft-tools.ts`) validates the folder, runs `runTrip` one run
+at a time (runs share `.trip-output/`), defaults the maximum to 36 like `pnpm trip`, and returns the slug and a summary whose
+`selectedPhotos` is the count actually selected (with a note when it exceeds the requested maximum). After each run it saves the
+per-photo selection reasons to `.trip-output/reasons/<slug>.json`; `draftWithReasons` reads the draft through `readDraft` (slug grammar,
+no symlinks) and joins those reasons, falling back to `.trip-output/selection.json` only when that run selected every photo of the draft,
+else `null`.
+
+- **Realizes:** ARCH-MCP
+- **Code:** lib/automation/draft-tools.ts
+
 ## Hosted creator
 
 ### DES-WEB-HTTP Hosted HTTP helpers and request proxy

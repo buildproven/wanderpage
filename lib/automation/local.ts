@@ -3,6 +3,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
+import exifr from "exifr";
+import pLimit from "p-limit";
 import { discoverPhotos } from "../photos/ingest";
 import { validateStaticExport } from "../publishing/privacy";
 import { TripManifestSchema, type TripManifest } from "../schemas/trip";
@@ -37,7 +39,29 @@ export async function workspace(input?: string) {
 
 export async function inspectPhotos(input: string) {
   const folder = await realDirectory(input, "Photo folder");
-  return { input: folder, supportedPhotos: (await discoverPhotos(folder)).length };
+  const files = await discoverPhotos(folder),
+    limit = pLimit(4),
+    found = await Promise.all(files.map(file => limit(() => readEvidence(file))));
+  const photosWithGps = found.filter(item => item.gps).length,
+    photosWithDates = found.filter(item => item.date).length;
+  return {
+    input: folder,
+    supportedPhotos: files.length,
+    photosWithGps,
+    photosWithDates,
+    hasGps: photosWithGps > 0,
+    hasDates: photosWithDates > 0,
+  };
+}
+
+/** Read-only EXIF probe; an unreadable file counts as having neither GPS nor a date. */
+async function readEvidence(file: string) {
+  const exif = (await exifr.parse(file, { gps: true, tiff: true, exif: true }).catch(() => undefined)) as
+    Record<string, unknown> | undefined;
+  return {
+    gps: typeof exif?.latitude === "number" && typeof exif?.longitude === "number",
+    date: exif?.DateTimeOriginal instanceof Date && !Number.isNaN(exif.DateTimeOriginal.getTime()),
+  };
 }
 
 export async function readDraft(root: string, slug: string) {
@@ -95,7 +119,7 @@ function assertSlug(slug: string) {
     throw new LocalCommandError("INVALID_ARGUMENT", "Draft slug must contain only lowercase letters, numbers, and hyphens.");
 }
 
-async function realDirectory(input: string, label: string) {
+export async function realDirectory(input: string, label: string) {
   const candidate = resolve(input);
   try {
     const value = await realpath(candidate);

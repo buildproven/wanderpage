@@ -124,6 +124,28 @@ Add `--workspace /path/to/wanderpage` when running from another directory. Exit 
 failure, `4` missing target, `10` unexpected error. `inspect`, `list`, `show`, and `validate` never change anything; `publish` and `unpublish` are explicit,
 re-run the privacy scan, and report the digests of what they published. Details: [`docs/decisions/ADR-agent-ready-cli.md`](docs/decisions/ADR-agent-ready-cli.md).
 
+### From Claude Desktop (MCP)
+
+`pnpm mcp` (inside a project checkout) serves a local MCP server over stdio, so Claude Desktop can edit a photo folder for you. Your photos
+stay on this Mac; tools take folder paths. Add it to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "wanderpage": {
+      "command": "pnpm",
+      "args": ["--dir", "/path/to/wanderpage", "mcp"],
+      "env": { "WANDERPAGE_WORKSPACE": "/path/to/wanderpage" }
+    }
+  }
+}
+```
+
+Tools: `inspect_photos` (photo count, GPS and dates found), `create_draft` (folder, `people`, `locationPrivacy`, optional `title` and
+`maxPhotos`; the draft stays private and the result states how many photos were selected, which is never fewer than 18 unless the folder
+has fewer), `get_draft` (manifest and why each photo was selected), and `list_drafts`. Publishing stays a deliberate step in Studio or
+`draft:publish`. `create_draft` with `people: "exclude"` needs `OPENAI_API_KEY` in the server's environment.
+
 ## Troubleshooting
 
 | You see                                                         | Do this                                                                                            |

@@ -106,6 +106,14 @@ a canonical workspace root confines every path. Interface: JSON envelope on stdo
 
 - **Satisfies:** REQ-CLI-03, REQ-CLI-04, REQ-CLI-05
 
+### ARCH-MCP Local MCP server
+
+A stdio MCP server (`mcp/server.ts`) over the same local store and pipeline as the agent CLI. Photos stay on the machine and tools take
+folder paths. Drafts are created unpublished; the server has no publish tool. Protocol output owns standard output, so pipeline logging is
+redirected to standard error.
+
+- **Satisfies:** REQ-MCP-1, REQ-MCP-2, REQ-MCP-3, REQ-MCP-4
+
 ### ARCH-WEB-EDGE Hosted request edge
 
 The proxy (nonce CSP, owner-cookie renewal), HTTP helpers (typed errors, private cache headers), same-origin mutation guards, the
