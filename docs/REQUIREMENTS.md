@@ -512,8 +512,9 @@ downward realization, or a verifying test, or when a source file or test file is
 
 ### REQ-KEELCFG-1 Let Keel run only the tests a change touches
 
-The Keel configuration (`keel.json`) shall give a test-files command that runs vitest on the given files and passes when none of them is a
-file vitest runs (such as a Playwright spec under `tests/e2e`).
+The Keel configuration (`keel.json`) shall give a test-files command that runs each given test file with the runner that owns it: a
+Playwright spec under `tests/e2e` with Playwright, after the same build `pnpm test` gives it, and any other test file with vitest. The
+command shall fail when none of the given files is a test file, so it never passes without running a test.
 
 - **Needs:** SN-11
 
