@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { promisify } from "node:util";
+import { promisify, stripVTControlCharacters } from "node:util";
 import { describe, expect, it } from "vitest";
 import { planTestFiles, repoPath } from "../helpers/keel-test-files";
 import { repoRoot } from "../helpers/workspace";
@@ -86,7 +86,7 @@ describe("Keel's test-files command never passes without running a test (BUI-156
 
   it("runs and passes a vitest file it is given", async () => {
     const { stdout } = await runTestFiles(["tests/slug.test.ts"]);
-    expect(stdout).toMatch(/Test Files\s+1 passed \(1\)/);
+    expect(stripVTControlCharacters(stdout)).toMatch(/Test Files\s+1 passed \(1\)/);
   }, 60_000);
 
   it("fails when a given vitest file fails, so base can prove red", async () => {
