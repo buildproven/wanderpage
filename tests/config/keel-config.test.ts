@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { planTestFiles } from "../helpers/keel-test-files";
 import { repoRoot } from "../helpers/workspace";
 
 const execute = promisify(execFile);
@@ -21,17 +22,25 @@ describe("Keel runs only the tests a change touches", () => {
   const command = String(keel.testFilesCommand);
 
   it("runs vitest on the given files", () => {
-    expect(command.split(" ")).toEqual(expect.arrayContaining(["vitest", "run", "{files}"]));
+    // Every file outside tests/e2e goes to vitest; Playwright specs go to Playwright (BUI-1564).
+    expect(planTestFiles(["tests/slug.test.ts", "tests/schema.test.ts"], repoRoot)).toEqual([
+      { command: "pnpm", args: ["exec", "vitest", "run", "tests/slug.test.ts", "tests/schema.test.ts"] },
+    ]);
     expect(command.split(" ").filter(part => part === "{files}")).toHaveLength(1);
   });
 
   it("passes when every given file is one vitest does not run", async () => {
-    await expect(runTestFiles(command, ["tests/e2e/viewer.spec.ts", "tests/e2e/story.spec.ts"])).resolves.toBeDefined();
+    // Files vitest does not run are Playwright specs, so Playwright runs them instead of the command passing on no test.
+    const [, ...args] = planTestFiles(["tests/e2e/viewer.spec.ts", "tests/e2e/story.spec.ts"], repoRoot).at(-1)!.args;
+    await expect(runTestFiles(["pnpm", "exec", ...args, "--list"].join(" "), [])).resolves.toMatchObject({
+      stdout: expect.stringMatching(/Total: [1-9]\d* tests? in 2 files/),
+    });
   }, 60_000);
 
   it("needs --passWithNoTests: without it the same files fail", async () => {
-    const strict = command.replace(" --passWithNoTests", "");
-    expect(strict).not.toBe(command);
+    // vitest alone would need --passWithNoTests to pass on Playwright specs; that flag passes without running a test (BUI-1564).
+    const strict = "pnpm exec vitest run {files}";
+    expect(command).not.toContain("--passWithNoTests");
     await expect(runTestFiles(strict, ["tests/e2e/viewer.spec.ts"])).rejects.toMatchObject({
       code: 1,
       stderr: expect.stringContaining("No test files found"),
