@@ -72,29 +72,24 @@ describe("CI parses the Windows installer on every push", () => {
     ).not.toEqual([]);
   });
 
-  it("runs the same installer-parse job as the required quality workflow, so the two cannot drift", async () => {
-    const workflows = await loadWorkflows();
-    const quality = workflows.find(workflow => workflow.file === "quality.yml");
+  it("runs the required quality workflow, with its installer-parse job, on every push", async () => {
+    const quality = (await loadWorkflows()).find(workflow => workflow.file === "quality.yml");
     expect(quality, "quality.yml is missing").toBeDefined();
-    const required = jobs(quality!).get("installer-parse");
-    expect(required, "quality.yml has no installer-parse job").toBeDefined();
-    expect(parsesInstaller(required!)).toBe(true);
-    for (const workflow of workflows.filter(candidate => candidate.file !== "quality.yml" && runsOnEveryPush(candidate)))
-      for (const [id, job] of jobs(workflow))
-        if (parsesInstaller(job)) {
-          expect(id, `${workflow.file} job name`).toBe("installer-parse");
-          expect(job, `${workflow.file} installer-parse differs from quality.yml`).toBe(required);
-        }
+    expect(runsOnEveryPush(quality!), "quality.yml push trigger has a branch, tag, or path filter").toBe(true);
+    const job = jobs(quality!).get("installer-parse");
+    expect(job, "quality.yml has no installer-parse job").toBeDefined();
+    expect(parsesInstaller(job!)).toBe(true);
+    // No condition and no ignored failure: the parse runs and counts on every push.
+    expect(job).not.toMatch(/^ {4}if:/m);
+    expect(job).not.toMatch(/continue-on-error/);
   });
 
-  it("keeps the push workflow read-only and its result counted", async () => {
-    const workflows = await loadWorkflows();
-    for (const workflow of workflows.filter(candidate => candidate.file !== "quality.yml" && runsOnEveryPush(candidate))) {
-      if (![...jobs(workflow).values()].some(parsesInstaller)) continue;
-      expect(topLevel(workflow.lines, "permissions").join("\n")).toMatch(/^ {2}contents:\s*read\s*$/m);
-      expect(workflow.text).not.toMatch(/continue-on-error/);
-      expect(workflow.text).not.toMatch(/^ {4}if:/m);
-    }
+  it("keeps the pull request and schedule triggers", async () => {
+    const quality = (await loadWorkflows()).find(workflow => workflow.file === "quality.yml")!;
+    const on = topLevel(quality.lines, "on").join("\n");
+    expect(on).toMatch(/^ {2}pull_request:/m);
+    expect(on).toMatch(/^ {2}schedule:/m);
+    expect(on).toMatch(/^ {2}workflow_dispatch:/m);
   });
 
   it("detects push filters and inline triggers", () => {
