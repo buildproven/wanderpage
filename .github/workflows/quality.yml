@@ -215,7 +215,12 @@ jobs:
           tar -xzf "${GITLEAKS_DIR}/gitleaks.tar.gz" -C "${GITLEAKS_DIR}" gitleaks
           echo "${GITLEAKS_SHA256}  ${GITLEAKS_DIR}/gitleaks" | sha256sum --check -
           if [ "${{ github.event_name }}" = 'pull_request' ] || [ "${{ github.event_name }}" = 'push' ]; then
-            "${GITLEAKS_DIR}/gitleaks" git --redact --no-banner --log-opts="$BASE_SHA..$HEAD_SHA" .
+            if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+              echo "No valid comparison base; scanning the complete repository history."
+              "${GITLEAKS_DIR}/gitleaks" git --redact --no-banner .
+            else
+              "${GITLEAKS_DIR}/gitleaks" git --redact --no-banner --log-opts="$BASE_SHA..$HEAD_SHA" .
+            fi
           else
             "${GITLEAKS_DIR}/gitleaks" git --redact --no-banner .
           fi
@@ -228,13 +233,17 @@ jobs:
           set -euo pipefail
           SEMGREP_ARGS=()
           if [ "${{ github.event_name }}" = 'pull_request' ] || [ "${{ github.event_name }}" = 'push' ]; then
-            CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
-            APPLICATION_CHANGES="$(printf '%s\n' "$CHANGED_FILES" | grep -vE '^(\.github/workflows/quality\.yml|\.buildproven/test-impact\.json)$' || true)"
-            if [ -z "$APPLICATION_CHANGES" ]; then
-              echo 'Only generated quality policy files changed; no application security surface changed.'
-              exit 0
+            if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+              echo 'No valid comparison base; scanning the complete worktree.'
+            else
+              CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+              APPLICATION_CHANGES="$(printf '%s\n' "$CHANGED_FILES" | grep -vE '^(\.github/workflows/quality\.yml|\.buildproven/test-impact\.json)$' || true)"
+              if [ -z "$APPLICATION_CHANGES" ]; then
+                echo 'Only generated quality policy files changed; no application security surface changed.'
+                exit 0
+              fi
+              SEMGREP_ARGS+=(--baseline-commit "$BASE_SHA")
             fi
-            SEMGREP_ARGS+=(--baseline-commit "$BASE_SHA")
           fi
           docker run --rm \
             --mount "type=bind,source=$PWD,target=/src,readonly" \
@@ -390,7 +399,13 @@ jobs:
           CLAUDE_KIT_SHA: 6209610058b95a3d3f2a9d1af7a10f9c69f0dd69
         run: |
           set -euo pipefail
-          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA:.buildproven/test-impact.json" 2>/dev/null; then
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "No valid comparison base. Running the complete test suite."
+            timeout 300 pnpm run test
+            exit 0
+          fi
+
+          if ! git cat-file -e "$BASE_SHA:.buildproven/test-impact.json" 2>/dev/null; then
             CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
             APPLICATION_CHANGES="$(printf '%s\n' "$CHANGED_FILES" | grep -vE '^(\.github/workflows/quality\.yml|\.buildproven/test-impact\.json)$' || true)"
             if [ -z "$APPLICATION_CHANGES" ]; then
