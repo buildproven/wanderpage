@@ -75,7 +75,7 @@ and chooses the deterministic provider in demo mode. Interface: `runTrip(options
 Owns the manifest schema, metadata-free derivatives, the local draft store (`data/trips`, `.trip-assets`), publish/unpublish state, page
 names, the decision report, privacy validation of the exported artifact, and atomic replacement of the static export.
 
-- **Satisfies:** REQ-PUB-01, REQ-PUB-02, REQ-PUB-03, REQ-PUB-04, REQ-PUB-05, REQ-PUB-06, REQ-PUB-07, REQ-LOC-02
+- **Satisfies:** REQ-PUB-01, REQ-PUB-02, REQ-PUB-03, REQ-PUB-04, REQ-PUB-05, REQ-PUB-06, REQ-PUB-07, REQ-PUB-08, REQ-PUB-09, REQ-PUB-10, REQ-LOC-02
 
 ### ARCH-STUDIO Local Studio
 
@@ -205,7 +205,7 @@ configuration (`keel.json`) that gates automated work with the same commands.
 | Local report          | `.trip-output/`          | ARCH-PUBLISH   | local only; never exported                  |
 | Draft manifest        | `data/trips/<slug>.json` | ARCH-PUBLISH   | until deleted                               |
 | Private derivatives   | `.trip-assets/<slug>/`   | ARCH-PUBLISH   | copied to `public/` only when published     |
-| Static site           | `out/`                   | ARCH-PUBLISH   | replaced atomically                         |
+| Static site           | `out/`; host `out/site/` | ARCH-PUBLISH   | replaced atomically                         |
 | Hosted story and runs | Neon Postgres            | ARCH-WEB-STORE | drafts 30 days idle; tombstones 30 days     |
 | Hosted bytes          | private Vercel Blob      | ARCH-WEB-*     | sources deleted on finalize/expiry          |
 

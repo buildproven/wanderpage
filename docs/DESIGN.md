@@ -175,6 +175,11 @@ into `out/` by renaming the previous artifact aside and restoring it on failure.
 interruption left `out/` absent and removes swap residue. `runStaticExport` runs that script with the project's own `tsx` through `node`, so no
 package manager has to be on PATH.
 
+`out/` is the whole export and Studio loads from it, so it also holds `studio.html`, `demo.html` and the demo-trip images. Before the swap,
+`writeShareableSite` copies the staged export into `out/site/` and leaves out `studio`, `demo`, their `.html` and `.txt` files, and `trip/demo`.
+`out/site/` is the folder to host: it holds the user's story and no Studio or demo page. Studio and the README name it. The swap replaces `out/`
+and `out/site/` together.
+
 - **Realizes:** ARCH-PUBLISH
 - **Code:** lib/static-output.ts, lib/static-export-run.ts, scripts/static-export.ts
 

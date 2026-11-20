@@ -647,8 +647,8 @@ export default function Studio() {
                   )}
                   {currentManifest.published && (
                     <p role="status" style={{ flexBasis: "100%", margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.5 }}>
-                      Your shareable site is the folder <strong>{status?.projectPath ?? "your project folder"}/out</strong>. Copy it to any
-                      web host to share it.
+                      Your shareable site is the folder <strong>{status?.projectPath ?? "your project folder"}/out/site</strong>. Copy it to
+                      any web host to share it.
                     </p>
                   )}
                   {currentManifest.published && (
