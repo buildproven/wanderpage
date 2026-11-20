@@ -118,15 +118,42 @@ export type PublishOptions = {
   deploy?: (outputPath: string) => Promise<void>;
 };
 
+/** The per-call MCP context `publishSite` reports progress through: the client's progress token and the request's notifier. */
+export type PublishProgress = {
+  /** The `_meta.progressToken` of the `tools/call` request; without one the client did not ask for progress, so none is sent. */
+  progressToken?: string | number;
+  notify: (notification: {
+    method: "notifications/progress";
+    params: { progressToken: string | number; progress: number; total: number; message: string };
+  }) => Promise<void>;
+};
+
+/** Stages `publishSite` reports, in order; each notification is sent before its stage starts. */
+export const publishStages = [
+  "Building the static site export into out/",
+  "Running the privacy scan on out/",
+  "Privacy scan passed; deploying",
+] as const;
+
 /**
  * Publishes a draft, rebuilds the static site, and scans it through the privacy-gated deploy path. On any failure the draft goes back
- * to its previous state and the site is rebuilt without it, so a site that fails the scan is never deployed.
+ * to its previous state and the site is rebuilt without it, so a site that fails the scan is never deployed. When the caller gives a
+ * progress token, a progress notification announces each stage (export, privacy scan, deploy); a notification that cannot be sent fails
+ * the publish like any other step.
  */
 export function publishSite(
   root: string,
   slug: string,
-  { buildSite = runStaticExport, deploy = async () => undefined }: PublishOptions = {}
+  { buildSite = runStaticExport, deploy = async () => undefined }: PublishOptions = {},
+  progress?: PublishProgress
 ) {
+  const stage = async (index: number) => {
+    if (progress?.progressToken === undefined) return;
+    await progress.notify({
+      method: "notifications/progress",
+      params: { progressToken: progress.progressToken, progress: index, total: publishStages.length, message: publishStages[index]! },
+    });
+  };
   return exclusive(async () => {
     const original = await readDraft(root, slug),
       outputPath = join(root, "out");
@@ -134,8 +161,16 @@ export function publishSite(
     const { manifestDigest, assetTreeDigest } = await validateDraft(root, slug);
     try {
       const manifest = await setTripPublished(root, slug, true);
+      await stage(0);
       await buildSite(root);
-      const scan = await deployAfterPrivacyScan({ outputPath, deploy: () => deploy(outputPath) });
+      await stage(1);
+      const scan = await deployAfterPrivacyScan({
+        outputPath,
+        deploy: async () => {
+          await stage(2);
+          await deploy(outputPath);
+        },
+      });
       if (!scan.deployed) throw new PrivacyScanError(scan.findings);
       return {
         slug,

@@ -331,7 +331,11 @@ any refusal throws before the write. `previewDraft` reads the draft through `rea
 25,000-token MCP output limit; when photos are left out it adds `omittedPhotos` (their count; they end `photoIds`). `publishSite` revalidates the draft
 (`validateDraft`, writes nothing), sets it published, builds `out/` (`runStaticExport` by default), and calls `deployAfterPrivacyScan`
 with an optional hosting step (none by default: `out/` is the shareable site). Any later failure, a scan finding included, restores the
-original manifest, re-syncs the published assets, and rebuilds `out/` before the error is returned.
+original manifest, re-syncs the published assets, and rebuilds `out/` before the error is returned. `publish_site` passes the call's
+`_meta.progressToken` and `ctx.mcpReq.notify` to `publishSite`, which sends `notifications/progress` (progress 0, 1, and 2,
+total 3, messages from `publishStages`) before the export, the privacy scan, and the deploy step; the deploy notification is sent from inside the
+scan-gated deploy callback, so a failed scan sends none. Without a token it sends nothing. A notification that cannot be sent fails the
+publish and triggers the same rollback.
 
 - **Realizes:** ARCH-MCP
 - **Code:** lib/automation/publish-tools.ts

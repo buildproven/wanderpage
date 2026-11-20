@@ -137,7 +137,8 @@ export function createServer({ root, dependencies, publishing }: ServerOptions) 
         "Publish the draft, build the static site into out/, and run the privacy scan. Returns the out/ path and the scan result; when the scan finds anything it returns the findings as an error, deploys nothing, and puts the draft back.",
       inputSchema: getInput,
     },
-    ({ slug: name }) => guarded(() => publishSite(root, name, publishing))
+    ({ slug: name }, ctx) =>
+      guarded(() => publishSite(root, name, publishing, { progressToken: ctx.mcpReq._meta?.progressToken, notify: ctx.mcpReq.notify }))
   );
   return server;
 }
