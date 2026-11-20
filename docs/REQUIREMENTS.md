@@ -419,6 +419,14 @@ When `publish_site` is called with a slug, the system shall publish the draft, b
 
 - **Needs:** SN-09, SN-03, SN-04
 
+### REQ-MCP-8 Report publish progress through MCP
+
+When `publish_site` is called with a progress token, the system shall send an MCP progress notification, carrying that token, before
+each build stage (static export, privacy scan, deploy); it shall send no deploy notification when the scan finds anything, and none at
+all when the call carries no progress token.
+
+- **Needs:** SN-09
+
 ### REQ-AGENT-1 Give Claude the trip workflow as a skill
 
 The repository shall contain `skills/wanderpage/SKILL.md` whose `name` matches its folder and whose `description` is at most 1,024
