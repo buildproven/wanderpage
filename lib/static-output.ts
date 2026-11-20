@@ -1,10 +1,48 @@
 // @design DES-PUB-EXPORT
 import { randomUUID } from "node:crypto";
 import { access, cp, readdir, rename, rm, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 
 const priorPrefix = ".out-prior-";
 const stagedPrefix = ".out-next-";
+
+/** The shareable site: the folder inside `out/` that a user copies to a web host. */
+export const shareableSiteFolder = "site";
+
+/** Paths (relative to `out/`) that belong to Studio or the demo trip, so the shareable site omits them. */
+const toolOnlyPaths = [
+  "studio",
+  "studio.html",
+  "studio.txt",
+  "demo",
+  "demo.html",
+  "demo.txt",
+  "trip/demo",
+  "_next/static/chunks/app/studio",
+  "_next/static/chunks/app/demo",
+];
+
+/**
+ * Copies the built export to `<output>/site`, leaving out Studio, the demo page and the demo-trip images.
+ * Studio keeps loading from the rest of `output`; only the folder named here is meant for a web host.
+ */
+export async function writeShareableSite(output: string) {
+  // cp refuses to copy a folder into itself, so the copy goes to a sibling first and is moved in whole.
+  const copy = join(dirname(output), `${stagedPrefix}site-${randomUUID()}`);
+  try {
+    await cp(output, copy, {
+      recursive: true,
+      filter: source => {
+        const path = relative(output, source).split(sep).join("/");
+        return path !== shareableSiteFolder && !toolOnlyPaths.includes(path);
+      },
+    });
+    await rm(join(output, shareableSiteFolder), { recursive: true, force: true });
+    await rename(copy, join(output, shareableSiteFolder));
+  } finally {
+    await rm(copy, { recursive: true, force: true });
+  }
+}
 
 export async function recoverStaticOutput(root: string) {
   const output = join(root, "out"),
@@ -25,6 +63,7 @@ export async function replaceStaticOutput(root: string, builtOutput: string) {
     stagedOutput = join(root, `${stagedPrefix}${randomUUID()}`),
     priorOutput = join(root, `${priorPrefix}${randomUUID()}`);
   await cp(builtOutput, stagedOutput, { recursive: true });
+  await writeShareableSite(stagedOutput);
   let preservedPrior = false;
   try {
     if (await exists(output)) {

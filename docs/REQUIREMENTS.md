@@ -227,6 +227,25 @@ The system shall write a local report of decisions and shall report the publishe
 
 - **Needs:** SN-05, SN-08
 
+### REQ-PUB-08 Shareable site holds only the user's story
+
+When a story is published, the export shall write a shareable site folder that contains the user's story and no Studio page, no demo page, and
+no demo-trip images.
+
+- **Needs:** SN-05, SN-08
+
+### REQ-PUB-09 Name the shareable site folder
+
+When the shareable site is ready, Studio and the README shall name that folder as the one to copy to a web host.
+
+- **Needs:** SN-08
+
+### REQ-PUB-10 Studio still loads from the export
+
+When the shareable site is written, Studio shall still load from `out/` as before.
+
+- **Needs:** SN-07, SN-08
+
 ### REQ-UI-01 Studio is local only
 
 The local Studio shall listen only on 127.0.0.1, serve only its own interface and project output, and reject requests from untrusted origins.

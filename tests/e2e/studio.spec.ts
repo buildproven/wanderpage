@@ -7,7 +7,7 @@ const manifest = {
   published: false,
 };
 
-// @verifies DES-STUDIO-UI, ARCH-STUDIO, REQ-UI-02, REQ-UI-03, SN-01, SN-05
+// @verifies DES-STUDIO-UI, ARCH-STUDIO, REQ-UI-02, REQ-UI-03, REQ-PUB-09, SN-01, SN-05
 test("creates a story through the local Studio interface", async ({ page, context }) => {
   let jobReads = 0;
   await page.route("**/api/**", async route => {
@@ -69,7 +69,7 @@ test("creates a story through the local Studio interface", async ({ page, contex
   await expect(page.getByText("Privacy check")).toBeVisible();
   await expect(page.getByText("This is a basic edit, so the title and captions are generic")).toBeVisible();
   await page.getByRole("button", { name: /Publish this story/ }).click();
-  await expect(page.getByText(/Your shareable site is the folder/)).toContainText("/Users/test/wanderpage/out");
+  await expect(page.getByText(/Your shareable site is the folder/)).toContainText("/Users/test/wanderpage/out/site");
   const popupPromise = context.waitForEvent("page");
   await page.getByRole("link", { name: /Open published story/ }).click();
   const story = await popupPromise;

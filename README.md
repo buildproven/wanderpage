@@ -57,7 +57,7 @@ npx @buildproven/wanderpage
 
 It shows three steps — set up, install (about a minute, once), start Studio (about 30 seconds the first time) — then opens **Studio** in your
 browser. Choose a photo folder, pick your privacy settings, and select **Build my Wanderpage**. Review the draft, then **Publish this story**.
-Your shareable site is the `out/` folder inside the project (`./wanderpage` by default).
+Your shareable site is the `out/site/` folder inside the project (`./wanderpage` by default).
 
 To try it with no key and no photos, open the built-in demo at `/demo`, or run `npm run trip:demo` inside the project.
 
@@ -112,11 +112,11 @@ report path, or a configured secret.
 
 ## Share your page
 
-`out/` is a complete static website, and its home page is your story (or a list of your stories). Put the folder on any static host — for example
+`out/site/` is a complete static website, and its home page is your story (or a list of your stories). Put the folder on any static host — for example
 drag it onto [Netlify Drop](https://app.netlify.com/drop), or upload it to GitHub Pages, Cloudflare Pages, or S3 — or preview it locally:
 
 ```bash
-npm run preview:static     # serves out/ at http://127.0.0.1:4174
+npx serve out/site         # serves the shareable site locally
 ```
 
 New trips are **private drafts**; their images stay out of the site until you publish. In Studio use **Publish this story** and **Unpublish**.
