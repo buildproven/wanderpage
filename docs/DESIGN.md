@@ -135,7 +135,9 @@ placeholder. `sharp` drops metadata by default, so none of EXIF, XMP, or IPTC is
 
 `validateStaticExport` walks the artifact. Every image must have no EXIF/XMP/IPTC; every text file (`html js json txt css xml`) must not
 match a forbidden pattern (a `/Users/` or `\Users\` path, `.trip-output`, `.trip-cache`, `OPENAI_API_KEY=`, `VERCEL_TOKEN=`) or contain a
-configured secret. `privacy-check.ts` runs it against `out/` and exits non-zero with every finding.
+configured secret. `privacy-check.ts` runs it against `out/` and exits non-zero with every finding. `deployAfterPrivacyScan` is the single deploy
+gate: it runs the scan (with `configuredSecrets()` from the environment unless the caller passes secrets) and calls the deployer once only
+when there is no finding; otherwise it returns the findings and deploys nothing. Callers raise `PrivacyScanError`, which lists every finding.
 
 - **Realizes:** ARCH-PUBLISH
 - **Code:** lib/publishing/privacy.ts, scripts/privacy-check.ts
