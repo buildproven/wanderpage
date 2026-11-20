@@ -18,6 +18,16 @@ repository after `pnpm install`. Your old folder and its drafts stay as they are
 
 Then use one of these:
 
+- **Claude plugin (Claude Code).** Install it once from the BuildProven marketplace (`buildproven/claude-plugins`):
+
+  ```text
+  /plugin install wanderpage --marketplace buildproven/claude-plugins
+  ```
+
+  When asked, choose your Wanderpage project folder; an OpenAI API key is optional. The plugin brings the skill and a local (stdio)
+  server that runs `mcp/server.ts` from that folder with the `tsx` its `npm install` set up, so your photos stay on your Mac. Chat on
+  the web and in the mobile apps cannot reach a local server, so the Wanderpage tools work in Claude Code and Claude Desktop only.
+
 - **Claude Desktop extension.** In a checkout of this repository, run `pnpm install` and then `pnpm mcpb`. Open
   `dist/mcpb/wanderpage.mcpb` in Claude Desktop (or drag it onto Settings > Extensions), select **Install**, and choose your Wanderpage
   project folder. An OpenAI API key is optional; it enables the full edit and strict people exclusion.
