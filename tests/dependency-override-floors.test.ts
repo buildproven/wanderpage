@@ -12,9 +12,13 @@ const FLOORS: Record<string, { major: number; floor: string }> = {
   vite: { major: 8, floor: "8.1.6" },
   "node-forge": { major: 1, floor: "1.4.3" },
   "postcss-selector-parser": { major: 7, floor: "7.1.6" },
+  minimatch: { major: 11, floor: "11.0.1" },
 };
 // The vulnerable versions the stale open overrides admitted.
-const STALE: Record<string, string> = { "fast-uri": "4.2.1", qs: "6.16.0" };
+const STALE: Record<string, string> = { "fast-uri": "4.2.1", qs: "6.16.0", minimatch: "10.2.5" };
+// Packages whose advisory spans several major lines, so no locked version on any line may sit below the floor
+// (minimatch GHSA-g3hv-75wg-m249: vulnerable >= 7.0.0, < 11.0.1).
+const ALL_LINE_FLOORS: Record<string, string> = { minimatch: "11.0.1" };
 
 const parse = (version: string) => version.split(/[-+]/)[0]!.split(".").map(Number);
 function compare(a: string, b: string): number {
@@ -77,6 +81,15 @@ describe("dependency override floors", () => {
       const onLine = [...(locked.get(name) ?? [])].filter(version => parse(version)[0] === major);
       expect(onLine.length, `${name}@${major}.x is not in pnpm-lock.yaml`).toBeGreaterThan(0);
       for (const version of onLine) expect(compare(version, floor), `${name}@${version} < ${floor}`).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("REQ-DEPS-6: every locked version of a multi-line advised package is at or above its floor", () => {
+    const locked = lockedVersions(lockfile);
+    for (const [name, floor] of Object.entries(ALL_LINE_FLOORS)) {
+      const versions = [...(locked.get(name) ?? [])];
+      expect(versions.length, `${name} is not in pnpm-lock.yaml`).toBeGreaterThan(0);
+      for (const version of versions) expect(compare(version, floor), `${name}@${version} < ${floor}`).toBeGreaterThanOrEqual(0);
     }
   });
 
