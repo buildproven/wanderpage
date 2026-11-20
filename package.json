@@ -63,7 +63,7 @@
     "build": "next build --webpack",
     "static:export": "tsx scripts/static-export.ts",
     "preview": "next start",
-    "preview:static": "serve out --listen 4174 --no-clipboard",
+    "preview:static": "serve out/site --listen 4174 --no-clipboard",
     "trip": "tsx scripts/trip.ts",
     "trip:demo": "tsx scripts/trip.ts --demo",
     "trip:list": "tsx scripts/trip-publish.ts list",

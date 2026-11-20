@@ -1,6 +1,8 @@
 // @design DES-CLI-TRIP
 import { spawn } from "node:child_process";
+import { join } from "node:path";
 import { PrivacyScanError, deployAfterPrivacyScan } from "@/lib/publishing/privacy";
+import { shareableSiteFolder } from "@/lib/static-output";
 
 function runVercel(outputPath: string) {
   return new Promise<void>((resolve, reject) => {
@@ -12,8 +14,11 @@ function runVercel(outputPath: string) {
   });
 }
 
-/** Deploys `outputPath` to Vercel after the privacy scan passes; throws `PrivacyScanError` listing every finding otherwise. */
-export async function deploy(outputPath = "out", run: (outputPath: string) => Promise<void> = runVercel) {
+/**
+ * Deploys `outputPath` (by default the shareable site `out/site`, which holds no Studio or demo page) to Vercel after the privacy scan passes;
+ * throws `PrivacyScanError` listing every finding otherwise.
+ */
+export async function deploy(outputPath = join("out", shareableSiteFolder), run: (outputPath: string) => Promise<void> = runVercel) {
   const result = await deployAfterPrivacyScan({ outputPath, deploy: () => run(outputPath) });
   if (!result.deployed) throw new PrivacyScanError(result.findings);
   return result;
