@@ -326,7 +326,9 @@ pipeline run. `editDraft` refuses a published draft and an empty change set, che
 hero is not also removed, and that no caption targets a removed photo, then runs `normalizeDraft` and writes the draft with `writeTrip`;
 any refusal throws before the write. `previewDraft` reads the draft through `readDraft`, maps each photo's `srcMedium` to
 `.trip-assets/<slug>/<id>-medium.webp` (through `assertPrivatePath`: no symlinks, no escape), tiles 16 photos per sheet with
-`buildContactSheet` in a temporary directory, and returns the JPEG sheets as MCP image content. `publishSite` revalidates the draft
+`buildContactSheet` in a temporary directory, and returns the JPEG sheets as MCP image content. It checks every photo but builds at most
+`maxPreviewSheets` (8) sheets, about 12,800 image tokens, so a preview stays under claude.ai's 20 images per message and Claude Code's
+25,000-token MCP output limit; when photos are left out it adds `omittedPhotos` (their count; they end `photoIds`). `publishSite` revalidates the draft
 (`validateDraft`, writes nothing), sets it published, builds `out/` (`runStaticExport` by default), and calls `deployAfterPrivacyScan`
 with an optional hosting step (none by default: `out/` is the shareable site). Any later failure, a scan finding included, restores the
 original manifest, re-syncs the published assets, and rebuilds `out/` before the error is returned.
