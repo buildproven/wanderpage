@@ -135,7 +135,7 @@
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@eslint/eslintrc": "^3.3.7",
-    "@lhci/cli": "^0.14.0",
+    "@lhci/cli": "^0.16.1",
     "@modelcontextprotocol/client": "^2.4.0",
     "@playwright/test": "^1.63.0",
     "@size-limit/file": "^11.0.0",
