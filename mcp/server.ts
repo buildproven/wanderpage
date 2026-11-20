@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
-import { pathToFileURL } from "node:url";
+import { existsSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { createDraft, draftWithReasons } from "../lib/automation/draft-tools";
 import { drafts, inspectPhotos, workspace } from "../lib/automation/local";
@@ -151,7 +152,12 @@ export async function main() {
   serveStdio(() => createServer({ root }));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/** Node gives this module its real path, so the launch path must be resolved too, or a symlinked project starts nothing. */
+const launchPath = process.argv[1];
+const launchedDirectly =
+  launchPath !== undefined && existsSync(launchPath) && realpathSync(launchPath) === realpathSync(fileURLToPath(import.meta.url));
+
+if (launchedDirectly) {
   main().catch(cause => {
     console.error(cause);
     process.exitCode = 1;
