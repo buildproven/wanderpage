@@ -405,6 +405,12 @@ Skills, or run `claude mcp add` for Claude Code. It shall state that Studio is f
 
 - **Needs:** SN-09, SN-06
 
+The repository root is also the Wanderpage Claude plugin: `.claude-plugin/plugin.json` names the plugin, and
+`claude plugin validate .` passes at the root through the `npm test` Vitest run (REQ-PLUGIN-1). `.mcp.json` declares one local stdio
+server named `wanderpage`; it uses the selected Wanderpage project and the `tsx` installed there to start `mcp/server.ts`, without an
+absolute local path (REQ-PLUGIN-2). The README gives the one-time `buildproven/claude-plugins` marketplace install and says that chat
+on the web and mobile cannot reach the local server, so these tools work in Claude Code and Desktop only (REQ-PLUGIN-3, BUI-1902).
+
 ### REQ-CLI-05 Publish only a revalidated draft
 
 The agent CLI shall re-run privacy validation on the draft at publish time, report the manifest and asset-tree digests of what it
