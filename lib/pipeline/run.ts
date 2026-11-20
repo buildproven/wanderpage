@@ -208,12 +208,25 @@ export async function runTrip(options: RunOptions, dependencies: RunDependencies
     await writeFile(join(tripsDirectory, `${slug}.json`), JSON.stringify(finalManifest, null, 2));
     await syncPublishedAssets(root);
     await cp(join(output, "report"), join(output, "reports", slug), { recursive: true });
+    await writeDraftReasons(output, slug, finalManifest, selection.reasons);
   } else await rm(pendingAssets, { recursive: true, force: true });
   dependencies.onProgress?.({ stage: "complete", progress: 100, message: "Trip page generation complete" });
   console.log(
     `\nWanderpage complete\n\nInput photos:         ${files.length}\nDuplicates removed:   ${summary.duplicatesRemoved}\nLow-quality rejected: ${summary.lowQualityRejected}\nSelected photos:      ${selection.selected.length}\nDestinations found:   ${summary.destinationsFound}\nPage:                  ${path}\nReport:                .trip-output/report/index.html`
   );
   return { manifest: finalManifest, summary, slug, path };
+}
+
+/**
+ * Saves why each photo of this draft was selected to `.trip-output/reasons/<slug>.json`, because the next run overwrites
+ * `selection.json`. `generatedAt` ties the record to this draft: `get_draft` ignores it after a later draft takes the slug.
+ */
+async function writeDraftReasons(output: string, slug: string, manifest: TripManifest, selectionReasons: Record<string, string>) {
+  const reasons = Object.fromEntries(
+    manifest.photos.flatMap(photo => (selectionReasons[photo.id] ? [[photo.id, selectionReasons[photo.id]]] : []))
+  );
+  await mkdir(join(output, "reasons"), { recursive: true });
+  await writeFile(join(output, "reasons", `${slug}.json`), JSON.stringify({ generatedAt: manifest.generatedAt, reasons }, null, 2));
 }
 
 async function makeManifest(

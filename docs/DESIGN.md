@@ -105,7 +105,9 @@ key throws before any work. Without a key a real run uses the deterministic prov
 `onProgress` and the console and records `provider: "deterministic-mock"` in the run summary and report. The location privacy mode is applied while the
 manifest is assembled: `hidden` removes destinations, route, captions, categories, and clues; `broad` keeps region-level names without
 coordinates or evidence; `approximate` and `precise` publish rounded coordinates. A photo's vision caption seed (which can name a place) is used as a caption fallback only in `approximate` and `precise` modes. The
-manifest is validated by the shared schema before anything is written.
+manifest is validated by the shared schema before anything is written. A saved (non-dry) run copies `report/` to `reports/<slug>/` and
+writes the selection reasons of the draft's photos, with the manifest's `generatedAt`, to `.trip-output/reasons/<slug>.json`, so a
+later run that overwrites `selection.json` does not lose them for `get_draft`.
 
 - **Realizes:** ARCH-PIPELINE
 - **Code:** lib/pipeline/run.ts
