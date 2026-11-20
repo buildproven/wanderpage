@@ -75,7 +75,7 @@ and chooses the deterministic provider in demo mode. Interface: `runTrip(options
 Owns the manifest schema, metadata-free derivatives, the local draft store (`data/trips`, `.trip-assets`), publish/unpublish state, page
 names, the decision report, privacy validation of the exported artifact, and atomic replacement of the static export.
 
-- **Satisfies:** REQ-PUB-01, REQ-PUB-02, REQ-PUB-03, REQ-PUB-04, REQ-PUB-05, REQ-PUB-06, REQ-PUB-07, REQ-PUB-08, REQ-PUB-09, REQ-PUB-10, REQ-LOC-02
+- **Satisfies:** REQ-PUB-01, REQ-PUB-02, REQ-PUB-03, REQ-PUB-04, REQ-PUB-05, REQ-PUB-06, REQ-PUB-07, REQ-PUB-08, REQ-PUB-09, REQ-PUB-10, REQ-PRIV-1, REQ-PRIV-2, REQ-LOC-02
 
 ### ARCH-STUDIO Local Studio
 

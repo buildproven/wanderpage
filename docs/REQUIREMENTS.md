@@ -248,6 +248,21 @@ When the shareable site is written, Studio shall still load from `out/` as befor
 
 - **Needs:** SN-07, SN-08
 
+### REQ-PRIV-1 Refuse a deploy that fails the privacy scan
+
+When a deploy of the static site starts, the system shall run the artifact privacy scan (REQ-PUB-04) on that exact folder, with the
+configured secrets from the environment unless the caller gives its own, before it calls the deployer. When the scan reports any finding,
+the system shall not call the deployer and shall report every finding.
+
+- **Needs:** SN-03, SN-04
+
+### REQ-PRIV-2 Deploy a clean site once
+
+When the privacy scan of the folder reports no finding, the system shall call the deployer exactly once for that folder and shall let a
+deployer failure reach the caller.
+
+- **Needs:** SN-07, SN-08
+
 ### REQ-UI-01 Studio is local only
 
 The local Studio shall listen only on 127.0.0.1, serve only its own interface and project output, and reject requests from untrusted origins.
