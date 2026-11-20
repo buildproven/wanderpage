@@ -231,6 +231,8 @@ The system shall write a local report of decisions and shall report the publishe
 
 When a story is published, the export shall write a shareable site folder that contains the user's story and no Studio page, no demo page, and
 no demo-trip images.
+When the trip is deployed or previewed as a static site, the deploy command and the static preview shall use that folder, not the whole
+export.
 
 - **Needs:** SN-05, SN-08
 
