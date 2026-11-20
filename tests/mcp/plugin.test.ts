@@ -161,4 +161,48 @@ describe("the Claude plugin package", () => {
     expect(claudeSection).toMatch(/Claude Code and (?:Claude )?Desktop only/i);
     expect(claudeSection.replace(/\s+/g, " ")).toMatch(/chat on the web and in the mobile apps cannot reach a local server/i);
   });
+
+  // @verifies REQ-AGENT-2
+  it("REQ-PLUGIN-1 carries the package.json version, so validate reports no version warning", async ctx => {
+    const plugin = await readJson<{ version?: unknown }>(".claude-plugin/plugin.json");
+    const manifest = await readJson<{ version?: unknown }>("manifest.json");
+    const pkg = await readJson<{ version: string }>("package.json");
+    expect(pkg.version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(plugin.version).toBe(pkg.version);
+    expect(manifest.version).toBe(pkg.version);
+
+    const missing = claudeCliMissing();
+    if (missing) {
+      const reason = `REQ-PLUGIN-1 version warning check skipped: ${missing}`;
+      console.warn(reason);
+      ctx.skip(reason);
+    }
+    const validation = spawnSync("claude", ["plugin", "validate", "."], { cwd: repoRoot, encoding: "utf8" });
+    const output = `${validation.stdout}${validation.stderr}`;
+    expect(validation.status, output).toBe(0);
+    expect(output).not.toMatch(/No version specified/i);
+  }, 60_000);
+
+  // @verifies REQ-AGENT-3
+  it("REQ-AGENT-3 names the default project folder as wanderpage in the folder where npx ran", async () => {
+    type Described = Record<string, { description?: string }>;
+    const plugin = await readJson<{ userConfig: Described }>(".claude-plugin/plugin.json");
+    const manifest = await readJson<{ long_description: string; user_config: Described }>("manifest.json");
+    const readme = await readFile(join(repoRoot, "README.md"), "utf8");
+    const texts: Record<string, string | undefined> = {
+      "README.md": readme,
+      "manifest.json long_description": manifest.long_description,
+      "manifest.json user_config.project": manifest.user_config.project?.description,
+      ".claude-plugin/plugin.json userConfig.project": plugin.userConfig.project?.description,
+    };
+    for (const [where, text] of Object.entries(texts)) {
+      const plain = (text ?? "").replace(/`/g, "").replace(/\s+/g, " ");
+      expect(plain, where).not.toMatch(/~\/wanderpage by default/i);
+      expect(plain, where).toMatch(/wanderpage in the folder where you ran npx @buildproven\/wanderpage/i);
+    }
+    // bin/wanderpage.js resolves "./wanderpage" against the working directory, so a $HOME/wanderpage example holds only from home.
+    const plainReadme = readme.replace(/`/g, "").replace(/\s+/g, " ");
+    if (plainReadme.includes("$HOME/wanderpage"))
+      expect(plainReadme).toMatch(/assumes you ran npx @buildproven\/wanderpage in your home folder/i);
+  });
 });
