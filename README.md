@@ -10,7 +10,8 @@ Turn a folder of travel photos into a private, cinematic trip page you can host 
 ## Use Wanderpage in Claude
 
 Wanderpage is made to be driven from a chat with Claude: Claude calls the Wanderpage tools on your Mac, and your photos never leave it.
-First run `npx @buildproven/wanderpage` once (see [Quickstart](#quickstart)) to set up your project folder (`~/wanderpage` by default).
+First run `npx @buildproven/wanderpage` once (see [Quickstart](#quickstart)) to set up your project folder (by default,
+`wanderpage` in the folder where you ran `npx @buildproven/wanderpage`).
 The Claude tools run from that folder, so it must contain `mcp/server.ts`. Versions up to 1.1.0 do not ship it, and running the command
 again does not update an existing folder. If your folder has no `mcp/server.ts`, set up a new one with
 `npx @buildproven/wanderpage@latest ~/wanderpage-claude` (a version after 1.1.0) and choose that folder, or choose a checkout of this
@@ -40,6 +41,9 @@ Then use one of these:
   claude mcp add wanderpage -e WANDERPAGE_WORKSPACE="$HOME/wanderpage" -- \
     node "$HOME/wanderpage/node_modules/tsx/dist/cli.mjs" --tsconfig "$HOME/wanderpage/tsconfig.json" "$HOME/wanderpage/mcp/server.ts"
   ```
+
+  This example assumes you ran `npx @buildproven/wanderpage` in your home folder. If you ran it somewhere else, put your project
+  folder's path in place of `$HOME/wanderpage`.
 
 Studio is frozen: it keeps working, but new features go to the Claude tools, not to Studio.
 
