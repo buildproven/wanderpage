@@ -253,7 +253,7 @@ commands it runs the packaged `tsx` directly with the package's tsconfig (no pro
 code. Otherwise it prints three numbered steps: (1) copies the package into an empty target, skipping the names in `notCopied` (build,
 cache, git, CI, `pnpm-workspace.yaml`, `db`, `workflows`, `proxy.ts`, `next.config.ts`) and rewrites `package.json` with `localEdition` — runtime
 dependencies minus the hosted-service packages, only `typescript` and the `@types/*` build types as dev dependencies, and only the user-facing
-scripts; (2) runs `npm install --no-audit --no-fund --loglevel=error`, which ships with Node; (3) starts Studio with `node` and the project's
+scripts (including `mcp`, so the project can start the local MCP server); (2) runs `npm install --no-audit --no-fund --loglevel=error`, which ships with Node; (3) starts Studio with `node` and the project's
 `tsx`, exiting cleanly on SIGINT/SIGTERM. An existing project is reused and only reinstalled if `node_modules` is missing. `.env.local` is
 seeded from `.env.example`. A missing API key is announced as a basic edit. `private.ts` and `studio.ts` build the static interface, open the
 browser, and listen on 127.0.0.1; the double-click macOS launcher needs only Node.

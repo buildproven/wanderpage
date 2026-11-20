@@ -13,6 +13,7 @@ const keepScripts = [
   "trip:publish",
   "trip:unpublish",
   "wanderpage",
+  "mcp",
   "static:export",
   "preview:static",
   "privacy",
