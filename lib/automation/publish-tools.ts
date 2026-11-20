@@ -24,6 +24,12 @@ export type DraftChanges = {
 export const photosPerSheet = 16;
 
 /**
+ * Most contact sheets one preview returns. A sheet is a 1200 x 1000 JPEG, about 1,600 image tokens (width x height / 750), so 8 sheets
+ * stay under claude.ai's 20 images per message and Claude Code's default 25,000-token MCP output limit, which counts image data.
+ */
+export const maxPreviewSheets = 8;
+
+/**
  * Applies chat edits to a private draft through the same `normalizeDraft` check Studio uses. Every change is checked against the draft
  * before anything is written, so a rejected edit leaves the draft file unchanged.
  */
@@ -68,7 +74,11 @@ export function editDraft(root: string, slug: string, changes: DraftChanges) {
   });
 }
 
-/** Contact sheets (JPEG, base64) of the draft's photos in story order, tiled from the published medium WebP files, never the originals. */
+/**
+ * Contact sheets (JPEG, base64) of the draft's photos in story order, tiled from the published medium WebP files, never the originals.
+ * Every photo is checked, but at most `maxPreviewSheets` sheets are built; when photos are left out, `omittedPhotos` gives their count
+ * (they are the last ones in `photoIds`).
+ */
 export async function previewDraft(root: string, slug: string) {
   const manifest = await readDraft(root, slug);
   const tiles = await Promise.all(
@@ -81,12 +91,21 @@ export async function previewDraft(root: string, slug: string) {
   );
   const directory = await mkdtemp(join(tmpdir(), "wanderpage-preview-"));
   try {
-    const sheets: string[] = [];
-    for (let start = 0; start < tiles.length; start += photosPerSheet) {
-      const sheet = await buildContactSheet(tiles.slice(start, start + photosPerSheet), join(directory, `sheet-${sheets.length + 1}.jpg`));
+    const sheets: string[] = [],
+      shown = tiles.slice(0, maxPreviewSheets * photosPerSheet);
+    for (let start = 0; start < shown.length; start += photosPerSheet) {
+      const sheet = await buildContactSheet(shown.slice(start, start + photosPerSheet), join(directory, `sheet-${sheets.length + 1}.jpg`));
       sheets.push((await readFile(sheet)).toString("base64"));
     }
-    return { slug, title: manifest.title, heroPhotoId: manifest.heroPhotoId, photoIds: tiles.map(tile => tile.id), sheets };
+    const omitted = tiles.length - shown.length;
+    return {
+      slug,
+      title: manifest.title,
+      heroPhotoId: manifest.heroPhotoId,
+      photoIds: tiles.map(tile => tile.id),
+      sheets,
+      ...(omitted ? { omittedPhotos: omitted } : {}),
+    };
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
