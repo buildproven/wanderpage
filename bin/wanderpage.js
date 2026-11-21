@@ -16,7 +16,9 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), ".."),
   targetArg = args.find(arg => !arg.startsWith("--")),
   targetDir = resolve(targetArg ?? "./wanderpage"),
   skipOpen = args.includes("--no-open"),
-  npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+  npmCommand = process.platform === "win32" ? "npm.cmd" : "npm",
+  // The version a new project records until its first install succeeds, so a failed first setup is finished on the next run.
+  setupIncomplete = "0.0.0-setup-incomplete";
 
 async function pathExists(path) {
   return stat(path)
@@ -56,7 +58,7 @@ async function projectVersion(packageName) {
   }
 }
 
-/** Copies the shipped files into the project. On a refresh, the user's own trips are never touched. */
+/** Copies the shipped files into the project (package.json is written by writeManifest). On a refresh, the user's own trips are never touched. */
 async function copyEdition({ refresh }) {
   await cp(packageRoot, targetDir, {
     recursive: true,
@@ -64,13 +66,30 @@ async function copyEdition({ refresh }) {
     filter: source => {
       const relativePath = source.slice(packageRoot.length + 1),
         segments = relativePath.split(/[\\/]/);
-      if (segments.some(segment => notCopied.has(segment))) return false;
+      if (relativePath === "package.json" || segments.some(segment => notCopied.has(segment))) return false;
       return !(refresh && (segments.join("/").startsWith("data/trips") || segments[0] === ".env.local"));
     },
   });
-  const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-  await writeFile(join(targetDir, "package.json"), `${JSON.stringify(localEdition(manifest), null, 2)}\n`);
   await mkdir(join(targetDir, "data/trips"), { recursive: true });
+}
+
+/** Writes the project's package.json; `version` overrides the packaged version (used as a marker until the install succeeds). */
+async function writeManifest(version) {
+  const manifest = localEdition(JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")));
+  await writeFile(join(targetDir, "package.json"), `${JSON.stringify({ ...manifest, version: version ?? manifest.version }, null, 2)}\n`);
+}
+
+/**
+ * Installs the new dependencies, but records the packaged version only once npm succeeds. Until then package.json keeps `pendingVersion`,
+ * so a failed install is retried on the next run instead of being mistaken for an up-to-date project.
+ */
+async function installEdition(pendingVersion) {
+  await writeManifest(pendingVersion);
+  await npmInstall(targetDir);
+  await writeManifest();
+  const envExample = join(targetDir, ".env.example"),
+    envLocal = join(targetDir, ".env.local");
+  if ((await pathExists(envExample)) && !(await pathExists(envLocal))) await cp(envExample, envLocal);
 }
 
 async function scaffold() {
@@ -79,9 +98,13 @@ async function scaffold() {
     const packaged = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")),
       current = await projectVersion(packaged.name);
     if (current !== undefined && current !== packaged.version) {
-      console.log(`Updating it from version ${current} to ${packaged.version} (your trips and .env.local stay as they are)…`);
+      console.log(
+        current === setupIncomplete
+          ? "Its last setup did not finish, so finishing it now (about a minute)…"
+          : `Updating it from version ${current} to ${packaged.version} (your trips and .env.local stay as they are)…`
+      );
       await copyEdition({ refresh: true });
-      await npmInstall(targetDir);
+      await installEdition(current);
     } else if (!(await pathExists(join(targetDir, "node_modules")))) {
       console.log("Its dependencies are missing, so installing them now (about a minute)…");
       await npmInstall(targetDir);
@@ -91,14 +114,11 @@ async function scaffold() {
 
   console.log(`\n[1/3] Setting up your project in ${targetDir}`);
   await mkdir(targetDir, { recursive: true });
+  await writeManifest(setupIncomplete);
   await copyEdition({ refresh: false });
 
   console.log("[2/3] Installing (about a minute, and only this once)…");
-  await npmInstall(targetDir);
-
-  const envExample = join(targetDir, ".env.example"),
-    envLocal = join(targetDir, ".env.local");
-  if ((await pathExists(envExample)) && !(await pathExists(envLocal))) await cp(envExample, envLocal);
+  await installEdition(setupIncomplete);
 }
 
 async function launchStudio() {
