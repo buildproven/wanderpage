@@ -29,12 +29,16 @@ Then use one of these:
   server that runs `mcp/server.ts` from that folder with the `tsx` its `npm install` set up, so your photos stay on your Mac. Chat on
   the web and in the mobile apps cannot reach a local server, so the Wanderpage tools work in Claude Code and Claude Desktop only.
 
-- **Claude Desktop extension.** In a checkout of this repository, run `pnpm install` and then `pnpm mcpb`. Open
-  `dist/mcpb/wanderpage.mcpb` in Claude Desktop (or drag it onto Settings > Extensions), select **Install**, and choose your Wanderpage
-  project folder. An OpenAI API key is optional; it enables the full edit and strict people exclusion.
-- **Skill.** `pnpm mcpb` also writes `dist/mcpb/wanderpage-skill.zip`. Upload that skill ZIP at Customize > Skills so Claude knows the
-  workflow (inspect a folder, create a draft, preview, edit, publish) and the privacy rules. In Claude Code, the skill loads from
-  `skills/wanderpage/` in this repository.
+- **Claude Desktop extension.** Download
+  [`wanderpage.mcpb`](https://github.com/buildproven/wanderpage/releases/latest/download/wanderpage.mcpb) from the latest GitHub
+  release. Open it in Claude Desktop (or drag it onto Settings > Extensions), select **Install**, and choose your Wanderpage project
+  folder. An OpenAI API key is optional; it enables the full edit and strict people exclusion. In a checkout of this repository,
+  `pnpm install` and then `pnpm mcpb` build the same file at `dist/mcpb/wanderpage.mcpb`.
+- **Skill.** Download
+  [`wanderpage-skill.zip`](https://github.com/buildproven/wanderpage/releases/latest/download/wanderpage-skill.zip) from the latest
+  GitHub release (in a checkout, `pnpm mcpb` also writes `dist/mcpb/wanderpage-skill.zip`). Upload that skill ZIP at Customize > Skills
+  so Claude knows the workflow (inspect a folder, create a draft, preview, edit, publish) and the privacy rules. In Claude Code, the
+  skill loads from `skills/wanderpage/` in this repository.
 - **Claude Code.** Add the server with `claude mcp add`:
 
   ```bash
