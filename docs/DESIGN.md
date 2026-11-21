@@ -451,8 +451,8 @@ for the spending run. `hosted-preview-acceptance.ts` applies the policy before a
 
 ### DES-REL-RELEASE Release scripts
 
-`release-git.ts` asserts a clean, up-to-date `main`. `release-open-pr.ts` bumps the version on a `chore/release-vX.Y.Z` branch and opens a
-pull request. `release-tag.ts` tags the merged `main` commit and pushes the tag, which triggers the trusted-publishing workflow.
+`release-git.ts` asserts a clean, up-to-date `main`. `release-open-pr.ts` bumps the version in `package.json`, `manifest.json` and
+`.claude-plugin/plugin.json` on a `chore/release-vX.Y.Z` branch and opens a pull request; it checks each manifest's top-level version first. `release-tag.ts` tags the merged `main` commit and pushes the tag, which triggers the trusted-publishing workflow.
 `release-preflight.ts` checks prerequisites. No script holds an npm token.
 
 - **Realizes:** ARCH-RELEASE
