@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0 — 2026-11-21
+
+- **Make trip pages from a chat with Claude.** Claude can now inspect a photo folder, create a private draft, preview it, edit it, and publish
+  it for you. The tools run on your Mac from your Wanderpage project folder, so your photos never leave it. They work in Claude Code and
+  Claude Desktop (chat on the web and in the mobile apps cannot reach them). See "Use Wanderpage in Claude" in the README.
+  - **Claude plugin (Claude Code):** `/plugin install wanderpage --marketplace buildproven/claude-plugins`, then choose your project folder.
+  - **Claude Desktop extension:** download `wanderpage.mcpb` from this GitHub release, open it in Claude Desktop, select **Install**, and
+    choose your project folder.
+  - **Skill:** download the skill ZIP (`wanderpage-skill.zip`) from this GitHub release and upload it at Customize > Skills, so Claude knows
+    the workflow and the privacy rules.
+  - An OpenAI API key stays optional; without one you get the basic edit.
+- **Update your project folder.** A folder set up by 1.1.0 or earlier has no Claude tools (`mcp/server.ts`). Run
+  `npx @buildproven/wanderpage@latest` again where you first ran it: an older Wanderpage folder is now updated in place, and your trips and
+  `.env.local` are kept. Or set up a new folder with `npx @buildproven/wanderpage@latest ~/wanderpage-claude` and choose that one.
+- Publishing from Claude shows build progress, and the shareable site folder no longer contains Studio pages or the demo trip.
+- A one-line installer (`install.sh`, see the README) sets up Node.js when it is missing.
+- Security: updated dependencies to clear newly published advisories.
+
 ## 1.1.0 — 2026-10-10
 
 - **Shared links look right.** Your published pages now carry link-preview tags (Open Graph and Twitter), so iMessage, Slack and social apps show the
