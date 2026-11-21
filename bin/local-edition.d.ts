@@ -16,3 +16,5 @@ export type LocalManifest = PackageManifest & { private: true; scripts: Table; d
 export const notCopied: Set<string>;
 export function localEdition(pkg: PackageManifest): LocalManifest;
 export function nodeVersionProblem(version: string): string | undefined;
+export const shippedCodeFolders: string[];
+export function compareVersions(a: string, b: string): number;
