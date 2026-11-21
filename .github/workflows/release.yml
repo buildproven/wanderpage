@@ -53,6 +53,11 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm check
 
+      # Users of `npx @buildproven/wanderpage` have no checkout to run `pnpm mcpb`, so each release carries both files.
+      # Built before npm publish, so a failed build stops the release before anything is published.
+      - name: Build the desktop extension and skill ZIP
+        run: pnpm mcpb
+
       - name: Publish to npm with provenance
         run: npm publish --provenance --access public
 
@@ -66,5 +71,14 @@ jobs:
             ```bash
             npx @buildproven/wanderpage
             ```
+
+            ## Use Wanderpage in Claude
+
+            - Claude Desktop extension: [wanderpage.mcpb](https://github.com/buildproven/wanderpage/releases/latest/download/wanderpage.mcpb)
+            - Skill ZIP (upload at Customize > Skills): [wanderpage-skill.zip](https://github.com/buildproven/wanderpage/releases/latest/download/wanderpage-skill.zip)
+          files: |
+            dist/mcpb/wanderpage.mcpb
+            dist/mcpb/wanderpage-skill.zip
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
