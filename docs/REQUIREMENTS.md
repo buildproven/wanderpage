@@ -310,7 +310,7 @@ The system shall ship a permanent `/demo` page that requires no setup.
 
 ### REQ-CLI-01 Start with one command
 
-`npx @buildproven/wanderpage` shall set up a project folder (or reuse an existing one), install it, and open Studio, needing nothing
+`npx @buildproven/wanderpage` shall set up a project folder (or reuse an existing one, refreshing its shipped files when the package version has changed without touching the user's trips or `.env.local`), install it, and open Studio, needing nothing
 installed beyond Node.js and npm, show the user which of three steps it is on, and report an unsupported Node.js version in plain words with
 the fix.
 

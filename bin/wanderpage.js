@@ -46,10 +46,43 @@ function npmInstall(cwd) {
   });
 }
 
+/** The package version in a project folder, or undefined when the folder is not a Wanderpage project (no readable package.json of ours). */
+async function projectVersion(packageName) {
+  try {
+    const manifest = JSON.parse(await readFile(join(targetDir, "package.json"), "utf8"));
+    return manifest.name === packageName && typeof manifest.version === "string" ? manifest.version : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Copies the shipped files into the project. On a refresh, the user's own trips are never touched. */
+async function copyEdition({ refresh }) {
+  await cp(packageRoot, targetDir, {
+    recursive: true,
+    force: true,
+    filter: source => {
+      const relativePath = source.slice(packageRoot.length + 1),
+        segments = relativePath.split(/[\\/]/);
+      if (segments.some(segment => notCopied.has(segment))) return false;
+      return !(refresh && (segments.join("/").startsWith("data/trips") || segments[0] === ".env.local"));
+    },
+  });
+  const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
+  await writeFile(join(targetDir, "package.json"), `${JSON.stringify(localEdition(manifest), null, 2)}\n`);
+  await mkdir(join(targetDir, "data/trips"), { recursive: true });
+}
+
 async function scaffold() {
   if (!(await isEmptyOrMissing(targetDir))) {
     console.log(`Using your existing Wanderpage project at ${targetDir}`);
-    if (!(await pathExists(join(targetDir, "node_modules")))) {
+    const packaged = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")),
+      current = await projectVersion(packaged.name);
+    if (current !== undefined && current !== packaged.version) {
+      console.log(`Updating it from version ${current} to ${packaged.version} (your trips and .env.local stay as they are)…`);
+      await copyEdition({ refresh: true });
+      await npmInstall(targetDir);
+    } else if (!(await pathExists(join(targetDir, "node_modules")))) {
       console.log("Its dependencies are missing, so installing them now (about a minute)…");
       await npmInstall(targetDir);
     }
@@ -58,16 +91,7 @@ async function scaffold() {
 
   console.log(`\n[1/3] Setting up your project in ${targetDir}`);
   await mkdir(targetDir, { recursive: true });
-  await cp(packageRoot, targetDir, {
-    recursive: true,
-    filter: source => {
-      const relativePath = source.slice(packageRoot.length + 1);
-      return !relativePath.split(/[\\/]/).some(segment => notCopied.has(segment));
-    },
-  });
-  const manifest = JSON.parse(await readFile(join(targetDir, "package.json"), "utf8"));
-  await writeFile(join(targetDir, "package.json"), `${JSON.stringify(localEdition(manifest), null, 2)}\n`);
-  await mkdir(join(targetDir, "data/trips"), { recursive: true });
+  await copyEdition({ refresh: false });
 
   console.log("[2/3] Installing (about a minute, and only this once)…");
   await npmInstall(targetDir);
