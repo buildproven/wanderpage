@@ -1,7 +1,7 @@
 {
   "name": "wanderpage",
   "displayName": "Wanderpage",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Turn a folder of travel photos on this Mac into a private, curated static trip page. Never identifies people, never publishes exact GPS, and runs a privacy scan before anything is published.",
   "author": {
     "name": "BuildProven"
