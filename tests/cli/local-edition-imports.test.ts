@@ -15,7 +15,7 @@ const hostedOnly = [
   /^app\/trips\/\[slug\]\//,
   /^components\/(WebCreator|DraftControls)/,
   /^lib\/web\//,
-  /^scripts\/(hosted-preview-acceptance|release-|trace)/,
+  /^scripts\/(hosted-preview-acceptance|migrate|release-|trace)/,
   /\.test\.tsx?$/,
 ];
 const roots = ["app", "assets", "bin", "components", "lib", "scripts"];

@@ -404,6 +404,18 @@ authorization server answers 503 and issues no token.
 - **Realizes:** ARCH-WEB-STORE
 - **Code:** lib/web/neon-repository.ts, lib/web/memory-repository.ts, lib/web/grant-store.ts
 
+### DES-WEB-MIGRATE Production schema migration runner
+
+The Vercel build runs `scripts/migrate.ts` before Next.js. The runner changes a database only for a production Vercel build, prefers
+`DATABASE_URL_UNPOOLED` over `DATABASE_URL`, connects through a Neon WebSocket session (a migration file holds several statements,
+and Neon's HTTP mode documents one statement per query), and applies unrecorded SQL files by numeric prefix. Each migration and its timestamped
+`schema_migrations` ledger row commit in one transaction. A database error rolls back the current file, identifies that file without
+printing the connection string, and fails the build; non-production builds, and production without a database URL, explain that migration was skipped. A hand-migrated database
+(tables, empty ledger) is refused until `MIGRATE_BASELINE` names the last file already applied.
+
+- **Realizes:** ARCH-WEB-STORE
+- **Code:** scripts/migrate.ts
+
 ### DES-WEB-PROCESS Hosted processing
 
 `processStory` downloads the admitted private sources, runs the shared pipeline, and `applyLocationPrivacy` enforces the hosted mode.

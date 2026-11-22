@@ -10,8 +10,24 @@ The repository declares the deployment contract in [`vercel.json`](../vercel.jso
 
 - Framework: `nextjs`
 - Install command: `pnpm install --frozen-lockfile`
-- Build command: `pnpm build`
+- Build command: `pnpm migrate && pnpm build`
 - Output directory: unset (`null`); Vercel serves the Next.js server output
+
+The migration command changes a database only when `VERCEL_ENV=production`.
+It prefers `DATABASE_URL_UNPOOLED` and falls back to `DATABASE_URL`, applies
+pending [`db/migrations`](../db/migrations) files in numeric order, and records
+each committed file in `schema_migrations`. Each file and its ledger entry use
+one transaction. A failed file rolls back and fails the deployment. Local and
+preview builds print their reason for skipping migrations.
+A production project with no database URL skips migrations and still builds;
+the hosted routes then answer 503 naming the missing variables.
+
+To adopt a database whose schema was applied by hand (tables but no
+`schema_migrations` rows), the runner refuses to re-run the files and fails the
+deploy. Set `MIGRATE_BASELINE` to the last file already applied (for example
+`0007_mcp_owner_bindings.sql`) for one production deploy: the runner records
+that file and every earlier one without running them, then applies the rest.
+Remove the variable afterwards.
 
 The `outputDirectory: null` declaration intentionally overrides a stale
 dashboard output-directory setting. Do not set it to `out`: `out/` is produced
@@ -33,9 +49,10 @@ Create isolated preview resources before enabling the creator:
 3. Vercel Workflow deployment for durable processing.
 4. A non-production OpenAI key with a bounded spend limit.
 
-Apply [`db/migrations`](../db/migrations) in numeric order in one migration
-transaction. Never point a preview at production data or a production Blob
-store.
+Because builds never migrate preview databases, apply [`db/migrations`](../db/migrations)
+to the isolated preview database before acceptance. Apply the files in numeric
+order and record completion in the preview deployment notes. Never point a
+preview at production data or a production Blob store.
 
 ## Environment variables
 
@@ -52,6 +69,9 @@ WANDERPAGE_DAILY_GENERATION_LIMIT
 CRON_SECRET
 WANDERPAGE_OPERATOR_SECRET
 ```
+
+Production also accepts `DATABASE_URL`, but set `DATABASE_URL_UNPOOLED` when
+Neon provides it so the build runner uses a direct migration connection.
 
 Use separate random peppers and operator credentials for preview. Keep the
 generation limit low enough to make accidental spend visible.
