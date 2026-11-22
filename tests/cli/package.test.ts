@@ -60,8 +60,16 @@ describe("the package installed under node_modules", () => {
     await mkdir(join(workspace, "data/trips"), { recursive: true });
     const tarball = (await readdir(sandbox)).find(name => name.endsWith(".tgz"))!;
     await execute("tar", ["-xzf", join(sandbox, tarball), "-C", installed, "--strip-components=1"]);
-    for (const name of await readdir(join(repoRoot, "node_modules")))
-      if (!name.startsWith(".")) await symlink(join(repoRoot, "node_modules", name), join(installedRoot, name));
+    for (const name of await readdir(join(repoRoot, "node_modules"))) {
+      if (name.startsWith(".")) continue;
+      const source = join(repoRoot, "node_modules", name),
+        target = join(installedRoot, name);
+      // The extracted package already made its own scope folder (@buildproven/wanderpage), so link that scope's other packages one by one.
+      if (name.startsWith("@") && (await stat(target).catch(() => undefined))?.isDirectory()) {
+        for (const scoped of await readdir(source))
+          if (!(await stat(join(target, scoped)).catch(() => undefined))) await symlink(join(source, scoped), join(target, scoped));
+      } else await symlink(source, target);
+    }
     const { stdout } = await execute(
       process.execPath,
       [join(installed, "bin/wanderpage.js"), "draft:list", "--json", "--workspace", workspace],

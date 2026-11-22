@@ -395,10 +395,14 @@ with a version check that rejects stale edits; retries failed runs while sources
 
 `NeonStoryRepository` implements `StoryRepository` over `@neondatabase/serverless` with transactional claims, leases, tombstones,
 version-checked writes, and PostgreSQL `bigint` handling; `MemoryStoryRepository` implements the same contract for tests and refuses to
-be selected in production. SQL migrations in `db/migrations` are applied in numeric order.
+be selected in production. SQL migrations in `db/migrations` are applied in numeric order. `PostgresGrantStore` is the
+`@buildproven/mcp-oauth` `GrantStore` for the hosted MCP sign-in: `claim` inserts into `oauth_grants` (primary key on the id) with
+`ON CONFLICT DO NOTHING`, so a spent code or refresh token is claimed once, and first prunes expired rows so an expired id may be
+claimed again. It connects on first use; a missing `DATABASE_URL` or any database failure rejects with a `GrantStoreError`, so the
+authorization server answers 503 and issues no token.
 
 - **Realizes:** ARCH-WEB-STORE
-- **Code:** lib/web/neon-repository.ts, lib/web/memory-repository.ts
+- **Code:** lib/web/neon-repository.ts, lib/web/memory-repository.ts, lib/web/grant-store.ts
 
 ### DES-WEB-PROCESS Hosted processing
 
@@ -445,6 +449,26 @@ draft desk.
 
 - **Realizes:** ARCH-WEB-UI
 - **Code:** components/WebCreator.tsx, components/DraftControls.tsx, app/create/page.tsx, app/stories/[storyId]/page.tsx
+
+### DES-WEB-MCP Hosted MCP endpoint and owner sign-in
+
+`/api/mcp` serves the hosted story tools over Streamable HTTP for Claude on the web, desktop and mobile; the logic lives in the private
+folder `app/api/mcp/_hosted` (app code imports only from `app`, `components`, `lib` and `workflows`, the folders every build copies) and
+the stdio entry (`mcp/server.ts`) is unchanged. Every request first passes `authorizeMcpRequest` from
+`@buildproven/mcp-oauth` (prefix `WANDERPAGE`): no or an invalid token is a 401 whose `WWW-Authenticate` names
+`resource_metadata="<origin>/.well-known/oauth-protected-resource"`, another subject a 403, and a missing setting a 503 that names it.
+`/.well-known/oauth-protected-resource` publishes the MCP URL and the issuer; `/.well-known/oauth-authorization-server` and `/oauth/*`
+(authorize, GitHub callback, token, register, jwks) are the package's `createOAuthServer` with `PostgresGrantStore`. On the owner's first
+tool call, `HostedOwnerSessions` creates an owner session with the current consent versions and binds it in `mcp_owner_bindings`
+(a keyed hash of the subject and the session id, insert-if-absent or compare-and-set, so concurrent first calls share one session). The
+session secret is an HMAC of `WANDERPAGE_MCP_SESSION_KEY` (at least 32 characters), the subject and the session id: never stored or sent.
+Later calls reuse the session while StoryService accepts it and bind a new one after retention expires, revokes or purges it.
+`list_stories` and `get_story` read through `StoryService.listOwnedStories` and `getOwnedStory` and return only id, title, status, photo
+count, publish state, public path and dates; a server built for another subject refuses both. The static export removes `app/oauth`,
+`app/api` and `app/.well-known` and never copies `mcp/`.
+
+- **Realizes:** ARCH-WEB-STORY
+- **Code:** app/api/mcp/route.ts, app/api/mcp/_hosted/http.ts, app/api/mcp/_hosted/oauth.ts, app/api/mcp/_hosted/owner-sessions.ts, app/api/mcp/_hosted/runtime.ts, app/api/mcp/_hosted/server.ts, app/oauth/authorize/route.ts, app/oauth/github/callback/route.ts, app/oauth/jwks/route.ts, app/oauth/register/route.ts, app/oauth/token/route.ts
 
 ### DES-WEB-PREVIEW Preview acceptance policy
 
