@@ -36,6 +36,13 @@ export function hostedDependencies(env: Readonly<Record<string, string | undefin
       bindings: new PostgresOwnerBindingStore(sql),
       key: mcpSessionKey(pepper),
       hashSecret: secret => hashSecret(secret, pepper),
+      updateConsent: async session => {
+        await sql`
+          UPDATE owner_sessions
+          SET terms_version = ${session.termsVersion}, upload_consent_version = ${session.uploadConsentVersion}
+          WHERE id = ${session.id} AND revoked_at IS NULL AND expires_at > ${session.lastSeenAt}
+        `;
+      },
     }),
   };
 }

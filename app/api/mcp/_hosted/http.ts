@@ -34,6 +34,7 @@ export function createHostedMcpHandler(options: HostedMcpOptions) {
         ...dependencies,
         subject: subjectOf(authInfo),
         ownerSubject: (env()[`${hostedPrefix}_OWNER_SUBJECT`] ?? "").trim(),
+        origin: new URL(resourceUrls(request).mcpUrl).origin,
       })
     );
     return handler.fetch(request, { authInfo: auth.value });

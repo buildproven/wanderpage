@@ -6,7 +6,7 @@ import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 import { currentDisclosureVersion } from "@/lib/consent";
 import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
-import type { StoryRepository } from "@/lib/web/types";
+import type { OwnerSession, StoryRepository } from "@/lib/web/types";
 
 /** Shortest accepted owner-session key, in characters. */
 export const minimumSessionKeyLength = 32;
@@ -26,6 +26,8 @@ export type OwnerSessionsOptions = {
   service: Pick<StoryService, "requireSession">;
   repository: Pick<StoryRepository, "createSession">;
   bindings: OwnerBindingStore;
+  /** Replaces the consent versions on the same live session. Production updates `owner_sessions`; memory tests replace their record. */
+  updateConsent?: (session: OwnerSession) => Promise<void>;
   /** Derives the session secret and the subject hash (`mcpSessionKey` of the session pepper in production). */
   key: string;
   /** The same hash StoryService applies to an owner session secret. */
@@ -42,7 +44,8 @@ export class HostedOwnerSessions {
 
   /**
    * The owner session secret for `subject`. The first call creates an owner session with the current consent versions and binds it;
-   * later calls reuse it while StoryService accepts it, and bind a new one once retention has expired, revoked or purged it.
+   * later calls reuse it while StoryService accepts it, including after a consent-version change, and bind a new one only once it is
+   * expired, revoked or purged. Existing stories stay owned by the same session id.
    */
   async secretFor(subject: string) {
     if (!subject) throw new StoryServiceError("AUTH_REQUIRED", "The access token names no owner.");
@@ -74,6 +77,32 @@ export class HostedOwnerSessions {
     throw new Error("Wanderpage could not bind the owner session for this sign-in. Try the request again.");
   }
 
+  /** Refreshes consent on the bound session before story creation without changing the session id that owns existing stories. */
+  async secretForCreation(subject: string) {
+    const secret = await this.secretFor(subject);
+    let session = await this.options.service.requireSession(secret);
+    if (hasCurrentConsent(session)) return secret;
+    if (!this.options.updateConsent) throw new Error("Wanderpage cannot update the owner session to the current upload terms.");
+    session = {
+      ...session,
+      termsVersion: currentDisclosureVersion,
+      uploadConsentVersion: currentDisclosureVersion,
+    };
+    await this.options.updateConsent(session);
+    const updated = await this.options.service.requireSession(secret);
+    if (!hasCurrentConsent(updated)) throw new Error("Wanderpage could not update the owner session to the current upload terms.");
+    return secret;
+  }
+
+  /**
+   * The admission key StoryService counts creation and generation limits by. The web keys a client by its address; the MCP owner reaches
+   * the server through Claude's address, so the key is a keyed hash of the subject: stable per owner and never the subject itself.
+   */
+  admissionKeyFor(subject: string) {
+    if (!subject) throw new StoryServiceError("AUTH_REQUIRED", "The access token names no owner.");
+    return this.derive("admission", subject);
+  }
+
   private async live(secret: string) {
     try {
       await this.options.service.requireSession(secret);
@@ -84,11 +113,15 @@ export class HostedOwnerSessions {
     }
   }
 
-  private derive(purpose: "session" | "subject", ...parts: string[]) {
+  private derive(purpose: "admission" | "session" | "subject", ...parts: string[]) {
     return createHmac("sha256", this.options.key)
       .update(["wanderpage-mcp", purpose, ...parts].join("\0"))
       .digest("base64url");
   }
+}
+
+function hasCurrentConsent(session: Pick<OwnerSession, "termsVersion" | "uploadConsentVersion">) {
+  return session.termsVersion === currentDisclosureVersion && session.uploadConsentVersion === currentDisclosureVersion;
 }
 
 /** Process-local bindings, for tests. */

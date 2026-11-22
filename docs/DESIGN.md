@@ -463,9 +463,16 @@ tool call, `HostedOwnerSessions` creates an owner session with the current conse
 (a keyed hash of the subject and the session id, insert-if-absent or compare-and-set, so concurrent first calls share one session). The
 session secret is an HMAC of the owner-session key (`mcpSessionKey`: an HMAC of `WANDERPAGE_SESSION_PEPPER` under its own label, so no
 extra secret), the subject and the session id: never stored or sent.
-Later calls reuse the session while StoryService accepts it and bind a new one after retention expires, revokes or purges it.
+Later calls reuse the session while StoryService accepts it and bind a new one only after retention expires, revokes or purges it, so a
+consent-version change never orphans stories owned by the existing session id. Before `create_story`, `secretForCreation` updates both
+consent versions in place and verifies them, then `StoryService.createStory` enforces those current versions.
 `list_stories` and `get_story` read through `StoryService.listOwnedStories` and `getOwnedStory` and return only id, title, status, photo
-count, publish state, public path and dates; a server built for another subject refuses both. The static export removes `app/oauth`,
+count, version, publish state, public path and dates; a server built for another subject refuses every tool. The tools that change a
+story call StoryService and add no business rule: `create_story` (`createStory` with the current consent versions), `start_generation`
+(`queueGeneration`, one run), `set_title` (`updateStory` with the story's own privacy choices; a version conflict reports the current
+version), `publish` and `unpublish` (one story; the reply adds `publicUrl`, the request origin plus `/s/<slug>`) and `delete_story`
+(`prepareDelete`, then the web delete route's Blob cleanup unless the story was already deleted). Their admission key is a keyed hash of
+the subject (`admissionKeyFor`), because every call reaches the server from Claude's address. The static export removes `app/oauth`,
 `app/api` and `app/.well-known` and never copies `mcp/`.
 
 - **Realizes:** ARCH-WEB-STORY
