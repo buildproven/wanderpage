@@ -128,7 +128,7 @@ describe("hosted MCP owner session binding (BUI-2099)", () => {
           key: "short",
           hashSecret: value => value,
         })
-    ).toThrow("WANDERPAGE_MCP_SESSION_KEY must be at least 32 characters.");
+    ).toThrow("The owner-session key must be at least 32 characters.");
   });
 
   it("BUI-2099 R3: a store failure while checking the session propagates instead of binding a new session", async () => {

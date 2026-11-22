@@ -11,7 +11,8 @@ import * as githubCallback from "@/app/oauth/github/callback/route";
 import * as jwks from "@/app/oauth/jwks/route";
 import * as register from "@/app/oauth/register/route";
 import * as token from "@/app/oauth/token/route";
-import { hostedDependencies } from "@/app/api/mcp/_hosted/runtime";
+import { minimumSessionKeyLength } from "@/app/api/mcp/_hosted/owner-sessions";
+import { hostedDependencies, mcpSessionKey } from "@/app/api/mcp/_hosted/runtime";
 import { createServer } from "@/mcp/server";
 
 const origin = "https://wander.test";
@@ -89,20 +90,21 @@ describe("hosted MCP OAuth routes (BUI-2099)", () => {
     expect(response.headers.get("www-authenticate")).toContain(`resource_metadata="${origin}/.well-known/oauth-protected-resource"`);
   });
 
-  it("BUI-2099 R3: the hosted runtime names each missing setting, and a short session key, instead of starting", async () => {
+  it("BUI-2099 R3: the hosted runtime names each missing setting instead of starting, and never echoes a value", async () => {
     const missing = hostedDependencies({ DATABASE_URL: "postgres://db.test/wander" });
     expect(missing).toBeInstanceOf(Response);
-    expect(await (missing as Response).json()).toMatchObject({ missing: ["WANDERPAGE_SESSION_PEPPER", "WANDERPAGE_MCP_SESSION_KEY"] });
-    const short = hostedDependencies({
-      DATABASE_URL: "postgres://db.test/wander",
-      WANDERPAGE_SESSION_PEPPER: "pepper",
-      WANDERPAGE_MCP_SESSION_KEY: "tiny-key",
-    });
-    expect((short as Response).status).toBe(503);
-    const body = JSON.stringify(await (short as Response).json());
-    expect(body).toContain("WANDERPAGE_MCP_SESSION_KEY");
-    expect(body).not.toContain("tiny-key");
+    expect((missing as Response).status).toBe(503);
+    const body = JSON.stringify(await (missing as Response).json());
+    expect(JSON.parse(body)).toMatchObject({ missing: ["WANDERPAGE_SESSION_PEPPER"] });
     expect(body).not.toContain("db.test");
+  });
+
+  it("BUI-2099 R3: the owner-session key derives from the session pepper, long enough and distinct from it", () => {
+    const key = mcpSessionKey("pepper");
+    expect(key).toBe(mcpSessionKey("pepper"));
+    expect(key).not.toBe(mcpSessionKey("other-pepper"));
+    expect(key).not.toContain("pepper");
+    expect(key.length).toBeGreaterThanOrEqual(minimumSessionKeyLength);
   });
 
   it("BUI-2099 R6: the static export leaves out app/oauth with the other server-only routes", async () => {

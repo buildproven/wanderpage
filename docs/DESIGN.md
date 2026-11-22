@@ -461,7 +461,8 @@ the stdio entry (`mcp/server.ts`) is unchanged. Every request first passes `auth
 (authorize, GitHub callback, token, register, jwks) are the package's `createOAuthServer` with `PostgresGrantStore`. On the owner's first
 tool call, `HostedOwnerSessions` creates an owner session with the current consent versions and binds it in `mcp_owner_bindings`
 (a keyed hash of the subject and the session id, insert-if-absent or compare-and-set, so concurrent first calls share one session). The
-session secret is an HMAC of `WANDERPAGE_MCP_SESSION_KEY` (at least 32 characters), the subject and the session id: never stored or sent.
+session secret is an HMAC of the owner-session key (`mcpSessionKey`: an HMAC of `WANDERPAGE_SESSION_PEPPER` under its own label, so no
+extra secret), the subject and the session id: never stored or sent.
 Later calls reuse the session while StoryService accepts it and bind a new one after retention expires, revokes or purges it.
 `list_stories` and `get_story` read through `StoryService.listOwnedStories` and `getOwnedStory` and return only id, title, status, photo
 count, publish state, public path and dates; a server built for another subject refuses both. The static export removes `app/oauth`,

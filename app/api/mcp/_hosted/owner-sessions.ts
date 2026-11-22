@@ -8,7 +8,7 @@ import { currentDisclosureVersion } from "@/lib/consent";
 import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
 import type { StoryRepository } from "@/lib/web/types";
 
-/** Shortest accepted `WANDERPAGE_MCP_SESSION_KEY`, in characters. */
+/** Shortest accepted owner-session key, in characters. */
 export const minimumSessionKeyLength = 32;
 const sessionLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 
@@ -26,7 +26,7 @@ export type OwnerSessionsOptions = {
   service: Pick<StoryService, "requireSession">;
   repository: Pick<StoryRepository, "createSession">;
   bindings: OwnerBindingStore;
-  /** `WANDERPAGE_MCP_SESSION_KEY`: derives the session secret and the subject hash. */
+  /** Derives the session secret and the subject hash (`mcpSessionKey` of the session pepper in production). */
   key: string;
   /** The same hash StoryService applies to an owner session secret. */
   hashSecret: (secret: string) => string;
@@ -37,7 +37,7 @@ export type OwnerSessionsOptions = {
 export class HostedOwnerSessions {
   constructor(private readonly options: OwnerSessionsOptions) {
     if (options.key.length < minimumSessionKeyLength)
-      throw new Error(`WANDERPAGE_MCP_SESSION_KEY must be at least ${minimumSessionKeyLength} characters.`);
+      throw new Error(`The owner-session key must be at least ${minimumSessionKeyLength} characters.`);
   }
 
   /**
