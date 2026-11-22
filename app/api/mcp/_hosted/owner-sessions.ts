@@ -74,6 +74,15 @@ export class HostedOwnerSessions {
     throw new Error("Wanderpage could not bind the owner session for this sign-in. Try the request again.");
   }
 
+  /**
+   * The admission key StoryService counts creation and generation limits by. The web derives it from the client address; every MCP call
+   * arrives from the Claude client's servers, so the owner's key is a keyed hash of the subject instead (stable, and never the subject).
+   */
+  admissionKeyFor(subject: string) {
+    if (!subject) throw new StoryServiceError("AUTH_REQUIRED", "The access token names no owner.");
+    return this.derive("admission", subject);
+  }
+
   private async live(secret: string) {
     try {
       await this.options.service.requireSession(secret);
@@ -84,7 +93,7 @@ export class HostedOwnerSessions {
     }
   }
 
-  private derive(purpose: "session" | "subject", ...parts: string[]) {
+  private derive(purpose: "admission" | "session" | "subject", ...parts: string[]) {
     return createHmac("sha256", this.options.key)
       .update(["wanderpage-mcp", purpose, ...parts].join("\0"))
       .digest("base64url");
