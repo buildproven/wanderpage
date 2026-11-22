@@ -9,7 +9,7 @@ import { createHostedServer, type HostedServerOptions } from "@/app/api/mcp/_hos
 export const hostedPrefix = "WANDERPAGE";
 
 type Env = Readonly<Record<string, string | undefined>>;
-export type HostedDependencies = Pick<HostedServerOptions, "stories" | "sessions">;
+export type HostedDependencies = Pick<HostedServerOptions, "stories" | "sessions" | "removeObjects">;
 
 export type HostedMcpOptions = {
   /** Settings source, read on each request. Default `process.env`. */
@@ -34,6 +34,7 @@ export function createHostedMcpHandler(options: HostedMcpOptions) {
         ...dependencies,
         subject: subjectOf(authInfo),
         ownerSubject: (env()[`${hostedPrefix}_OWNER_SUBJECT`] ?? "").trim(),
+        publicOrigin: new URL(request.url).origin,
       })
     );
     return handler.fetch(request, { authInfo: auth.value });

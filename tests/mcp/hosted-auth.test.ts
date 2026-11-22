@@ -136,7 +136,16 @@ describe("hosted MCP sign-in (BUI-2099)", () => {
       story = await stories.createStory(ownerSecret, storyInput),
       client = await httpClient(handle, await mint(owner)),
       { tools } = await client.listTools();
-    expect(tools.map(tool => tool.name).sort()).toEqual(["get_story", "list_stories"]);
+    expect(tools.map(tool => tool.name).sort()).toEqual([
+      "create_story",
+      "delete_story",
+      "get_story",
+      "list_stories",
+      "publish",
+      "set_title",
+      "start_generation",
+      "unpublish",
+    ]);
     const response = await client.callTool({ name: "list_stories", arguments: {} });
     expect(response.isError).not.toBe(true);
     expect(response.structuredContent).toEqual({

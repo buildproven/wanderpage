@@ -465,8 +465,13 @@ session secret is an HMAC of the owner-session key (`mcpSessionKey`: an HMAC of 
 extra secret), the subject and the session id: never stored or sent.
 Later calls reuse the session while StoryService accepts it and bind a new one after retention expires, revokes or purges it.
 `list_stories` and `get_story` read through `StoryService.listOwnedStories` and `getOwnedStory` and return only id, title, status, photo
-count, publish state, public path and dates; a server built for another subject refuses both. The static export removes `app/oauth`,
-`app/api` and `app/.well-known` and never copies `mcp/`.
+count, publish state, public path, dates and version; a server built for another subject refuses every tool. The write tools (BUI-2100)
+add no business rule: `create_story` calls `StoryService.createStory` with the current consent versions, `start_generation` calls
+`queueGeneration` (one run; a disabled policy is refused by name), `set_title` calls `updateStory` with the story's own privacy choices
+and answers a stale version with the current one, `publish` and `unpublish` change one story and return its public URL (the request
+origin plus `/s/<slug>`) or the private state, and `delete_story` runs `prepareDelete` and then the web route's `cleanupStoryObjects`.
+Their admission key, which StoryService counts limits by, is a keyed hash of the subject, since every MCP call arrives from Claude's
+servers. The static export removes `app/oauth`, `app/api` and `app/.well-known` and never copies `mcp/`.
 
 - **Realizes:** ARCH-WEB-STORY
 - **Code:** app/api/mcp/route.ts, app/api/mcp/_hosted/http.ts, app/api/mcp/_hosted/oauth.ts, app/api/mcp/_hosted/owner-sessions.ts, app/api/mcp/_hosted/runtime.ts, app/api/mcp/_hosted/server.ts, app/oauth/authorize/route.ts, app/oauth/github/callback/route.ts, app/oauth/jwks/route.ts, app/oauth/register/route.ts, app/oauth/token/route.ts
