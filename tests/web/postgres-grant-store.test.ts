@@ -37,10 +37,7 @@ const start = Date.parse("2026-11-21T00:00:00Z") / 1000;
 describe("Postgres OAuth grant store (BUI-2099)", () => {
   it("BUI-2099 R2: a second claim of the same id returns false", async () => {
     const { sql } = memorySql(),
-      store = new PostgresGrantStore(
-        () => sql,
-        () => start * 1000
-      );
+      store = new PostgresGrantStore(sql, () => start * 1000);
     await expect(store.claim("code-1", start + 600)).resolves.toBe(true);
     await expect(store.claim("code-1", start + 600)).resolves.toBe(false);
     await expect(store.claim("code-2", start + 600)).resolves.toBe(true);
@@ -48,10 +45,7 @@ describe("Postgres OAuth grant store (BUI-2099)", () => {
 
   it("BUI-2099 R2: concurrent claims of one id succeed once", async () => {
     const { sql } = memorySql(),
-      store = new PostgresGrantStore(
-        () => sql,
-        () => start * 1000
-      ),
+      store = new PostgresGrantStore(sql, () => start * 1000),
       results = await Promise.all([store.claim("refresh-1", start + 60), store.claim("refresh-1", start + 60)]);
     expect(results.filter(Boolean)).toHaveLength(1);
   });
@@ -59,10 +53,7 @@ describe("Postgres OAuth grant store (BUI-2099)", () => {
   it("BUI-2099 R2: has reports a claimed id until it expires, and an expired id can be claimed again", async () => {
     let clock = start * 1000;
     const { rows, sql } = memorySql(),
-      store = new PostgresGrantStore(
-        () => sql,
-        () => clock
-      );
+      store = new PostgresGrantStore(sql, () => clock);
     await expect(store.has("family-1")).resolves.toBe(false);
     await store.claim("family-1", start + 60);
     await expect(store.has("family-1")).resolves.toBe(true);
@@ -74,10 +65,7 @@ describe("Postgres OAuth grant store (BUI-2099)", () => {
 
   it("BUI-2099 R2: stores the expiry given in seconds since the epoch", async () => {
     const { rows, sql } = memorySql(),
-      store = new PostgresGrantStore(
-        () => sql,
-        () => start * 1000
-      );
+      store = new PostgresGrantStore(sql, () => start * 1000);
     await store.claim("code-1", start + 300);
     expect(rows.get("code-1")?.toISOString()).toBe("2026-11-21T00:05:00.000Z");
     await expect(store.claim("code-2", Number.NaN)).rejects.toBeInstanceOf(GrantStoreError);
@@ -87,7 +75,7 @@ describe("Postgres OAuth grant store (BUI-2099)", () => {
     const failing = (async () => {
         throw new Error("connection refused");
       }) as unknown as NeonQueryFunction<false, false>,
-      store = new PostgresGrantStore(() => failing);
+      store = new PostgresGrantStore(failing);
     const claim = store.claim("code-1", start + 60);
     await expect(claim).rejects.toBeInstanceOf(GrantStoreError);
     await expect(claim).rejects.toThrow("Wanderpage could not write the OAuth grant record: connection refused");

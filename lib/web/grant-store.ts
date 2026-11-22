@@ -1,8 +1,9 @@
 // @design DES-WEB-STORE
 import { GrantStoreError, type GrantStore } from "@buildproven/mcp-oauth";
-import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import { neon } from "@neondatabase/serverless";
 
-type Sql = NeonQueryFunction<false, false>;
+/** The tagged-template query the store sends; `neon(url)` is one, as `NeonStoryRepository` takes it. */
+type Sql = (strings: TemplateStringsArray, ...values: unknown[]) => Promise<Record<string, unknown>[]>;
 
 /**
  * Spent OAuth authorization codes and refresh tokens, shared by every serverless instance (table `oauth_grants`, migration 0006).
@@ -12,24 +13,25 @@ type Sql = NeonQueryFunction<false, false>;
  */
 export class PostgresGrantStore implements GrantStore {
   constructor(
-    private readonly connect: () => Sql,
+    private readonly sql: Sql,
     private readonly now: () => number = () => Date.now()
   ) {}
 
-  /** Connects on first use, so a missing `DATABASE_URL` is a 503 naming the setting, not a crash at import. */
+  /** Connects on first query, so a missing `DATABASE_URL` is a 503 naming the setting, not a crash at import. */
   static fromEnvironment(env: Readonly<Record<string, string | undefined>> = process.env) {
-    let sql: Sql | undefined;
-    return new PostgresGrantStore(() => {
-      if (sql) return sql;
+    let connected: Sql | undefined;
+    const connect = () => {
+      if (connected) return connected;
       const url = env.DATABASE_URL?.trim();
       if (!url) throw new GrantStoreError("DATABASE_URL is required to record spent Wanderpage OAuth grants.", true);
-      sql = neon(url);
-      return sql;
-    });
+      connected = neon(url);
+      return connected;
+    };
+    return new PostgresGrantStore((strings, ...values) => connect()(strings, ...values));
   }
 
   async claim(id: string, expiresAt: number) {
-    const sql = this.connect(),
+    const sql = this.sql,
       now = new Date(this.now()),
       expires = new Date(expiresAt * 1000);
     if (Number.isNaN(expires.getTime())) throw new GrantStoreError("The OAuth grant expiry is not a valid time.");
@@ -41,7 +43,7 @@ export class PostgresGrantStore implements GrantStore {
   }
 
   async has(id: string) {
-    const sql = this.connect(),
+    const sql = this.sql,
       now = new Date(this.now()),
       rows = await recorded("read", () => sql`SELECT id FROM oauth_grants WHERE id = ${id} AND expires_at > ${now}`);
     return rows.length > 0;
