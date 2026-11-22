@@ -33,6 +33,9 @@ importers:
 
   .:
     dependencies:
+      '@buildproven/mcp-oauth':
+        specifier: https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz
+        version: https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz(@modelcontextprotocol/server@2.4.0)
       '@modelcontextprotocol/server':
         specifier: ^2.4.0
         version: 2.4.0
@@ -145,6 +148,9 @@ importers:
       husky:
         specifier: ^9.1.7
         version: 9.1.7
+      jose:
+        specifier: ^6.2.18
+        version: 6.2.18
       jsdom:
         specifier: ^30.1.1
         version: 30.1.1
@@ -286,6 +292,13 @@ packages:
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
+
+  '@buildproven/mcp-oauth@https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz':
+    resolution: {integrity: sha512-Oy9Ms4zbrbAA8h0Kieuyn83/1vHIpM03IkNjTWHusbwh8yTOfU0YmyDef/elIghlMFQxitLR1wOG4XSTTMKlZA==, tarball: https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz}
+    version: 0.1.0
+    engines: {node: '>=24'}
+    peerDependencies:
+      '@modelcontextprotocol/server': ^2.4.0
 
   '@cacheable/memory@2.2.0':
     resolution: {integrity: sha512-CTLKqLItRCEixEAewD3/j9DB3/o96gpTPD4eJ1v+DGOlxZRZncRQkGYqqnAGCscYd6RNeXfGeiuCphsPtqyIfQ==}
@@ -3680,8 +3693,8 @@ packages:
   jose@5.10.0:
     resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
 
-  jose@6.2.14:
-    resolution: {integrity: sha512-3JasLuki1NRLQvY4wCoC37KZk4qxoBx2k2aFqLxT84IezqW0bkJKnNtxnZj/Fu1xsQivoc/lytxaRHJoGLjJ1A==}
+  jose@6.2.18:
+    resolution: {integrity: sha512-doV4thUwgkrycJH4yLeqwTGIIZphHl+pk7CPReuMIhYhncmgzdko85MaCG4YQFTxqMFr1/oEH32tZuKKovcDEg==}
 
   jpeg-js@0.4.4:
     resolution: {integrity: sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg==}
@@ -5766,6 +5779,11 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
+  '@buildproven/mcp-oauth@https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz(@modelcontextprotocol/server@2.4.0)':
+    dependencies:
+      '@modelcontextprotocol/server': 2.4.0
+      jose: 6.2.18
+
   '@cacheable/memory@2.2.0':
     dependencies:
       '@cacheable/utils': 2.5.0
@@ -6564,7 +6582,7 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.1
-      jose: 6.2.14
+      jose: 6.2.18
       pkce-challenge: 5.0.1
       zod: 4.6.7
 
@@ -9432,7 +9450,7 @@ snapshots:
 
   jose@5.10.0: {}
 
-  jose@6.2.14: {}
+  jose@6.2.18: {}
 
   jpeg-js@0.4.4: {}
 

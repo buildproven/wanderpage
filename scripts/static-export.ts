@@ -14,6 +14,7 @@ try {
   for (const serverOnly of [
     "app/.well-known",
     "app/api",
+    "app/oauth",
     "app/create",
     "app/stories",
     "app/s",
