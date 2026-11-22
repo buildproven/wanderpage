@@ -19,6 +19,9 @@ function memoryDatabase() {
       target.tables.add("schema_migrations");
       return [];
     }
+    if (/^SELECT to_regclass\('public\.stories'\)/i.test(normalized)) {
+      return [{ adopted: target.tables.has("stories") }];
+    }
     if (/^SELECT name FROM schema_migrations/i.test(normalized)) {
       return [...target.migrations].map(([name, applied_at]) => ({ name, applied_at }));
     }
@@ -166,7 +169,7 @@ describe("production database migrations (BUI-2123)", () => {
     expect(logs.join("\n")).toContain("not production");
   });
 
-  it("BUI-2123 R1: falls back to DATABASE_URL and fails safely when production has no database setting", async () => {
+  it("BUI-2123 R1: falls back to DATABASE_URL and skips without failing the build when production has no database", async () => {
     const directory = await migrationDirectory({}),
       { database } = memoryDatabase(),
       pooledUrl = "postgres" + "://pooled.example.invalid/wanderpage",
@@ -186,16 +189,59 @@ describe("production database migrations (BUI-2123)", () => {
     ).resolves.toBe(0);
     expect(selectedUrls).toEqual([pooledUrl]);
 
+    const logs: string[] = [];
+    let connected = false;
     await expect(
       runMigrations({
         env: { VERCEL_ENV: "production" },
         migrationsDirectory: directory,
-        connect: () => database,
-        log: () => undefined,
+        connect: () => {
+          connected = true;
+          return database;
+        },
+        log: message => logs.push(message),
         error: message => errors.push(message),
       })
-    ).resolves.toBe(1);
-    expect(errors.at(-1)).toContain("DATABASE_URL_UNPOOLED or DATABASE_URL is required");
+    ).resolves.toBe(0);
+    expect(connected).toBe(false);
+    expect(logs.at(-1)).toContain("production has no DATABASE_URL_UNPOOLED or DATABASE_URL");
+  });
+
+  it("BUI-2123 R1: refuses to re-run files on a hand-migrated database and adopts it with MIGRATE_BASELINE", async () => {
+    const directory = await migrationDirectory({
+        "0001_first.sql": "CREATE TABLE stories",
+        "0002_second.sql": "CREATE TABLE uploads",
+        "0003_third.sql": "CREATE TABLE later",
+      }),
+      { database, state } = memoryDatabase(),
+      databaseUrl = "postgres" + "://db.example.invalid/wanderpage",
+      errors: string[] = [],
+      run = (env: Record<string, string>) =>
+        runMigrations({
+          env: { VERCEL_ENV: "production", DATABASE_URL_UNPOOLED: databaseUrl, ...env },
+          migrationsDirectory: directory,
+          connect: () => database,
+          log: () => undefined,
+          error: message => errors.push(message),
+        });
+    // Applied by hand before the runner existed: tables, no ledger.
+    state.tables.add("stories");
+    state.tables.add("uploads");
+
+    await expect(run({})).resolves.toBe(1);
+    expect(errors.at(-1)).toContain("MIGRATE_BASELINE");
+    expect([...state.migrations.keys()]).toEqual([]);
+
+    await expect(run({ MIGRATE_BASELINE: "0009_missing.sql" })).resolves.toBe(1);
+    expect(errors.at(-1)).toContain("0009_missing.sql");
+
+    await expect(run({ MIGRATE_BASELINE: "0002_second.sql" })).resolves.toBe(0);
+    expect([...state.migrations.keys()]).toEqual(["0001_first.sql", "0002_second.sql", "0003_third.sql"]);
+    expect(state.tables).toContain("later");
+
+    // Once recorded, a leftover baseline changes nothing.
+    await expect(run({ MIGRATE_BASELINE: "0002_second.sql" })).resolves.toBe(0);
+    expect(state.migrations.size).toBe(3);
   });
 
   it("BUI-2123 R1: rejects a SQL migration without a numeric prefix instead of silently skipping it", async () => {

@@ -410,7 +410,8 @@ The Vercel build runs `scripts/migrate.ts` before Next.js. The runner changes a 
 `DATABASE_URL_UNPOOLED` over `DATABASE_URL`, connects through a Neon WebSocket session (a migration file holds several statements,
 and Neon's HTTP mode documents one statement per query), and applies unrecorded SQL files by numeric prefix. Each migration and its timestamped
 `schema_migrations` ledger row commit in one transaction. A database error rolls back the current file, identifies that file without
-printing the connection string, and fails the build; non-production builds explain that migration was skipped.
+printing the connection string, and fails the build; non-production builds, and production without a database URL, explain that migration was skipped. A hand-migrated database
+(tables, empty ledger) is refused until `MIGRATE_BASELINE` names the last file already applied.
 
 - **Realizes:** ARCH-WEB-STORE
 - **Code:** scripts/migrate.ts

@@ -19,6 +19,15 @@ pending [`db/migrations`](../db/migrations) files in numeric order, and records
 each committed file in `schema_migrations`. Each file and its ledger entry use
 one transaction. A failed file rolls back and fails the deployment. Local and
 preview builds print their reason for skipping migrations.
+A production project with no database URL skips migrations and still builds;
+the hosted routes then answer 503 naming the missing variables.
+
+To adopt a database whose schema was applied by hand (tables but no
+`schema_migrations` rows), the runner refuses to re-run the files and fails the
+deploy. Set `MIGRATE_BASELINE` to the last file already applied (for example
+`0007_mcp_owner_bindings.sql`) for one production deploy: the runner records
+that file and every earlier one without running them, then applies the rest.
+Remove the variable afterwards.
 
 The `outputDirectory: null` declaration intentionally overrides a stale
 dashboard output-directory setting. Do not set it to `out`: `out/` is produced

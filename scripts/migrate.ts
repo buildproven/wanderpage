@@ -19,6 +19,8 @@ type MigrationEnvironment = {
   VERCEL_ENV?: string;
   DATABASE_URL_UNPOOLED?: string;
   DATABASE_URL?: string;
+  /** Adopt a database whose schema was applied by hand: record files up to and including this name without running them. */
+  MIGRATE_BASELINE?: string;
 };
 
 type MigrationRuntime = {
@@ -112,9 +114,11 @@ export async function runMigrations(runtime: MigrationRuntime = {}): Promise<num
   }
 
   const databaseUrl = env.DATABASE_URL_UNPOOLED?.trim() || env.DATABASE_URL?.trim();
+  // A production project without a database still serves its static pages; the hosted routes report the missing
+  // configuration themselves (503), so the build does not fail here.
   if (!databaseUrl) {
-    errorLog("Database migration check failed: DATABASE_URL_UNPOOLED or DATABASE_URL is required in production.");
-    return 1;
+    log("Skipping database migrations: production has no DATABASE_URL_UNPOOLED or DATABASE_URL.");
+    return 0;
   }
 
   let database: MigrationDatabase | undefined;
@@ -134,7 +138,35 @@ export async function runMigrations(runtime: MigrationRuntime = {}): Promise<num
           return row.name;
         })
       ),
-      pending = migrations.filter(migration => !recorded.has(migration.name));
+      baseline = env.MIGRATE_BASELINE?.trim();
+
+    if (baseline) {
+      const index = migrations.findIndex(migration => migration.name === baseline);
+      if (index < 0) {
+        errorLog(`Database migration baseline failed: MIGRATE_BASELINE names no file in db/migrations: ${baseline}`);
+        return 1;
+      }
+      for (const migration of migrations.slice(0, index + 1).filter(m => !recorded.has(m.name))) {
+        await database.query({
+          text: "INSERT INTO schema_migrations (name, applied_at) VALUES ($1, CURRENT_TIMESTAMP) ON CONFLICT (name) DO NOTHING",
+          values: [migration.name],
+        });
+        recorded.add(migration.name);
+        log(`Recorded database migration ${migration.name} as already applied (MIGRATE_BASELINE).`);
+      }
+    } else if (!recorded.size) {
+      const [existing] = await database.query({ text: "SELECT to_regclass('public.stories') IS NOT NULL AS adopted" });
+      if (existing?.adopted === true) {
+        errorLog(
+          "Database migration check failed: the database already has the Wanderpage schema but no schema_migrations " +
+            "rows (it was migrated by hand). Set MIGRATE_BASELINE to the last file already applied (for example " +
+            "0007_mcp_owner_bindings.sql) for one deploy, then remove it."
+        );
+        return 1;
+      }
+    }
+
+    const pending = migrations.filter(migration => !recorded.has(migration.name));
 
     if (!pending.length) {
       log("Database schema is current; no migrations to apply.");
