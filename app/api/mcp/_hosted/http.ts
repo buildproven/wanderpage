@@ -22,13 +22,14 @@ export type HostedMcpOptions = {
 
 export function createHostedMcpHandler(options: HostedMcpOptions) {
   const env = () => options.env ?? process.env;
-  let handler: McpHttpHandler | undefined;
   return async (request: Request): Promise<Response> => {
     const auth = await authorizeMcpRequest(request, { prefix: hostedPrefix, env: env(), keys: options.keys });
     if (!auth.ok) return auth.response;
     const dependencies = options.dependencies();
     if (dependencies instanceof Response) return dependencies;
-    handler ??= createMcpHandler(({ authInfo }) =>
+    // One handler per request (the SDK transport is per request and keeps no session), so each request's server uses that request's
+    // dependencies, never the first request's.
+    const handler: McpHttpHandler = createMcpHandler(({ authInfo }) =>
       createHostedServer({
         ...dependencies,
         subject: subjectOf(authInfo),
