@@ -70,6 +70,7 @@
     "trip:publish": "tsx scripts/trip-publish.ts publish",
     "trip:unpublish": "tsx scripts/trip-publish.ts unpublish",
     "deploy": "tsx scripts/deploy.ts",
+    "migrate": "tsx scripts/migrate.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run && tsx scripts/trip.ts --demo && next build --webpack && tsx scripts/static-export.ts && tsx scripts/privacy-check.ts && playwright test",
