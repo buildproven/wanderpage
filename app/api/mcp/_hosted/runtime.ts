@@ -17,17 +17,18 @@ const required = ["DATABASE_URL", "WANDERPAGE_SESSION_PEPPER"] as const;
 export function mcpSessionKey(pepper: string) {
   return createHmac("sha256", pepper).update("wanderpage-mcp-owner-session-key-v1").digest("base64url");
 }
-let dependencies: HostedDependencies | undefined;
 
-/** The hosted dependencies, built once, or a 503 naming each missing or unusable setting. */
+/**
+ * The hosted dependencies for one request, or a 503 naming each missing setting. Built per request (cheap: `neon(url)` opens no
+ * connection), so a changed setting or store is never hidden behind an earlier build.
+ */
 export function hostedDependencies(env: Readonly<Record<string, string | undefined>> = process.env): HostedDependencies | Response {
-  if (dependencies) return dependencies;
   const [url, pepper] = required.map(name => env[name]?.trim() ?? "") as [string, string],
     missing = required.filter((_, index) => ![url, pepper][index]);
   if (missing.length) return configurationProblem(missing, []);
   const sql = neon(url),
     stories = getStoryService();
-  dependencies = {
+  return {
     stories,
     sessions: new HostedOwnerSessions({
       service: stories,
@@ -37,7 +38,6 @@ export function hostedDependencies(env: Readonly<Record<string, string | undefin
       hashSecret: secret => hashSecret(secret, pepper),
     }),
   };
-  return dependencies;
 }
 
 export const hostedMcpHandler = createHostedMcpHandler({ dependencies: () => hostedDependencies() });
