@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 — 2026-11-23
+
+- **Download your trip page.** Ask Claude to download a finished draft or a published story. It gives you a one-time link (it works once and
+  expires after 15 minutes) to a ZIP with `index.html` and the page's images. Unzip it and open it, or host the folder anywhere. The ZIP
+  holds only what the page shows: no original photos, no GPS and no capture data.
+- When a draft fails to generate, Claude now tells you and offers to try again, instead of waiting for it.
+
 ## 1.3.0 — 2026-11-23
 
 - **Wanderpage works in Claude on the web, desktop and phone.** The Claude plugin now connects to the hosted Wanderpage server, so you can
