@@ -9,6 +9,7 @@
   "homepage": "https://github.com/buildproven/wanderpage",
   "repository": "https://github.com/buildproven/wanderpage",
   "license": "MIT",
+  "privacyPolicyUrl": "https://wanderpage.buildproven.ai/privacy",
   "keywords": ["travel", "photos", "trip-page", "privacy"],
   "network": {
     "hosts": ["wanderpage.buildproven.ai"]
