@@ -403,7 +403,8 @@ with a version check that rejects stale edits; retries failed runs while sources
 version-checked writes, and PostgreSQL `bigint` handling; `MemoryStoryRepository` implements the same contract for tests and refuses to
 be selected in production. SQL migrations in `db/migrations` are applied in numeric order. `owner_sessions.kind` (migration 0009) records
 `public` or `owner`; existing rows default to `public`, the sessions bound in `mcp_owner_bindings` become `owner`, and an unknown value read
-back is an error. `NeonUploadLinkStore` keeps `upload_links` (migration 0008): it inserts only
+back is an error. `NeonUploadLinkStore` keeps `upload_links` (migration 0008) and `NeonDownloadLinkStore` keeps `download_links`
+(migration 0010): each inserts only
 id, story id and expiry, uses a link in one `UPDATE … WHERE used_at IS NULL AND expires_at > now()`, and the tombstone purge deletes a
 story's links with its uploads and runs. `PostgresGrantStore` is the
 `@buildproven/mcp-oauth` `GrantStore` for the hosted MCP sign-in: `claim` inserts into `oauth_grants` (primary key on the id) with
@@ -517,10 +518,26 @@ link preview cannot spend it. Continue posts the same URL: a same-origin form PO
 owner cookie with the sealed secret (`httpOnly`, `secure` in production, `sameSite=lax`, 1 hour) and the `wanderpage_owner_ttl=link`
 marker (same lifetime), and answers 303 to `/stories/<storyId>`, where the existing upload routes take the photos. A forged, tampered,
 expired or used token, or a story or session that is gone, answers 410 with a short page and no cookie; a cross-origin or non-form
-POST answers 403. The static export removes `app/oauth`, `app/api`, `app/upload` and `app/.well-known` and never copies `mcp/`.
+POST answers 403. The static export removes `app/oauth`, `app/api`, `app/upload`, `app/download` and `app/.well-known` and never copies `mcp/`.
+
+`download_page` (BUI-2146) gives the owner the page's files, which a chat cannot receive from a connector. It refuses, by tool and story
+name, another owner's story and a story that is not `draft` or `published` (no link), and otherwise records one `download_links` row
+(migration 0010: id, story id, expiry, used time; no secret) and returns `downloadUrl` (`<origin>/download/<token>`), `expiresAt`
+(15 minutes) and `storyId`. `download-link.ts` is the mechanism of `upload-link.ts` with its own key label (`downloadLinkKey`, an HMAC
+of the session pepper under `download-link`) and its own seal context, so an upload token never opens as a download token.
+`GET /download/<token>` shows the story title and a Download button and never uses the link. Download posts the same URL (same-origin
+form only, else 403): the server builds the archive first, so an image that cannot be read answers 503 and leaves the link unused,
+then uses the link in one conditional update and answers `application/zip`, named for the public slug (the title as a slug for a
+private draft). `page-archive.ts` holds `index.html` (the page's text, no script, theme colours accepted only as hex) and the large
+derived WebP images under `images/`, read through private Blob by the story's own media names: never an original upload, a coordinate
+or a capture time, and no file the page does not show. A forged, tampered, expired or used token, a story or session that is gone,
+and a story that is no longer a draft or published answer 410 with a short page. The proxy renews no owner cookie on `/download/`.
+
+The ZIP is sent as a streamed body; Vercel's 4.5 MB function response limit is documented as lifted for streaming functions, which
+the first production download of a large story confirms.
 
 - **Realizes:** ARCH-WEB-STORY
-- **Code:** app/api/mcp/route.ts, app/api/mcp/_hosted/http.ts, app/api/mcp/_hosted/oauth.ts, app/api/mcp/_hosted/owner-sessions.ts, app/api/mcp/_hosted/runtime.ts, app/api/mcp/_hosted/server.ts, lib/web/upload-link.ts, app/api/mcp/_hosted/upload-page.ts, app/upload/[token]/route.ts, app/oauth/authorize/route.ts, app/oauth/github/callback/route.ts, app/oauth/jwks/route.ts, app/oauth/register/route.ts, app/oauth/token/route.ts
+- **Code:** app/api/mcp/route.ts, app/api/mcp/_hosted/http.ts, app/api/mcp/_hosted/oauth.ts, app/api/mcp/_hosted/owner-sessions.ts, app/api/mcp/_hosted/runtime.ts, app/api/mcp/_hosted/server.ts, lib/web/upload-link.ts, app/api/mcp/_hosted/upload-page.ts, app/upload/[token]/route.ts, app/api/mcp/_hosted/link-page.ts, lib/web/download-link.ts, lib/web/page-archive.ts, app/api/mcp/_hosted/download-page.ts, app/download/[token]/route.ts, app/oauth/authorize/route.ts, app/oauth/github/callback/route.ts, app/oauth/jwks/route.ts, app/oauth/register/route.ts, app/oauth/token/route.ts
 
 ### DES-WEB-PREVIEW Preview acceptance policy
 

@@ -9,7 +9,7 @@ import { createHostedServer, type HostedServerOptions } from "@/app/api/mcp/_hos
 export const hostedPrefix = "WANDERPAGE";
 
 type Env = Readonly<Record<string, string | undefined>>;
-export type HostedDependencies = Pick<HostedServerOptions, "stories" | "sessions" | "removeObjects" | "uploadLinks">;
+export type HostedDependencies = Pick<HostedServerOptions, "stories" | "sessions" | "removeObjects" | "uploadLinks" | "downloadLinks">;
 
 export type HostedMcpOptions = {
   /** Settings source, read on each request. Default `process.env`. */

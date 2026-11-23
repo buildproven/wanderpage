@@ -19,6 +19,7 @@ try {
     "app/stories",
     "app/s",
     "app/upload",
+    "app/download",
     "app/privacy",
     "components/WebCreator.tsx",
     "components/DraftControls.tsx",

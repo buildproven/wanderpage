@@ -19,8 +19,10 @@ export function proxy(request: NextRequest) {
     requestHeaders = new Headers(request.headers),
     owner = request.cookies.get(ownerCookieName)?.value,
     // An upload link sets a 1-hour owner cookie with a marker (BUI-2095): renewing it would extend it to 30 days. The link page itself
-    // sets the cookie, so a renewal of an older cookie there would race the new one.
-    renewable = request.cookies.get(ownerTtlCookieName)?.value !== ownerTtlLinkValue && !request.nextUrl.pathname.startsWith("/upload/");
+    // sets the cookie, so a renewal of an older cookie there would race the new one. A download link (BUI-2146) answers a file and
+    // sets no cookie, so no cookie is renewed there either.
+    renewable =
+      request.cookies.get(ownerTtlCookieName)?.value !== ownerTtlLinkValue && !/^\/(upload|download)\//.test(request.nextUrl.pathname);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
   const response = NextResponse.next({ request: { headers: requestHeaders } });

@@ -2,6 +2,7 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { SessionKinds } from "@/lib/web/types";
 import type {
+  DownloadLink,
   GenerationLimits,
   OwnerSession,
   SessionKind,
@@ -13,6 +14,7 @@ import type {
   UploadLimits,
   UploadLink,
 } from "@/lib/web/types";
+import type { DownloadLinkStore } from "@/lib/web/download-link";
 import type { UploadLinkStore } from "@/lib/web/upload-link";
 
 type Row = Record<string, unknown>;
@@ -37,6 +39,33 @@ export class NeonUploadLinkStore implements UploadLinkStore {
     void now;
     const rows = await this.sql`
       UPDATE upload_links SET used_at = now()
+      WHERE id = ${id} AND story_id = ${storyId} AND used_at IS NULL AND expires_at > now()
+      RETURNING id
+    `;
+    return rows.length === 1;
+  }
+}
+
+/** Download links in the `download_links` table (migration 0010): the same one-conditional-update use as `NeonUploadLinkStore`. */
+export class NeonDownloadLinkStore implements DownloadLinkStore {
+  constructor(private readonly sql: NeonQueryFunction<false, false>) {}
+
+  async create(link: Omit<DownloadLink, "usedAt">) {
+    await this.sql`INSERT INTO download_links (id, story_id, expires_at) VALUES (${link.id}, ${link.storyId}, ${link.expiresAt})`;
+  }
+
+  async find(id: string) {
+    const [row] = await this.sql`SELECT id, story_id, expires_at, used_at FROM download_links WHERE id = ${id}`;
+    if (!row) return undefined;
+    const usedAt = optionalDate(row, "used_at");
+    return { id: String(row.id), storyId: String(row.story_id), expiresAt: date(row, "expires_at"), ...(usedAt ? { usedAt } : {}) };
+  }
+
+  /** One conditional update against the database clock, so two concurrent POSTs cannot both use a link. */
+  async use(id: string, storyId: string, now: Date) {
+    void now;
+    const rows = await this.sql`
+      UPDATE download_links SET used_at = now()
       WHERE id = ${id} AND story_id = ${storyId} AND used_at IS NULL AND expires_at > now()
       RETURNING id
     `;
@@ -420,6 +449,8 @@ export class NeonStoryRepository implements StoryRepository {
         DELETE FROM story_runs WHERE story_id IN (SELECT id FROM doomed) RETURNING id
       ), deleted_links AS (
         DELETE FROM upload_links WHERE story_id IN (SELECT id FROM doomed) RETURNING id
+      ), deleted_download_links AS (
+        DELETE FROM download_links WHERE story_id IN (SELECT id FROM doomed) RETURNING id
       ), deleted_stories AS (
         DELETE FROM stories WHERE id IN (SELECT id FROM doomed) RETURNING owner_session_id
       ), deleted_sessions AS (

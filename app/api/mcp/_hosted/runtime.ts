@@ -2,9 +2,10 @@
 // Production wiring of the hosted MCP entry (BUI-2099): Neon owner sessions and bindings, the hosted StoryService, and the token check.
 import { createHmac } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { NeonStoryRepository, NeonUploadLinkStore } from "@/lib/web/neon-repository";
+import { NeonDownloadLinkStore, NeonStoryRepository, NeonUploadLinkStore } from "@/lib/web/neon-repository";
 import { getStoryService } from "@/lib/web/runtime";
 import { hashSecret } from "@/lib/web/story-service";
+import { downloadLinkKey, DownloadLinks } from "@/lib/web/download-link";
 import { uploadLinkKey, UploadLinks } from "@/lib/web/upload-link";
 import { configurationProblem, createHostedMcpHandler, type HostedDependencies } from "@/app/api/mcp/_hosted/http";
 import { HostedOwnerSessions, PostgresOwnerBindingStore } from "@/app/api/mcp/_hosted/owner-sessions";
@@ -39,6 +40,7 @@ export function hostedDependencies(env: Readonly<Record<string, string | undefin
       hashSecret: secret => hashSecret(secret, pepper),
     }),
     uploadLinks: new UploadLinks({ store: new NeonUploadLinkStore(sql), key: uploadLinkKey(pepper) }),
+    downloadLinks: new DownloadLinks({ store: new NeonDownloadLinkStore(sql), key: downloadLinkKey(pepper) }),
   };
 }
 
