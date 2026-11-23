@@ -27,9 +27,9 @@ export class UploadService {
   ) {}
 
   async reserve(rawSecret: string, value: unknown) {
-    this.stories.assertGenerationOpen();
     const request = requestSchema.parse(value),
-      story = await this.stories.getOwnedStory(rawSecret, request.storyId);
+      { session, story } = await this.stories.getOwnedStoryWithSession(rawSecret, request.storyId);
+    this.stories.assertGenerationOpen(session);
     if (story.status !== "uploading") throw new StoryServiceError("INVALID_STATE", "Photos can only be added before generation starts.");
     const now = this.now(),
       upload: StoryUpload = {
@@ -80,10 +80,10 @@ export class UploadService {
   }
 
   async authorize(rawSecret: string, payload: unknown, pathname: string) {
-    this.stories.assertGenerationOpen();
     const token = tokenPayloadSchema.parse(payload),
-      upload = await this.repository.findUpload(token.uploadId),
-      story = await this.stories.getOwnedStory(rawSecret, token.storyId);
+      { session, story } = await this.stories.getOwnedStoryWithSession(rawSecret, token.storyId);
+    this.stories.assertGenerationOpen(session);
+    const upload = await this.repository.findUpload(token.uploadId);
     if (story.status !== "uploading") throw new StoryServiceError("INVALID_STATE", "This story no longer accepts photos.");
     if (!upload || upload.storyId !== token.storyId || upload.status !== "reserved" || upload.blobPath !== pathname)
       throw new StoryServiceError("FORBIDDEN", "This upload authorization does not match its private reservation.");

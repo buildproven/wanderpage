@@ -10,8 +10,16 @@ export type PeopleMode = (typeof PeopleModes)[number];
 export const LocationPrivacyModes = ["broad", "approximate", "hidden"] as const;
 export type LocationPrivacyMode = (typeof LocationPrivacyModes)[number];
 
+/**
+ * Who a session belongs to (BUI-2136): `public` for the anonymous web creator, `owner` for the signed-in hosted MCP owner. StoryService
+ * admits owner sessions while public creation is off. Absent reads as `public`.
+ */
+export const SessionKinds = ["public", "owner"] as const;
+export type SessionKind = (typeof SessionKinds)[number];
+
 export type OwnerSession = {
   id: string;
+  kind?: SessionKind;
   secretHash: string;
   csrfToken: string;
   createdAt: Date;

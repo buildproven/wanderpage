@@ -24,6 +24,12 @@ const createSchema = z.object({
 });
 
 const editableStatuses = new Set(["uploading", "draft"]);
+
+/**
+ * The operator's generation switches (BUI-2136). `enabled` opens creation to every session (the anonymous web creator);
+ * `ownerEnabled` also admits owner sessions while `enabled` is off. Omitted, the owner follows `enabled`. The daily limit binds both.
+ */
+export type GenerationPolicy = { enabled: boolean; ownerEnabled?: boolean; dailyLimit: number };
 const processorRevision = "web-v1";
 
 export class StoryServiceError extends Error {
@@ -41,7 +47,7 @@ export class StoryService {
     private readonly runner: StoryRunner,
     private readonly now: () => Date = () => new Date(),
     private readonly secretHasher: (secret: string) => string,
-    private readonly generationPolicy: () => { enabled: boolean; dailyLimit: number } = environmentGenerationPolicy,
+    private readonly generationPolicy: () => GenerationPolicy = environmentGenerationPolicy,
     private readonly hostedValidator: typeof validateHostedStoryOutput = validateHostedStoryOutput
   ) {}
 
@@ -57,6 +63,7 @@ export class StoryService {
         expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
         termsVersion,
         uploadConsentVersion,
+        kind: "public",
       };
     await this.repository.createSession(session);
     return { session, rawSecret };
@@ -65,7 +72,7 @@ export class StoryService {
   async createSessionWithStory(input: CreateStoryInput, admissionKey: string) {
     const parsed = createSchema.safeParse(input);
     if (!parsed.success) throw new StoryServiceError("VALIDATION_ERROR", "Check the story title and privacy choices.");
-    this.assertGenerationOpen();
+    this.assertGenerationOpen({ kind: "public" });
     const now = this.now(),
       rawSecret = randomBytes(32).toString("base64url"),
       session: OwnerSession = {
@@ -77,6 +84,7 @@ export class StoryService {
         expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
         termsVersion: parsed.data.termsVersion,
         uploadConsentVersion: parsed.data.uploadConsentVersion,
+        kind: "public",
       },
       story = makeStory(session.id, admissionKey, parsed.data, now);
     try {
@@ -100,7 +108,7 @@ export class StoryService {
   async createStory(rawSecret: string, input: CreateStoryInput, admissionKey = "test-client") {
     const session = await this.requireSession(rawSecret),
       parsed = createSchema.safeParse(input);
-    this.assertGenerationOpen();
+    this.assertGenerationOpen(session);
     if (!parsed.success) throw new StoryServiceError("VALIDATION_ERROR", "Check the story title and privacy choices.");
     if (session.termsVersion !== parsed.data.termsVersion || session.uploadConsentVersion !== parsed.data.uploadConsentVersion)
       throw new StoryServiceError("VALIDATION_ERROR", "Please start a new session after accepting the current upload terms.");
@@ -116,18 +124,24 @@ export class StoryService {
     return story;
   }
 
-  assertGenerationOpen() {
-    if (!this.generationPolicy().enabled) throw new StoryServiceError("INVALID_STATE", "Story creation is temporarily unavailable.");
+  /** Refuses a write step (create, upload, generate) for `session` unless the generation policy admits its kind. */
+  assertGenerationOpen(session: Pick<OwnerSession, "kind">, message = "Story creation is temporarily unavailable.") {
+    if (!admits(this.generationPolicy(), session)) throw new StoryServiceError("INVALID_STATE", message);
   }
 
   async getOwnedStory(rawSecret: string, storyId: string) {
+    return (await this.getOwnedStoryWithSession(rawSecret, storyId)).story;
+  }
+
+  /** `getOwnedStory`, plus the renewed session that owns it, for callers that judge the session's generation policy. */
+  async getOwnedStoryWithSession(rawSecret: string, storyId: string) {
     const session = await this.requireSession(rawSecret),
       story = await this.repository.findStory(storyId);
     if (!story || story.deletedAt || story.status === "deleting" || story.status === "deleted")
       throw new StoryServiceError("NOT_FOUND", "Story not found.");
     if (!safeEqual(story.ownerSessionId, session.id))
       throw new StoryServiceError("FORBIDDEN", "This story belongs to another private session.");
-    return story;
+    return { session, story };
   }
 
   /** The confirmed uploads of a story the caller has already read with `getOwnedStory` or `listOwnedStories`. */
@@ -184,7 +198,7 @@ export class StoryService {
   }
 
   async queueGeneration(rawSecret: string, storyId: string, admissionKey: string) {
-    const story = await this.getOwnedStory(rawSecret, storyId);
+    const { session, story } = await this.getOwnedStoryWithSession(rawSecret, storyId);
     if (story.status !== "uploading" && story.status !== "failed")
       throw new StoryServiceError("INVALID_STATE", "This story is already queued or cannot be generated.");
     const confirmedUploads = (await this.repository.listUploads(story.id)).filter(upload => upload.status === "confirmed");
@@ -197,7 +211,7 @@ export class StoryService {
     let queued: Story;
     try {
       const policy = this.generationPolicy();
-      if (!policy.enabled) throw new StoryServiceError("INVALID_STATE", "Story generation is temporarily unavailable.");
+      if (!admits(policy, session)) throw new StoryServiceError("INVALID_STATE", "Story generation is temporarily unavailable.");
       queued = await this.repository.queueRun(
         { ...story, updatedAt: now, processorRevision },
         {
@@ -347,11 +361,25 @@ function positiveInteger(value: string | undefined, fallback: number) {
   return parsed;
 }
 
-function environmentGenerationPolicy() {
+function environmentGenerationPolicy(): GenerationPolicy {
   return {
     enabled: process.env.WANDERPAGE_GENERATION_ENABLED === "true",
+    ownerEnabled: ownerSwitch(process.env.WANDERPAGE_OWNER_GENERATION_ENABLED),
     dailyLimit: positiveInteger(process.env.WANDERPAGE_DAILY_GENERATION_LIMIT, 25),
   };
+}
+
+/** Owner generation is on unless the operator sets `WANDERPAGE_OWNER_GENERATION_ENABLED=false`; any other value is a visible error. */
+function ownerSwitch(value: string | undefined) {
+  if (value === undefined || value === "" || value === "true") return true;
+  if (value === "false") return false;
+  throw new Error("WANDERPAGE_OWNER_GENERATION_ENABLED must be true or false when set.");
+}
+
+/** Public creation admits every session; owner generation also admits owner sessions while public creation is off. */
+function admits(policy: GenerationPolicy, session: Pick<OwnerSession, "kind">) {
+  if (policy.enabled) return true;
+  return session.kind === "owner" && (policy.ownerEnabled ?? policy.enabled);
 }
 
 function makeStory(ownerSessionId: string, admissionKey: string, input: CreateStoryInput, now: Date): Story {
