@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 — 2026-11-23
+
+- **Wanderpage works in Claude on the web, desktop and phone.** The Claude plugin now connects to the hosted Wanderpage server, so you can
+  make a trip page from any Claude chat, not only on your Mac. Install it from Customize > Plugins, then select **Connect** and sign in with
+  GitHub. Each hosted Wanderpage serves one owner.
+- **Add photos from your phone or computer.** Ask Claude to add photos to a story: it gives you a one-time link (it works once and expires
+  after 15 minutes). Open it, select **Continue**, and pick your photos. Then ask Claude to make the draft.
+- **Privacy policy.** The hosted server's privacy policy is at https://wanderpage.buildproven.ai/privacy: what it stores, for how long,
+  which cookies it sets, and how to delete your stories.
+- The local version (`npx @buildproven/wanderpage`, the Claude Desktop extension) still works offline on your Mac, and your photos never leave it.
+- Releases no longer run the full test suite again on your computer; they check that main passed CI.
+
 ## 1.2.0 — 2026-11-21
 
 - **Make trip pages from a chat with Claude.** Claude can now inspect a photo folder, create a private draft, preview it, edit it, and publish
