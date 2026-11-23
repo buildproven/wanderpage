@@ -25,7 +25,7 @@ merge after green CI.
 - **Pipeline** (`lib/pipeline`): discover → ingest → analyze → locate → select → write → enrich → publish → report. Components and requirement IDs are in `docs/ARCHITECTURE.md`. `lib/selection` is pure (no I/O) so privacy rules stay testable. AI sits behind an `AIProvider` interface (OpenAI plus deterministic mock) in `lib/ai`.
 - **Entry points** are all in `scripts/` (Studio, CLI, agent CLI, deploy, release). `bin/local-edition.js` is the shipped `npx @buildproven/wanderpage` launcher: an npm-only project copy with no pnpm and no hosted deps.
 - **Static export**: `scripts/static-export.ts` copies `app/`, `components/`, `lib/`, `public/`, `data/` to a temp dir and swaps in `assets/static-trip-page.tsx` and `assets/static-home-page.tsx`. Pages in `app/` therefore need a static counterpart in `assets/` when they change.
-- **Hosted creator** (`app/create`, `app/api`, `lib/web`, `db/`) is built and tested but deliberately not part of v1; do not link it from the product.
+- **Hosted service** (`app/api`, `app/stories`, `app/upload`, `app/download`, `lib/web`, `db/`) backs the Claude plugin, the only creator. The browser creator (`/create`) is retired and redirects to `/` (`proxy.ts`); do not add a web creator.
 - **Share metadata**: `lib/share-metadata.ts`; `WANDERPAGE_SITE_URL` must be a bare origin (story images are root-absolute).
 
 ## V-model traceability

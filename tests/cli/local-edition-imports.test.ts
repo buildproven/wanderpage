@@ -11,9 +11,9 @@ const installed = new Set([...Object.keys(local.dependencies), ...Object.keys(lo
 
 // Mirrors what the launcher copies and what scripts/static-export.ts strips for the user's project.
 const hostedOnly = [
-  /^app\/(api|create|stories|s|\.well-known)\//,
+  /^app\/(api|stories|s|\.well-known)\//,
   /^app\/trips\/\[slug\]\//,
-  /^components\/(WebCreator|DraftControls)/,
+  /^components\/DraftControls/,
   /^lib\/web\//,
   /^scripts\/(hosted-preview-acceptance|migrate|release-|trace)/,
   /\.test\.tsx?$/,

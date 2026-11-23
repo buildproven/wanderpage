@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { ownerCookieName, ownerCookieOptions } from "@/lib/web/session";
 import { ownerTtlCookieName, ownerTtlLinkValue } from "@/lib/web/upload-link";
 
+// The browser creator was retired (BUI-2148): the Claude plugin is the only creator. Old links to /create land on the product page.
+const retiredCreatorPath = /^\/create\/?$/;
+
 export function proxy(request: NextRequest) {
+  if (retiredCreatorPath.test(request.nextUrl.pathname)) return NextResponse.redirect(new URL("/", request.url), 308);
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64"),
     contentSecurityPolicy = [
       "default-src 'self'",

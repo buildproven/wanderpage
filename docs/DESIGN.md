@@ -234,7 +234,8 @@ link-preview tags from already-public manifest fields; the hero image is include
 ### DES-SITE-LANDING Landing page and layout
 
 `Landing` explains the product, links to the demo, and states the privacy promises; `layout.tsx` sets metadata and system font stacks, and
-`page.tsx` renders the landing page. Hosted creation is linked only when `WANDERPAGE_GENERATION_ENABLED=true`.
+`page.tsx` renders the landing page. It has no link to `/create`; one "Use it in Claude" section gives the plugin steps: connect the
+Wanderpage plugin in claude.ai, say "make a trip page from my photos", open the upload link, publish, download the ZIP (BUI-2148).
 
 - **Realizes:** ARCH-SITE
 - **Code:** components/Landing.tsx, app/page.tsx, app/layout.tsx
@@ -354,7 +355,8 @@ publish and triggers the same rollback.
 
 `proxy.ts` generates a per-request nonce and sends a strict Content-Security-Policy (self-only, nonce plus strict-dynamic scripts, no
 frames, no objects), and renews the owner cookie on document routes, except on `/upload/*` and while the `wanderpage_owner_ttl=link`
-marker cookie is present, so a cookie set by an upload link keeps its 1-hour lifetime. `http.ts` maps `StoryServiceError` codes to HTTP statuses, maps
+marker cookie is present, so a cookie set by an upload link keeps its 1-hour lifetime. A request for the retired `/create` (with or without a
+trailing slash) gets a 308 redirect to `/` before any of this, so it sets no cookie. `http.ts` maps `StoryServiceError` codes to HTTP statuses, maps
 missing-configuration messages to a 503 `CONFIGURATION_ERROR`, and always sends `Cache-Control: private, no-store`. `blob-response.ts`
 returns the raw client-token payload the Blob SDK expects. `dto.ts` removes the IP-derived admission key from every story response.
 
@@ -377,7 +379,7 @@ without both. `consent.ts` defines the current disclosure version.
 story per owner, and returns an application-owned path and a short-lived token request. `authorize` re-checks the path and owner. `confirm`
 verifies the uploaded bytes by signature (`detectImageType`: JPEG, PNG, WebP) and size, never by declared content type, and refuses
 confirmation after generation starts. The three upload routes expose these to the browser. `photo-upload.ts` (`uploadPhotos`) is the
-one browser-side upload, shared by `WebCreator` and `DraftControls`: it reserves each file, sends it to private Blob through
+one browser-side upload, used by `DraftControls`: it reserves each file, sends it to private Blob through
 `/api/uploads`, and reports each stored photo.
 
 - **Realizes:** ARCH-WEB-UPLOAD
@@ -466,18 +468,18 @@ private cache headers. `loadHostedPublishedStory` validates the slug and fails c
 
 ### DES-WEB-UI Hosted creator interface
 
-`WebCreator` collects consent, title, people and location choices, and uploads files directly to Blob; `DraftControls` shows draft status,
-retry, title edit, publish, and revoke, and, while the story is uploading, a photo picker (JPEG, PNG, WebP, multiple) that uploads through
-`uploadPhotos` and shows the count stored from the page; `/create` is gated by admission and otherwise says creation is not available yet; `/stories/<id>` is the private
-draft desk.
+The Claude plugin is the only creator (BUI-2148): the browser creator and its `/create` page are removed, and `next.config.ts` (with
+`proxy.ts` as a second guard) redirects `/create` (308) to `/`. `DraftControls` shows draft status, retry, title edit, publish, and revoke, and, while the story is uploading, the
+upload consent text and a photo picker (JPEG, PNG, WebP, multiple) that uploads through `uploadPhotos` and shows the count stored from the
+page; `/stories/<id>` is the private draft desk, which an upload link opens.
 
 - **Realizes:** ARCH-WEB-UI
-- **Code:** components/WebCreator.tsx, components/DraftControls.tsx, app/create/page.tsx, app/stories/[storyId]/page.tsx
+- **Code:** components/DraftControls.tsx, app/stories/[storyId]/page.tsx
 
 ### DES-WEB-PRIVACY Hosted privacy policy
 
 `/privacy` is a static page that `.claude-plugin/plugin.json` links as `privacyPolicyUrl`. It states the retention periods of the consent
-text in `WebCreator` (source uploads expire after 24 hours and are deleted within 48 hours, an idle unpublished draft after 30 days, a
+text in `lib/consent.ts` (source uploads expire after 24 hours and are deleted within 48 hours, an idle unpublished draft after 30 days, a
 published story until unpublished or deleted), the one-owner GitHub sign-in, each cookie by the name and lifetime that `session.ts` and
 `upload-link.ts` export (the page repeats them, because shipped app code does not import `lib/web`, and its test fails if they differ) plus
 the `wanderpage_oauth_nonce` sign-in cookie of `@buildproven/mcp-oauth`, that contact sheets go to OpenAI only when
@@ -543,7 +545,8 @@ the first production download of a large story confirms.
 
 `assertPreviewUrl` accepts only an HTTPS Vercel preview host or an exact operator-allowlisted host and rejects production and localhost.
 `readPreviewRunMode` requires explicit preview confirmation, exactly one mode (`smoke` or `acceptance`), and explicit generation consent
-for the spending run. `hosted-preview-acceptance.ts` applies the policy before any network call.
+for the spending run. `hosted-preview-acceptance.ts` applies the policy before any network call, checks that `/create` redirects to `/`,
+creates its story through `/api/stories`, and uploads on the `/stories/<id>` page.
 
 - **Realizes:** ARCH-WEB-PREVIEW
 - **Code:** lib/web/preview-policy.ts, scripts/hosted-preview-acceptance.ts

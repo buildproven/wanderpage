@@ -1,10 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import * as consent from "@/lib/consent";
 import DraftControls from "@/components/DraftControls";
-import WebCreator from "@/components/WebCreator";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
@@ -38,12 +36,6 @@ describe("the upload consent text (BUI-2198)", () => {
     expect(consent.currentDisclosureVersion).toBeTruthy();
   });
 
-  it("BUI-2198 R1: WebCreator renders uploadConsentText in its consent checkbox label", () => {
-    expect(uploadConsentText).not.toBe("");
-    const text = visibleText(renderToStaticMarkup(createElement(WebCreator)));
-    expect(text).toContain(uploadConsentText);
-  });
-
   it("BUI-2198 R2: an uploading story shows uploadConsentText before the file input", () => {
     expect(uploadConsentText).not.toBe("");
     const html = renderToStaticMarkup(createElement(DraftControls, { story: story("uploading"), csrfToken: "header-value" })),
@@ -59,15 +51,5 @@ describe("the upload consent text (BUI-2198)", () => {
       const text = visibleText(renderToStaticMarkup(createElement(DraftControls, { story: story(status), csrfToken: "header-value" })));
       expect(text).not.toContain(uploadConsentText);
     }
-  });
-});
-
-// @verifies DES-WEB-UI, ARCH-WEB-UI, REQ-WEB-02
-describe("WebCreator keeps no copy of the upload consent text (BUI-2198)", () => {
-  it("BUI-2198 R1: components/WebCreator.tsx imports uploadConsentText and does not repeat its words", async () => {
-    const source = (await readFile("components/WebCreator.tsx", "utf8")).replace(/\s+/g, " ");
-    expect(source).toContain("{uploadConsentText}");
-    expect(source).not.toContain("48 hours");
-    expect(source).not.toContain("30 days of inactivity");
   });
 });

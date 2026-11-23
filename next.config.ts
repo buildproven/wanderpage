@@ -5,6 +5,10 @@ const config: NextConfig = {
   agentRules: false,
   images: { unoptimized: true },
   poweredByHeader: false,
+  // The browser creator is retired (BUI-2148): the Claude plugin is the only creator, so old /create links land on the product page.
+  async redirects() {
+    return [{ source: "/create", destination: "/", permanent: true }];
+  },
   async headers() {
     return [
       {

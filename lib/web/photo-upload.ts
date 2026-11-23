@@ -1,5 +1,5 @@
 // @design DES-WEB-UPLOAD
-// The browser side of a photo upload, shared by WebCreator and DraftControls (BUI-2095): reserve each file with
+// The browser side of a photo upload, used by DraftControls (BUI-2095): reserve each file with
 // /api/upload-reservations, then send it straight to private Vercel Blob through /api/uploads, which confirms it.
 import { upload } from "@vercel/blob/client";
 

@@ -15,13 +15,11 @@ try {
     "app/.well-known",
     "app/api",
     "app/oauth",
-    "app/create",
     "app/stories",
     "app/s",
     "app/upload",
     "app/download",
     "app/privacy",
-    "components/WebCreator.tsx",
     "components/DraftControls.tsx",
     "components/DraftControls.test.tsx",
   ])

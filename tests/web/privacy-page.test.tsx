@@ -68,7 +68,7 @@ describe("the hosted privacy policy page (BUI-2135)", () => {
   });
 
   it("BUI-2135 R2: sends contact sheets to OpenAI only when the operator turns AI generation on", async () => {
-    // lib/web/story-service.ts and app/create/page.tsx read the same switch.
+    // lib/web/story-service.ts reads this switch.
     const service = await readFile("lib/web/story-service.ts", "utf8");
     expect(service).toContain('process.env.WANDERPAGE_GENERATION_ENABLED === "true"');
     expect(text).toMatch(/contact sheets go to OpenAI only when AI generation is on \(WANDERPAGE_GENERATION_ENABLED=true\)/);
