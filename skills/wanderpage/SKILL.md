@@ -45,7 +45,9 @@ server instead of a folder. Photos attached to the chat do not reach the server,
 3. **Open the link.** The user opens the link in a browser, presses Continue, and picks 6 to 60 JPEG, PNG, or WebP photos on the
    story's private page. Call `get_story` to check `photoCount` (the stored photos). If the link has expired or was used, call
    `upload_photos` again.
-4. **Start generation.** Call `start_generation` when every photo is stored, then `get_story` until the status is `draft`.
+4. **Start generation.** Call `start_generation` when every photo is stored, then `get_story` until the status is `draft` or `failed`.
+   Stop on either status. On `failed`, tell the user that generation failed and offer to call `start_generation` again: a failed
+   story can be generated again. If `start_generation` returns an error (for example, the photos have expired), report it.
 5. **Offer the download.** When the draft is ready, offer `download_page`: it returns a one-time `downloadUrl` that expires at
    `expiresAt`, 15 minutes later. The user opens it in a browser and presses Download to get a ZIP with `index.html` and the page's
    images, which opens from the unzipped folder and can be hosted anywhere. A chat cannot receive the file, so give the link, not
