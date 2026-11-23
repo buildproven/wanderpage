@@ -1,4 +1,5 @@
 // @design DES-REL-RELEASE
+import { execFileSync } from "node:child_process";
 import { assertOnCleanUpToDateMain, git, run } from "./release-git";
 
 /** The CI workflow whose success on main's HEAD stands in for a local full-suite run (BUI-2093, REQ-REL-02). */
@@ -63,6 +64,16 @@ if (!passed) {
   fail(`main's HEAD ${head} has no successful "quality" workflow run (${state}). Wait for CI to pass on main before releasing.`);
 }
 
+// node_modules that do not match pnpm-lock.yaml make the pre-push tests fail after the bump (2026-11-23, BUI-2137). With a frozen lockfile,
+// pnpm installs only what differs and never rewrites the lockfile; a failed install stops the release before anything is bumped.
+try {
+  execFileSync("pnpm", ["install", "--frozen-lockfile"], { stdio: ["ignore", "inherit", "inherit"] });
+} catch (error) {
+  fail(
+    `"pnpm install --frozen-lockfile" failed (${error instanceof Error ? error.message : String(error)}), so node_modules may not match pnpm-lock.yaml. Fix the install on main, then release again.`
+  );
+}
+
 console.log(
-  `Release preflight passed: on main, clean, up to date with origin/main, and "quality" passed on ${head} (${describeRun(passed)}).`
+  `Release preflight passed: on main, clean, up to date with origin/main, "quality" passed on ${head} (${describeRun(passed)}), and node_modules match pnpm-lock.yaml.`
 );
