@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "wanderpage",
   "display_name": "Wanderpage",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Turn a folder of travel photos on this Mac into a private, curated static trip page.",
   "long_description": "Wanderpage reads a photo folder, selects and orders the photos, and builds a static trip page you can host anywhere. It never identifies people, never publishes exact GPS, removes photo metadata, and runs a privacy scan before anything is published. The extension starts the MCP server from your Wanderpage project folder (the one `npx @buildproven/wanderpage` made; by default, `wanderpage` in the folder where you ran `npx @buildproven/wanderpage`), so your photos and drafts stay on this Mac.",
   "author": {
