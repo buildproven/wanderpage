@@ -18,6 +18,8 @@ const router = { push: vi.fn(), refresh: vi.fn() };
 const fetchMock = vi.fn();
 
 // @verifies DES-WEB-UI, ARCH-WEB-UI, REQ-WEB-06, REQ-WEB-02
+const headerValue = "header-value";
+
 describe("DraftControls", () => {
   let host: HTMLDivElement;
   let root: Root;
@@ -59,8 +61,7 @@ describe("DraftControls", () => {
         ok: true,
         json: async () => ({ data: { story: queuedStory } }),
       });
-    const requestProperty = "csrf" + String.fromCharCode(84, 111, 107, 101, 110);
-    const controlProps = { story, [requestProperty]: "header-value" } as Parameters<typeof DraftControls>[0];
+    const controlProps: Parameters<typeof DraftControls>[0] = { story, csrfToken: headerValue };
 
     await act(async () => {
       root.render(<DraftControls {...controlProps} />);
@@ -95,8 +96,7 @@ describe("DraftControls", () => {
       ok: true,
       json: async () => ({ data: { story: savedStory } }),
     });
-    const requestProperty = "csrf" + String.fromCharCode(84, 111, 107, 101, 110);
-    const controlProps = { story, [requestProperty]: "header-value" } as Parameters<typeof DraftControls>[0];
+    const controlProps: Parameters<typeof DraftControls>[0] = { story, csrfToken: headerValue };
 
     await act(async () => {
       root.render(<DraftControls {...controlProps} />);
@@ -141,8 +141,7 @@ describe("DraftControls", () => {
       files.forEach((_, index) => onStored?.(index + 1));
       return files.length;
     });
-    const requestProperty = "csrf" + String.fromCharCode(84, 111, 107, 101, 110);
-    const controlProps = { story, [requestProperty]: "header-value" } as Parameters<typeof DraftControls>[0];
+    const controlProps: Parameters<typeof DraftControls>[0] = { story, csrfToken: headerValue };
 
     await act(async () => {
       root.render(<DraftControls {...controlProps} />);
@@ -168,6 +167,37 @@ describe("DraftControls", () => {
     expect(host.textContent).toContain("2 photos stored");
   });
 
+  it("BUI-2095 R9: the stored count starts from the photos already confirmed on the server", async () => {
+    const story = {
+      id: "story-5",
+      title: "Second link",
+      status: "uploading",
+      version: 1,
+      peopleMode: "exclude" as const,
+      locationPrivacy: "broad" as const,
+    };
+    vi.mocked(uploadPhotos).mockReset();
+    vi.mocked(uploadPhotos).mockImplementation(async ({ files, onStored }) => {
+      files.forEach((_, index) => onStored?.(index + 1));
+      return files.length;
+    });
+    const controlProps: Parameters<typeof DraftControls>[0] = { story, storedPhotos: 7, csrfToken: headerValue };
+
+    await act(async () => {
+      root.render(<DraftControls {...controlProps} />);
+    });
+    expect(host.textContent).toContain("7 photos stored");
+
+    const picker = host.querySelector('input[type="file"]') as HTMLInputElement | null;
+    await act(async () => {
+      if (!picker) return;
+      Object.defineProperty(picker, "files", { value: [new File(["a"], "one.jpg", { type: "image/jpeg" })], configurable: true });
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(host.textContent).toContain("8 photos stored");
+  });
+
   it("BUI-2095 R9: a story that is not uploading offers no photo picker", async () => {
     const story = {
       id: "story-4",
@@ -177,8 +207,7 @@ describe("DraftControls", () => {
       peopleMode: "exclude" as const,
       locationPrivacy: "broad" as const,
     };
-    const requestProperty = "csrf" + String.fromCharCode(84, 111, 107, 101, 110);
-    const controlProps = { story, [requestProperty]: "header-value" } as Parameters<typeof DraftControls>[0];
+    const controlProps: Parameters<typeof DraftControls>[0] = { story, csrfToken: headerValue };
     await act(async () => {
       root.render(<DraftControls {...controlProps} />);
     });
@@ -199,8 +228,7 @@ describe("DraftControls", () => {
       onStored?.(1);
       throw new Error("A Wanderpage story supports at most 60 photos.");
     });
-    const requestProperty = "csrf" + String.fromCharCode(84, 111, 107, 101, 110);
-    const controlProps = { story, [requestProperty]: "header-value" } as Parameters<typeof DraftControls>[0];
+    const controlProps: Parameters<typeof DraftControls>[0] = { story, csrfToken: headerValue };
     await act(async () => {
       root.render(<DraftControls {...controlProps} />);
     });

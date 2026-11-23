@@ -18,14 +18,23 @@ type DraftStory = {
   manifest?: TripManifest;
 };
 
-export default function DraftControls({ story: initialStory, csrfToken }: { story: DraftStory; csrfToken: string }) {
+export default function DraftControls({
+  story: initialStory,
+  csrfToken,
+  storedPhotos: initialStoredPhotos = 0,
+}: {
+  story: DraftStory;
+  csrfToken: string;
+  /** Confirmed uploads already on the server, so a second upload link shows the story's real total. */
+  storedPhotos?: number;
+}) {
   const [story, setStory] = useState(initialStory),
     [title, setTitle] = useState(initialStory.title),
     [peopleMode, setPeopleMode] = useState(initialStory.peopleMode),
     [locationPrivacy, setLocationPrivacy] = useState(initialStory.locationPrivacy),
     [message, setMessage] = useState<string>(),
     [busy, setBusy] = useState(false),
-    [storedPhotos, setStoredPhotos] = useState(0),
+    [storedPhotos, setStoredPhotos] = useState(initialStoredPhotos),
     [uploading, setUploading] = useState<{ position: number; total: number }>(),
     router = useRouter();
   const active = story.status === "queued" || story.status === "processing",
@@ -311,7 +320,7 @@ export default function DraftControls({ story: initialStory, csrfToken }: { stor
           <p>
             {uploading
               ? `Uploading ${uploading.position} of ${uploading.total}…`
-              : `${storedPhotos} ${storedPhotos === 1 ? "photo" : "photos"} stored from this page.`}
+              : `${storedPhotos} ${storedPhotos === 1 ? "photo" : "photos"} stored.`}
           </p>
         </div>
       )}
