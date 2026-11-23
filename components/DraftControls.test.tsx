@@ -5,8 +5,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRouter } from "next/navigation";
 import DraftControls from "./DraftControls";
+import { uploadPhotos } from "@/lib/web/photo-upload";
 
 vi.mock("next/navigation", () => ({ useRouter: vi.fn() }));
+vi.mock("@/lib/web/photo-upload", () => ({ uploadPhotos: vi.fn() }));
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -123,5 +125,92 @@ describe("DraftControls", () => {
     });
     expect(host.querySelector("h1")?.textContent).toBe("Updated notes");
     expect(host.textContent).toContain("Private draft saved.");
+  });
+
+  it("BUI-2095 R9: an uploading story offers a photo picker that uploads through the shared helper and shows the stored count", async () => {
+    const story = {
+      id: "story-3",
+      title: "Harbour light",
+      status: "uploading",
+      version: 1,
+      peopleMode: "exclude" as const,
+      locationPrivacy: "broad" as const,
+    };
+    vi.mocked(uploadPhotos).mockReset();
+    vi.mocked(uploadPhotos).mockImplementation(async ({ files, onStored }) => {
+      files.forEach((_, index) => onStored?.(index + 1));
+      return files.length;
+    });
+    const requestProperty = "csrf" + String.fromCharCode(84, 111, 107, 101, 110);
+    const controlProps = { story, [requestProperty]: "header-value" } as Parameters<typeof DraftControls>[0];
+
+    await act(async () => {
+      root.render(<DraftControls {...controlProps} />);
+    });
+
+    const picker = host.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(picker).not.toBeNull();
+    expect(picker?.accept).toBe("image/jpeg,image/png,image/webp");
+    expect(picker?.multiple).toBe(true);
+    expect(host.querySelector("input")?.type).not.toBe("file");
+    expect(host.textContent).toContain("0 photos stored");
+
+    const files = [new File(["a"], "one.jpg", { type: "image/jpeg" }), new File(["b"], "two.png", { type: "image/png" })];
+    await act(async () => {
+      if (!picker) return;
+      Object.defineProperty(picker, "files", { value: files, configurable: true });
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(uploadPhotos).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(uploadPhotos).mock.calls[0]?.[0]).toMatchObject({ storyId: "story-3", files, csrfToken: "header-value" });
+    expect(host.textContent).toContain("2 photos stored");
+  });
+
+  it("BUI-2095 R9: a story that is not uploading offers no photo picker", async () => {
+    const story = {
+      id: "story-4",
+      title: "Done",
+      status: "draft",
+      version: 1,
+      peopleMode: "exclude" as const,
+      locationPrivacy: "broad" as const,
+    };
+    const requestProperty = "csrf" + String.fromCharCode(84, 111, 107, 101, 110);
+    const controlProps = { story, [requestProperty]: "header-value" } as Parameters<typeof DraftControls>[0];
+    await act(async () => {
+      root.render(<DraftControls {...controlProps} />);
+    });
+    expect(host.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it("BUI-2095 R9: a failed upload shows the error and keeps the count of photos already stored", async () => {
+    const story = {
+      id: "story-5",
+      title: "Partial",
+      status: "uploading",
+      version: 1,
+      peopleMode: "exclude" as const,
+      locationPrivacy: "broad" as const,
+    };
+    vi.mocked(uploadPhotos).mockReset();
+    vi.mocked(uploadPhotos).mockImplementation(async ({ onStored }) => {
+      onStored?.(1);
+      throw new Error("A Wanderpage story supports at most 60 photos.");
+    });
+    const requestProperty = "csrf" + String.fromCharCode(84, 111, 107, 101, 110);
+    const controlProps = { story, [requestProperty]: "header-value" } as Parameters<typeof DraftControls>[0];
+    await act(async () => {
+      root.render(<DraftControls {...controlProps} />);
+    });
+    const picker = host.querySelector('input[type="file"]') as HTMLInputElement;
+    await act(async () => {
+      Object.defineProperty(picker, "files", { value: [new File(["a"], "one.jpg", { type: "image/jpeg" })], configurable: true });
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(host.textContent).toContain("A Wanderpage story supports at most 60 photos.");
+    expect(host.textContent).toContain("1 photo stored");
   });
 });

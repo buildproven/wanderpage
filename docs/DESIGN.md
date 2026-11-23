@@ -353,7 +353,8 @@ publish and triggers the same rollback.
 ### DES-WEB-HTTP Hosted HTTP helpers and request proxy
 
 `proxy.ts` generates a per-request nonce and sends a strict Content-Security-Policy (self-only, nonce plus strict-dynamic scripts, no
-frames, no objects), and renews the owner cookie on document routes. `http.ts` maps `StoryServiceError` codes to HTTP statuses, maps
+frames, no objects), and renews the owner cookie on document routes, except on `/upload/*` and while the `wanderpage_owner_ttl=link`
+marker cookie is present, so a cookie set by an upload link keeps its 1-hour lifetime. `http.ts` maps `StoryServiceError` codes to HTTP statuses, maps
 missing-configuration messages to a 503 `CONFIGURATION_ERROR`, and always sends `Cache-Control: private, no-store`. `blob-response.ts`
 returns the raw client-token payload the Blob SDK expects. `dto.ts` removes the IP-derived admission key from every story response.
 
@@ -375,10 +376,12 @@ without both. `consent.ts` defines the current disclosure version.
 `UploadService.reserve` checks ownership, the 6–60 photo and 25 MiB / 500 MiB ceilings from `limits.ts`, allows active uploads in only one
 story per owner, and returns an application-owned path and a short-lived token request. `authorize` re-checks the path and owner. `confirm`
 verifies the uploaded bytes by signature (`detectImageType`: JPEG, PNG, WebP) and size, never by declared content type, and refuses
-confirmation after generation starts. The three upload routes expose these to the browser.
+confirmation after generation starts. The three upload routes expose these to the browser. `photo-upload.ts` (`uploadPhotos`) is the
+one browser-side upload, shared by `WebCreator` and `DraftControls`: it reserves each file, sends it to private Blob through
+`/api/uploads`, and reports each stored photo.
 
 - **Realizes:** ARCH-WEB-UPLOAD
-- **Code:** lib/web/upload-service.ts, lib/web/limits.ts, app/api/uploads/route.ts, app/api/upload-reservations/route.ts
+- **Code:** lib/web/upload-service.ts, lib/web/limits.ts, lib/web/photo-upload.ts, app/api/uploads/route.ts, app/api/upload-reservations/route.ts
 
 ### DES-WEB-STORY Story service and routes
 
@@ -386,7 +389,7 @@ confirmation after generation starts. The three upload routes expose these to th
 authorizes every read by owner session (reads fail once deletion starts); queues exactly one run per story after a confirmed upload,
 binding the run to the admitted source set; rejects duplicates and generation when disabled (`assertGenerationOpen`); saves title edits
 with a version check that rejects stale edits; retries failed runs while sources remain; and publishes only finalized drafts. Types and the
-`StoryRepository` interface live in `types.ts`; `runtime.ts` builds the singleton service; the four story routes are thin adapters.
+`StoryRepository` interface live in `types.ts`; `confirmedPhotoCount` counts a read story's confirmed uploads; `runtime.ts` builds the singleton service; the four story routes are thin adapters.
 
 - **Realizes:** ARCH-WEB-STORY
 - **Code:** lib/web/story-service.ts, lib/web/types.ts, lib/web/runtime.ts, app/api/stories/route.ts, app/api/stories/[storyId]/route.ts, app/api/stories/[storyId]/generate/route.ts, app/api/stories/[storyId]/publish/route.ts
@@ -395,7 +398,9 @@ with a version check that rejects stale edits; retries failed runs while sources
 
 `NeonStoryRepository` implements `StoryRepository` over `@neondatabase/serverless` with transactional claims, leases, tombstones,
 version-checked writes, and PostgreSQL `bigint` handling; `MemoryStoryRepository` implements the same contract for tests and refuses to
-be selected in production. SQL migrations in `db/migrations` are applied in numeric order. `PostgresGrantStore` is the
+be selected in production. SQL migrations in `db/migrations` are applied in numeric order. `NeonUploadLinkStore` keeps `upload_links` (migration 0008): it inserts only
+id, story id and expiry, uses a link in one `UPDATE … WHERE used_at IS NULL AND expires_at > now()`, and the tombstone purge deletes a
+story's links with its uploads and runs. `PostgresGrantStore` is the
 `@buildproven/mcp-oauth` `GrantStore` for the hosted MCP sign-in: `claim` inserts into `oauth_grants` (primary key on the id) with
 `ON CONFLICT DO NOTHING`, so a spent code or refresh token is claimed once, and first prunes expired rows so an expired id may be
 claimed again. It connects on first use; a missing `DATABASE_URL` or any database failure rejects with a `GrantStoreError`, so the
@@ -456,7 +461,8 @@ private cache headers. `loadHostedPublishedStory` validates the slug and fails c
 ### DES-WEB-UI Hosted creator interface
 
 `WebCreator` collects consent, title, people and location choices, and uploads files directly to Blob; `DraftControls` shows draft status,
-retry, title edit, publish, and revoke; `/create` is gated by admission and otherwise says creation is not available yet; `/stories/<id>` is the private
+retry, title edit, publish, and revoke, and, while the story is uploading, a photo picker (JPEG, PNG, WebP, multiple) that uploads through
+`uploadPhotos` and shows the count stored from the page; `/create` is gated by admission and otherwise says creation is not available yet; `/stories/<id>` is the private
 draft desk.
 
 - **Realizes:** ARCH-WEB-UI
@@ -483,10 +489,20 @@ add no business rule: `create_story` calls `StoryService.createStory` with the c
 and answers a stale version with the current one, `publish` and `unpublish` change one story and return its public URL (the request
 origin plus `/s/<slug>`) or the private state, and `delete_story` runs `prepareDelete` and then the web route's `cleanupStoryObjects`.
 Their admission key, which StoryService counts limits by, is a keyed hash of the subject, since every MCP call arrives from Claude's
-servers. The static export removes `app/oauth`, `app/api` and `app/.well-known` and never copies `mcp/`.
+servers. `list_stories` and `get_story` report an uploading story's `photoCount` as its confirmed uploads. A chat attachment never
+reaches the connector, so `upload_photos` (BUI-2095) refuses, by tool and story name, a story that is not uploading or another owner's
+story, and otherwise records one `upload_links` row (id, story id, expiry, used time; no secret) and returns `uploadUrl`
+(`<origin>/upload/<token>`), `expiresAt` (15 minutes) and `storyId`. `upload-link.ts` seals the token with AES-256-GCM under
+`uploadLinkKey` (an HMAC of `WANDERPAGE_SESSION_PEPPER` under the label `upload-link`, as `mcpSessionKey`); it holds the link id, story
+id, expiry and owner session secret. `GET /upload/<token>` shows the story title and a Continue button and never uses the link, so a
+link preview cannot spend it. Continue posts the same URL: a same-origin form POST uses the link in one conditional update, sets the
+owner cookie with the sealed secret (`httpOnly`, `secure` in production, `sameSite=lax`, 1 hour) and the `wanderpage_owner_ttl=link`
+marker (same lifetime), and answers 303 to `/stories/<storyId>`, where the existing upload routes take the photos. A forged, tampered,
+expired or used token, or a story or session that is gone, answers 410 with a short page and no cookie; a cross-origin or non-form
+POST answers 403. The static export removes `app/oauth`, `app/api`, `app/upload` and `app/.well-known` and never copies `mcp/`.
 
 - **Realizes:** ARCH-WEB-STORY
-- **Code:** app/api/mcp/route.ts, app/api/mcp/_hosted/http.ts, app/api/mcp/_hosted/oauth.ts, app/api/mcp/_hosted/owner-sessions.ts, app/api/mcp/_hosted/runtime.ts, app/api/mcp/_hosted/server.ts, app/oauth/authorize/route.ts, app/oauth/github/callback/route.ts, app/oauth/jwks/route.ts, app/oauth/register/route.ts, app/oauth/token/route.ts
+- **Code:** app/api/mcp/route.ts, app/api/mcp/_hosted/http.ts, app/api/mcp/_hosted/oauth.ts, app/api/mcp/_hosted/owner-sessions.ts, app/api/mcp/_hosted/runtime.ts, app/api/mcp/_hosted/server.ts, lib/web/upload-link.ts, app/api/mcp/_hosted/upload-page.ts, app/upload/[token]/route.ts, app/oauth/authorize/route.ts, app/oauth/github/callback/route.ts, app/oauth/jwks/route.ts, app/oauth/register/route.ts, app/oauth/token/route.ts
 
 ### DES-WEB-PREVIEW Preview acceptance policy
 

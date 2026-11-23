@@ -18,6 +18,7 @@ try {
     "app/create",
     "app/stories",
     "app/s",
+    "app/upload",
     "components/WebCreator.tsx",
     "components/DraftControls.tsx",
     "components/DraftControls.test.tsx",

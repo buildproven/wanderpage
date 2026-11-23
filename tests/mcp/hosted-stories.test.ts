@@ -163,4 +163,27 @@ describe("hosted MCP story tools (BUI-2099)", () => {
     const result = await call(client, "list_stories", {});
     expect((result.data?.stories as Array<{ id: string }>).map(story => story.id)).toEqual([kept.id]);
   });
+
+  it("BUI-2095 R10: get_story and list_stories count confirmed uploads as photoCount for an uploading story", async () => {
+    const { repository, stories, sessions, client } = await fixture(),
+      story = await stories.createStory(await sessions.secretFor(owner), storyInput),
+      upload = (id: number, status: "reserved" | "confirmed" | "rejected" | "deleted") => ({
+        id: `00000000-0000-4000-8000-00000000000${id}`,
+        storyId: story.id,
+        blobPath: `sources/${story.id}/${id}`,
+        originalName: `photo-${id}.jpg`,
+        declaredType: "image/jpeg" as const,
+        status,
+        createdAt: new Date(),
+      });
+    await repository.createUpload(upload(1, "confirmed"));
+    await repository.createUpload(upload(2, "confirmed"));
+    await repository.createUpload(upload(3, "confirmed"));
+    await repository.createUpload(upload(4, "reserved"));
+    await repository.createUpload(upload(5, "rejected"));
+    const single = await call(client, "get_story", { storyId: story.id }),
+      listed = await call(client, "list_stories", {});
+    expect(single.data).toMatchObject({ id: story.id, status: "uploading", photoCount: 3 });
+    expect(listed.data).toEqual({ stories: [expect.objectContaining({ id: story.id, status: "uploading", photoCount: 3 })] });
+  });
 });

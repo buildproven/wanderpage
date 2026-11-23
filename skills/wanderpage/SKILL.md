@@ -30,6 +30,22 @@ path or a draft slug.
 
 Use `list_drafts` to find an earlier draft and its published state.
 
+## Hosted stories
+
+When the hosted Wanderpage connector is installed (Claude on the web, desktop, or mobile), stories live on the user's Wanderpage
+server instead of a folder. Photos attached to the chat do not reach the server, so the user uploads them in a browser:
+
+1. **Create the story.** Ask for the title and the two privacy choices (`peopleMode` and `locationPrivacy`: `broad`, `approximate`,
+   or `hidden`), then call `create_story`.
+2. **Get an upload link.** Call `upload_photos` with the story id. Give the user the `uploadUrl`: it works once and expires at
+   `expiresAt`, 15 minutes later. Only a story in `uploading` status takes photos.
+3. **Open the link.** The user opens the link in a browser, presses Continue, and picks 6 to 60 JPEG, PNG, or WebP photos on the
+   story's private page. Call `get_story` to check `photoCount` (the stored photos). If the link has expired or was used, call
+   `upload_photos` again.
+4. **Start generation.** Call `start_generation` when every photo is stored, then `get_story` until the status is `draft`.
+
+Use `set_title`, `publish`, `unpublish`, `delete_story`, and `list_stories` for the other changes the user asks for.
+
 ## Privacy rules
 
 - **Never identify a person.** Do not name, guess, or describe who anyone in a photo is, in captions, titles, or chat, even when the
