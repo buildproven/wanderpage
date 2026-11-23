@@ -1,7 +1,7 @@
 {
   "name": "wanderpage",
   "displayName": "Wanderpage",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Wanderpage makes private trip pages from photos you upload through a one-time link, in Claude on the web, desktop and phone. It never identifies people, never publishes exact GPS, and keeps every story private until you publish it.",
   "author": {
     "name": "BuildProven"
