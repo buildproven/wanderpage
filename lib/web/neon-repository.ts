@@ -280,10 +280,10 @@ export class NeonStoryRepository implements StoryRepository {
         FOR UPDATE OF s, r
       ), eligible_sources AS MATERIALIZED (
         SELECT u.id FROM story_uploads u
-        WHERE u.id = ANY(${run.sourceUploadIds}) AND u.story_id IN (SELECT id FROM target) AND u.status = 'confirmed'
+        WHERE u.id = ANY(${run.sourceUploadIds}::uuid[]) AND u.story_id IN (SELECT id FROM target) AND u.status = 'confirmed'
       ), admitted AS MATERIALIZED (
         SELECT id FROM target
-        WHERE (SELECT count(*) FROM eligible_sources) = cardinality(${run.sourceUploadIds})
+        WHERE (SELECT count(*) FROM eligible_sources) = cardinality(${run.sourceUploadIds}::uuid[])
       ), claimed_sources AS (
         UPDATE story_uploads SET status = 'rejected', cleanup_claimed_at = ${now}
         WHERE id IN (SELECT id FROM eligible_sources) AND story_id IN (SELECT id FROM admitted)
@@ -291,7 +291,7 @@ export class NeonStoryRepository implements StoryRepository {
       ), completed_story AS (
         UPDATE stories SET status = 'draft', manifest = ${manifest ?? null}, active_run_id = NULL,
           updated_at = ${now}, version = version + 1
-        WHERE id IN (SELECT id FROM admitted) AND (SELECT count(*) FROM claimed_sources) = cardinality(${run.sourceUploadIds})
+        WHERE id IN (SELECT id FROM admitted) AND (SELECT count(*) FROM claimed_sources) = cardinality(${run.sourceUploadIds}::uuid[])
         RETURNING id
       )
       UPDATE story_runs SET status = 'complete', stage = 'complete', progress = 100, finished_at = ${now}, updated_at = ${now}
@@ -401,7 +401,7 @@ export class NeonStoryRepository implements StoryRepository {
 
   async listUploadsByIds(ids: string[]) {
     if (!ids.length) return [];
-    const rows = await this.sql`SELECT * FROM story_uploads WHERE id = ANY(${ids}) ORDER BY created_at ASC`;
+    const rows = await this.sql`SELECT * FROM story_uploads WHERE id = ANY(${ids}::uuid[]) ORDER BY created_at ASC`;
     return rows.map(upload);
   }
 
