@@ -42,7 +42,7 @@ export function uploadLinkKey(pepper: string) {
 
 export function sealUploadLink(claims: UploadLinkClaims, key: Buffer) {
   const iv = randomBytes(ivBytes),
-    cipher = createCipheriv("aes-256-gcm", key, iv);
+    cipher = createCipheriv("aes-256-gcm", key, iv, { authTagLength: tagBytes });
   cipher.setAAD(additionalData);
   const plain = JSON.stringify({ v: version, l: claims.linkId, s: claims.storyId, e: claims.expiresAt.getTime(), k: claims.ownerSecret }),
     sealed = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
@@ -56,7 +56,7 @@ export function openUploadLink(token: string, key: Buffer, now: Date): OpenedUpl
   if (bytes.length <= ivBytes + tagBytes || bytes.toString("base64url") !== token) return { ok: false, reason: "invalid" };
   let plain: string;
   try {
-    const decipher = createDecipheriv("aes-256-gcm", key, bytes.subarray(0, ivBytes));
+    const decipher = createDecipheriv("aes-256-gcm", key, bytes.subarray(0, ivBytes), { authTagLength: tagBytes });
     decipher.setAAD(additionalData);
     decipher.setAuthTag(bytes.subarray(bytes.length - tagBytes));
     plain = Buffer.concat([decipher.update(bytes.subarray(ivBytes, bytes.length - tagBytes)), decipher.final()]).toString("utf8");
