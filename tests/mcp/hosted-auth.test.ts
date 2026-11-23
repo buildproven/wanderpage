@@ -139,6 +139,7 @@ describe("hosted MCP sign-in (BUI-2099)", () => {
     expect(tools.map(tool => tool.name).sort()).toEqual([
       "create_story",
       "delete_story",
+      "download_page",
       "get_story",
       "list_stories",
       "publish",

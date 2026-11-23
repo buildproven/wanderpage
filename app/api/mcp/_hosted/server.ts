@@ -1,7 +1,8 @@
 // @design DES-WEB-MCP
 // Hosted MCP tools: the signed-in owner's hosted stories through StoryService with the owner's bound session. BUI-2099 reads them;
 // BUI-2100 creates, generates, titles, publishes and deletes them with StoryService's own rules; BUI-2095 returns a one-time link to a
-// story's private upload page. The stdio entry (mcp/server.ts) serves the local tools and is unchanged.
+// story's private upload page; BUI-2146 returns a one-time link to a page that downloads a finished story as a ZIP. The stdio entry
+// (mcp/server.ts) serves the local tools and is unchanged.
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
@@ -9,6 +10,7 @@ import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { cleanupStoryObjects } from "@/lib/web/object-cleanup";
 import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
+import type { DownloadLinks } from "@/lib/web/download-link";
 import type { UploadLinks } from "@/lib/web/upload-link";
 import type { HostedOwnerSessions } from "@/app/api/mcp/_hosted/owner-sessions";
 
@@ -36,6 +38,8 @@ export type HostedServerOptions = {
   removeObjects?: (storyId: string) => Promise<void>;
   /** Issues one-time upload links (`upload_photos`): Neon `upload_links` under the session pepper's upload-link key in production. */
   uploadLinks?: Pick<UploadLinks, "issue">;
+  /** Issues one-time download links (`download_page`): Neon `download_links` under the session pepper's download-link key in production. */
+  downloadLinks?: Pick<DownloadLinks, "issue">;
 };
 
 const storyId = z.uuid().describe("Story id, as returned by list_stories or create_story");
@@ -110,6 +114,7 @@ export function createHostedServer({
   publicOrigin,
   removeObjects = removeWithNeon,
   uploadLinks,
+  downloadLinks,
 }: HostedServerOptions) {
   const server = new McpServer({ name: "wanderpage-hosted", version: "1.0.0" });
   // Serverless instances share no event bus and the tool list is fixed, so no change events are advertised.
@@ -123,6 +128,16 @@ export function createHostedServer({
   const admissionKey = () => sessions.admissionKeyFor(ownerSubject);
   const summarize = async (story: Story) =>
     storySummary(story, story.status === "uploading" ? await stories.confirmedPhotoCount(story) : 0);
+  /** The owner's story, or a refusal naming the tool when it belongs to another private session. */
+  const ownedStory = async (secret: string, storyId: string, tool: string) => {
+    try {
+      return await stories.getOwnedStory(secret, storyId);
+    } catch (error) {
+      if (error instanceof StoryServiceError && error.code === "FORBIDDEN")
+        throw new ToolRefusal(`${tool} refused: this story belongs to another private session.`);
+      throw error;
+    }
+  };
   const published = (story: Story) => {
     const summary = storySummary(story);
     return { ...summary, publicUrl: summary.publicPath && publicOrigin ? `${publicOrigin}${summary.publicPath}` : null };
@@ -220,15 +235,8 @@ export function createHostedServer({
     },
     ({ storyId }) =>
       answered(async () => {
-        const secret = await ownerSecret();
-        let story: Story;
-        try {
-          story = await stories.getOwnedStory(secret, storyId);
-        } catch (error) {
-          if (error instanceof StoryServiceError && error.code === "FORBIDDEN")
-            throw new ToolRefusal("upload_photos refused: this story belongs to another private session.");
-          throw error;
-        }
+        const secret = await ownerSecret(),
+          story = await ownedStory(secret, storyId, "upload_photos");
         if (story.status !== "uploading")
           throw new ToolRefusal(
             `upload_photos refused: "${story.title}" is ${story.status}. Photos can be added only while a story is uploading, before ` +
@@ -238,6 +246,31 @@ export function createHostedServer({
         if (!publicOrigin || !uploadLinks) throw new Error("upload_photos needs the deployment origin and an upload-link store.");
         const link = await uploadLinks.issue(story.id, secret);
         return { storyId: story.id, uploadUrl: `${publicOrigin}/upload/${link.token}`, expiresAt: link.expiresAt.toISOString() };
+      })
+  );
+  server.registerTool(
+    "download_page",
+    {
+      title: "Download a hosted story as a ZIP",
+      description:
+        "Return a one-time link, valid for 15 minutes, that opens a page in your browser where one button downloads this story as a " +
+        "ZIP: an index.html and its images, which open from the unzipped folder and can be hosted anywhere. A file attached to the chat " +
+        "cannot come from this connector, so the file comes through the link. Only a finished draft or a published story can be downloaded.",
+      inputSchema: getInput,
+    },
+    ({ storyId }) =>
+      answered(async () => {
+        const secret = await ownerSecret(),
+          story = await ownedStory(secret, storyId, "download_page");
+        if (story.status !== "draft" && story.status !== "published")
+          throw new ToolRefusal(
+            `download_page refused: "${story.title}" is ${story.status}. Only a finished draft or a published story can be downloaded. ` +
+              "Wait for generation to finish, or create the story with create_story.",
+            { storyId: story.id, status: story.status }
+          );
+        if (!publicOrigin || !downloadLinks) throw new Error("download_page needs the deployment origin and a download-link store.");
+        const link = await downloadLinks.issue(story.id, secret);
+        return { storyId: story.id, downloadUrl: `${publicOrigin}/download/${link.token}`, expiresAt: link.expiresAt.toISOString() };
       })
   );
   server.registerTool(

@@ -95,6 +95,14 @@ export type UploadLink = {
   usedAt?: Date;
 };
 
+/** One `download_links` row (BUI-2146): the sealed token carries the owner session secret; the row never does. */
+export type DownloadLink = {
+  id: string;
+  storyId: string;
+  expiresAt: Date;
+  usedAt?: Date;
+};
+
 export type CreateStoryInput = {
   title: string;
   peopleMode: PeopleMode;

@@ -8,6 +8,7 @@ import { NeonUploadLinkStore } from "@/lib/web/neon-repository";
 import { getStoryService } from "@/lib/web/runtime";
 import { ownerCookieName, ownerCookieOptions } from "@/lib/web/session";
 import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
+import { escapeHtml, page, pageHeaders, sameOriginForm } from "@/app/api/mcp/_hosted/link-page";
 import {
   ownerTtlCookieName,
   ownerTtlLinkValue,
@@ -19,7 +20,6 @@ import {
 
 export type UploadLinkDependencies = { stories: Pick<StoryService, "getOwnedStory">; links: Pick<UploadLinks, "open" | "use"> };
 
-const formTypes = new Set(["application/x-www-form-urlencoded", "multipart/form-data"]);
 const noLongerValid = "This upload link is no longer valid.";
 
 export function createUploadLinkHandlers(dependencies: () => UploadLinkDependencies) {
@@ -77,35 +77,10 @@ async function ownedLink(
   }
 }
 
-function sameOriginForm(request: Request) {
-  const origin = request.headers.get("origin"),
-    contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-  return origin === new URL(request.url).origin && formTypes.has(contentType);
-}
-
-const pageHeaders = { "Cache-Control": "private, no-store", "Referrer-Policy": "same-origin", "X-Robots-Tag": "noindex" };
-
 function gone() {
   return page(
     410,
     "Link no longer valid",
     `<h1>${noLongerValid}</h1><p>Ask Claude for a new upload link: upload links work once and expire after 15 minutes.</p>`
   );
-}
-
-function page(status: number, title: string, body: string) {
-  const html =
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
-    `<meta name="robots" content="noindex"><title>${escapeHtml(title)} · Wanderpage</title><style>` +
-    "body{font-family:system-ui,sans-serif;margin:0;padding:12vh 6vw;background:#f7f4ee;color:#1d1b18}" +
-    "main{max-width:34rem}.kicker{text-transform:uppercase;letter-spacing:.12em;font-size:.75rem;color:#6b645a}" +
-    "button{font:inherit;padding:.8rem 1.6rem;border:0;border-radius:999px;background:#1d1b18;color:#fff;cursor:pointer}" +
-    `</style></head><body><main>${body}</main></body></html>`;
-  return new Response(html, { status, headers: { ...pageHeaders, "Content-Type": "text/html; charset=utf-8" } });
-}
-
-const entities: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, character => entities[character] ?? character);
 }
