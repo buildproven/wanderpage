@@ -7,6 +7,7 @@ import { assertPreviewUrl } from "@/lib/web/preview-policy";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const productionMcpUrl = "https://wanderpage.buildproven.ai/api/mcp";
+const productionPrivacyUrl = "https://wanderpage.buildproven.ai/privacy";
 
 type McpServerEntry = Record<string, unknown> & { type?: unknown; url?: unknown };
 type PluginManifest = {
@@ -14,6 +15,7 @@ type PluginManifest = {
   description: string;
   userConfig?: unknown;
   network?: { hosts?: unknown };
+  privacyPolicyUrl?: unknown;
 };
 
 async function readJson<T>(path: string): Promise<T> {
@@ -85,6 +87,17 @@ describe("the Claude plugin package", () => {
     expect(description).toMatch(/upload(?:ed)? through a one-time link/i);
     expect(description).toMatch(/in Claude on the web, desktop and phone/i);
     expect(description).not.toMatch(/on this Mac/i);
+  });
+
+  // @verifies REQ-AGENT-2
+  it("BUI-2135 R3 (REQ-PLUGIN-2): plugin.json links the production /privacy page as its privacy policy", async () => {
+    const plugin = await readJson<PluginManifest>(".claude-plugin/plugin.json");
+    expect(plugin.privacyPolicyUrl).toBe(productionPrivacyUrl);
+    const url = new URL(String(plugin.privacyPolicyUrl));
+    expect(url.protocol).toBe("https:");
+    expect(url.hostname).toBe(new URL(productionMcpUrl).hostname);
+    expect(url.pathname).toBe("/privacy");
+    expect(url.search + url.hash).toBe("");
   });
 
   // @verifies REQ-AGENT-1

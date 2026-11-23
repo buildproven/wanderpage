@@ -468,6 +468,19 @@ draft desk.
 - **Realizes:** ARCH-WEB-UI
 - **Code:** components/WebCreator.tsx, components/DraftControls.tsx, app/create/page.tsx, app/stories/[storyId]/page.tsx
 
+### DES-WEB-PRIVACY Hosted privacy policy
+
+`/privacy` is a static page that `.claude-plugin/plugin.json` links as `privacyPolicyUrl`. It states the retention periods of the consent
+text in `WebCreator` (source uploads expire after 24 hours and are deleted within 48 hours, an idle unpublished draft after 30 days, a
+published story until unpublished or deleted), the one-owner GitHub sign-in, each cookie by the name and lifetime that `session.ts` and
+`upload-link.ts` export (the page repeats them, because shipped app code does not import `lib/web`, and its test fails if they differ) plus
+the `wanderpage_oauth_nonce` sign-in cookie of `@buildproven/mcp-oauth`, that contact sheets go to OpenAI only when
+`WANDERPAGE_GENERATION_ENABLED=true`, the people and GPS promises, and the two ways to delete a story. The static export removes
+`app/privacy`, because a user's own trip site has no server, sign-in or cookies.
+
+- **Realizes:** ARCH-WEB-UI
+- **Code:** app/privacy/page.tsx
+
 ### DES-WEB-MCP Hosted MCP endpoint and owner sign-in
 
 `/api/mcp` serves the hosted story tools over Streamable HTTP for Claude on the web, desktop and mobile; the logic lives in the private
