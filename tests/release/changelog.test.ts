@@ -25,12 +25,22 @@ function changelogBehind(changelog: string, packageVersion: string): string | un
   return `CHANGELOG.md's first entry is ${version}, older than package.json's version ${packageVersion}: add a ## ${packageVersion} entry`;
 }
 
+// Reads the `## <version>` entry of a changelog, wherever it sits, so a later release's entry above it does not break the check.
+function entryFor(changelog: string, version: string): FirstEntry {
+  const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`^## ${escaped}\\b.*$`, "m").exec(changelog);
+  if (!match) throw new Error(`CHANGELOG.md has no ## ${version} entry`);
+  const rest = changelog.slice(match.index + match[0].length);
+  const next = /^## /m.exec(rest);
+  return { heading: match[0], version, body: next ? rest.slice(0, next.index) : rest };
+}
+
 const read = (path: string) => readFile(join(repoRoot, path), "utf8");
 
 // @verifies DES-REL-RELEASE, ARCH-RELEASE, REQ-REL-02
 describe("CHANGELOG (BUI-2074)", () => {
-  it("REQ-REL-02 opens with the 1.2.0 entry for the Claude plugin, the desktop extension and the skill ZIP", async () => {
-    const entry = firstEntry(await read("CHANGELOG.md"));
+  it("REQ-REL-02 keeps the 1.2.0 entry for the Claude plugin, the desktop extension and the skill ZIP", async () => {
+    const entry = entryFor(await read("CHANGELOG.md"), "1.2.0");
     expect(entry.heading).toBe("## 1.2.0 — 2026-11-21");
     expect(entry.body).toMatch(/Claude plugin/);
     expect(entry.body).toMatch(/Claude Desktop extension/);
