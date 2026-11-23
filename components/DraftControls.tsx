@@ -3,6 +3,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { uploadConsentText } from "@/lib/consent";
 import type { TripManifest } from "@/lib/schemas/trip";
 import { uploadPhotos } from "@/lib/web/photo-upload";
 import styles from "./HostedDraftDesk.module.css";
@@ -302,6 +303,7 @@ export default function DraftControls({
             <p className="product-kicker">Add photos</p>
             <h2>Upload from this browser.</h2>
             <p>JPEG, PNG, or WebP; 6–60 photos in total. Your photos stay private until you publish a finished draft.</p>
+            <p>{uploadConsentText}</p>
           </div>
           <label>
             Photos

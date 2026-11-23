@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import PrivacyPage, { metadata } from "@/app/privacy/page";
 import { hostedPrefix } from "@/app/api/mcp/_hosted/http";
+import { uploadConsentText } from "@/lib/consent";
 import { ownerCookieName, ownerCookieOptions } from "@/lib/web/session";
 import { ownerTtlCookieName, ownerTtlLinkValue, uploadLinkCookieMaxAge } from "@/lib/web/upload-link";
 
@@ -24,9 +25,9 @@ function serverOnlyFolders(script: string) {
 
 // @verifies DES-WEB-PRIVACY, ARCH-WEB-UI, REQ-WEB-02, REQ-WEB-07
 describe("the hosted privacy policy page (BUI-2135)", () => {
-  it("BUI-2135 R1: states the retention periods the consent text promises", async () => {
-    // The consent checkbox in WebCreator is the disclosure every hosted upload accepts; the policy must say the same periods.
-    const consent = (await readFile("components/WebCreator.tsx", "utf8")).replace(/\s+/g, " ");
+  it("BUI-2135 R1: states the retention periods the consent text promises", () => {
+    // uploadConsentText is the disclosure every hosted upload page shows; the policy must say the same periods.
+    const consent = uploadConsentText;
     expect(consent).toContain("source uploads expiring after 24 hours and being automatically deleted within 48 hours");
     expect(consent).toContain("automatic deletion of an unpublished draft after 30 days of inactivity");
     expect(metadata.title).toMatch(/privacy/i);
