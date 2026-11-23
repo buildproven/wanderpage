@@ -78,6 +78,8 @@ beforeAll(async () => {
   await writeFile(join(work, "manifest.json"), manifestFixture);
   await mkdir(join(work, ".claude-plugin"));
   await writeFile(join(work, ".claude-plugin/plugin.json"), pluginFixture);
+  // The release stops when CHANGELOG.md has no entry for the next version (BUI-2137), so the fixture has one for each version it releases.
+  await writeFile(join(work, "CHANGELOG.md"), "# Changelog\n\n## 1.3.0 — 2026-11-23\n\n- Minor.\n\n## 1.2.4 — 2026-11-22\n\n- Patch.\n");
   git(work, "add", ".");
   git(work, "commit", "-m", "init");
   git(work, "push", "-u", "origin", "main");

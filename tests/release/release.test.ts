@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
@@ -22,6 +22,7 @@ const git = (cwd: string, ...args: string[]) =>
   }).trim();
 const passingQualityRuns = JSON.stringify([{ status: "completed", conclusion: "success", url: "https://example.test/runs/1" }]);
 // A fake gh on PATH stands in for GitHub: it logs its arguments and prints FAKE_GH_RUNS, exiting with FAKE_GH_EXIT.
+// A fake pnpm logs its arguments to FAKE_PNPM_LOG and exits with FAKE_PNPM_EXIT, so the preflight's install never touches a real store.
 const script = (name: string, ...args: string[]) => scriptWith({}, name, ...args);
 const scriptWith = (env: Record<string, string>, name: string, ...args: string[]) =>
   execute(process.execPath, [join(repoRoot, "node_modules/tsx/dist/cli.mjs"), join(repoRoot, "scripts", name), ...args], {
@@ -32,6 +33,8 @@ const scriptWith = (env: Record<string, string>, name: string, ...args: string[]
       FAKE_GH_LOG: join(sandbox, "gh-args.log"),
       FAKE_GH_RUNS: passingQualityRuns,
       FAKE_GH_EXIT: "0",
+      FAKE_PNPM_LOG: join(sandbox, "pnpm-args.log"),
+      FAKE_PNPM_EXIT: "0",
       ...env,
     },
   }).then(
@@ -49,6 +52,8 @@ beforeAll(async () => {
     '#!/bin/sh\nprintf \'%s\\n\' "$*" > "$FAKE_GH_LOG"\nprintf \'%s\' "$FAKE_GH_RUNS"\nexit "$FAKE_GH_EXIT"\n'
   );
   await chmod(join(sandbox, "bin", "gh"), 0o755);
+  await writeFile(join(sandbox, "bin", "pnpm"), '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$FAKE_PNPM_LOG"\nexit "$FAKE_PNPM_EXIT"\n');
+  await chmod(join(sandbox, "bin", "pnpm"), 0o755);
   git(sandbox, "init", "--bare", "-b", "main", origin);
   git(sandbox, "clone", origin, work);
   git(work, "checkout", "-b", "main");
@@ -174,6 +179,146 @@ async function beforeEachReset() {
   git(work, "reset", "--hard", "origin/main");
   git(work, "clean", "-fd");
 }
+
+// Commits files to main and pushes them, so a test can give the fixture a CHANGELOG and version manifests; undo with dropMainCommit.
+async function commitToMain(files: Record<string, string>) {
+  for (const [path, content] of Object.entries(files)) {
+    await mkdir(join(work, path, ".."), { recursive: true });
+    await writeFile(join(work, path), content);
+  }
+  git(work, "add", ".");
+  git(work, "commit", "-m", "fixture files");
+  git(work, "push", "origin", "main");
+}
+function dropMainCommit() {
+  git(work, "checkout", "main");
+  git(work, "reset", "--hard", "HEAD~1");
+  git(work, "push", "--force", "origin", "main");
+}
+const committerEnv = {
+  GIT_AUTHOR_NAME: "Test",
+  GIT_AUTHOR_EMAIL: "test@example.com",
+  GIT_COMMITTER_NAME: "Test",
+  GIT_COMMITTER_EMAIL: "test@example.com",
+};
+const versionFiles = {
+  "manifest.json": '{\n  "name": "fixture",\n  "version": "1.2.3"\n}\n',
+  ".claude-plugin/plugin.json": '{\n  "name": "fixture",\n  "version": "1.2.3"\n}\n',
+};
+const localBranches = () => git(work, "branch", "--format=%(refname:short)");
+const remoteBranches = () => git(work, "ls-remote", "--heads", "origin");
+
+// @verifies DES-REL-RELEASE, REQ-REL-02
+describe("release stops before bumping when CHANGELOG has no entry for the next version (BUI-2137)", () => {
+  it.each([
+    ["minor", "# Changelog\n\n## 1.2.3 — 2026-11-20\n\n- Old.\n", "1.3.0"],
+    ["patch", "# Changelog\n\n## 1.3.0 — 2026-11-22\n\n- Next minor.\n\n## 1.2.3 — 2026-11-20\n", "1.2.4"],
+    ["major", "# Changelog\n\n## 2.0.0-beta.1 — 2026-11-22\n\n## 1.2.3 — 2026-11-20\n", "2.0.0"],
+  ])(
+    "REQ-REL-02: a %s release with no entry for its version stops and leaves the tree and branches unchanged",
+    async (bump, changelog, version) => {
+      await commitToMain({ "CHANGELOG.md": changelog, ...versionFiles });
+      try {
+        const head = git(work, "rev-parse", "HEAD");
+        const [branchesBefore, remoteBefore] = [localBranches(), remoteBranches()];
+        const outcome = await scriptWith(committerEnv, "release-open-pr.ts", bump);
+        expect(outcome.code).toBe(1);
+        expect(outcome.stderr).toContain(`CHANGELOG.md has no entry for ${version}.`);
+        expect(outcome.stderr).toContain(`Add a "## ${version}" entry to CHANGELOG.md on main first`);
+        expect(git(work, "symbolic-ref", "--short", "HEAD")).toBe("main");
+        expect(git(work, "rev-parse", "HEAD")).toBe(head);
+        expect(git(work, "status", "--porcelain")).toBe("");
+        expect(localBranches()).toBe(branchesBefore);
+        expect(remoteBranches()).toBe(remoteBefore);
+      } finally {
+        dropMainCommit();
+      }
+    }
+  );
+
+  it("REQ-REL-02: a missing CHANGELOG.md stops the release with the same message", async () => {
+    await commitToMain(versionFiles);
+    try {
+      const branchesBefore = localBranches();
+      const outcome = await scriptWith(committerEnv, "release-open-pr.ts", "patch");
+      expect(outcome.code).toBe(1);
+      expect(outcome.stderr).toContain("CHANGELOG.md has no entry for 1.2.4.");
+      expect(git(work, "status", "--porcelain")).toBe("");
+      expect(localBranches()).toBe(branchesBefore);
+    } finally {
+      dropMainCommit();
+    }
+  });
+
+  it("REQ-REL-02: an entry that is not first, below an older one, stops the release as the push check would", async () => {
+    await commitToMain({ "CHANGELOG.md": "# Changelog\n\n## 1.2.3 — 2026-11-20\n\n## 1.2.4 — 2026-11-22\n", ...versionFiles });
+    try {
+      const outcome = await scriptWith(committerEnv, "release-open-pr.ts", "patch");
+      expect(outcome.code).toBe(1);
+      expect(outcome.stderr).toContain("CHANGELOG.md's first entry is 1.2.3, older than the next version 1.2.4.");
+      expect(git(work, "status", "--porcelain")).toBe("");
+    } finally {
+      dropMainCommit();
+    }
+  });
+
+  it("REQ-REL-02: a package version that is not MAJOR.MINOR.PATCH stops the release before anything is bumped", async () => {
+    await commitToMain({ "package.json": '{"name":"fixture","version":"1.3.0-beta.1"}\n', "CHANGELOG.md": "## 1.3.0\n", ...versionFiles });
+    try {
+      const outcome = await scriptWith(committerEnv, "release-open-pr.ts", "minor");
+      expect(outcome.code).toBe(1);
+      expect(outcome.stderr).toContain('package.json version "1.3.0-beta.1" is not MAJOR.MINOR.PATCH');
+      expect(git(work, "status", "--porcelain")).toBe("");
+    } finally {
+      dropMainCommit();
+    }
+  });
+
+  it("REQ-REL-02: with the next version's entry first, the release bumps, commits and pushes as before", async () => {
+    await commitToMain({ "CHANGELOG.md": "# Changelog\n\n## 1.3.0 — 2026-11-23\n\n- New.\n\n## 1.2.3 — 2026-11-20\n", ...versionFiles });
+    const branch = "chore/release-v1.3.0";
+    try {
+      const outcome = await scriptWith(committerEnv, "release-open-pr.ts", "minor");
+      expect(outcome.code, outcome.stderr).toBe(0);
+      expect(git(work, "symbolic-ref", "--short", "HEAD")).toBe(branch);
+      expect(JSON.parse(git(work, "show", `${branch}:package.json`))).toMatchObject({ version: "1.3.0" });
+      expect(git(work, "ls-remote", "--heads", "origin", branch)).toContain(`refs/heads/${branch}`);
+    } finally {
+      git(work, "checkout", "main");
+      git(work, "branch", "-D", branch);
+      git(work, "push", "origin", "--delete", branch);
+      dropMainCommit();
+    }
+  });
+});
+
+// @verifies DES-REL-RELEASE, REQ-REL-02
+describe("release preflight installs with the frozen lockfile before any bump (BUI-2137)", () => {
+  beforeEach(() => rm(join(sandbox, "pnpm-args.log"), { force: true }));
+
+  it("REQ-REL-02: runs pnpm install --frozen-lockfile and passes when it succeeds", async () => {
+    const outcome = await script("release-preflight.ts");
+    expect(outcome.code, outcome.stderr).toBe(0);
+    expect(await readFile(join(sandbox, "pnpm-args.log"), "utf8")).toBe("install --frozen-lockfile\n");
+  });
+
+  it("REQ-REL-02: stops when the install fails, before any file, branch or commit changes", async () => {
+    const [head, branchesBefore] = [git(work, "rev-parse", "HEAD"), localBranches()];
+    const outcome = await scriptWith({ FAKE_PNPM_EXIT: "1" }, "release-preflight.ts");
+    expect(outcome.code).toBe(1);
+    expect(outcome.stderr).toContain('"pnpm install --frozen-lockfile" failed');
+    expect(outcome.stdout).not.toContain("Release preflight passed");
+    expect(git(work, "rev-parse", "HEAD")).toBe(head);
+    expect(git(work, "status", "--porcelain")).toBe("");
+    expect(localBranches()).toBe(branchesBefore);
+  });
+
+  it("REQ-REL-02: does not install when main's CI has not passed", async () => {
+    const outcome = await scriptWith({ FAKE_GH_RUNS: "[]" }, "release-preflight.ts");
+    expect(outcome.code).toBe(1);
+    await expect(readFile(join(sandbox, "pnpm-args.log"), "utf8")).rejects.toThrow();
+  });
+});
 
 // @verifies ARCH-RELEASE, REQ-REL-02, SN-11
 describe("trusted publishing workflow", () => {
