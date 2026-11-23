@@ -111,6 +111,19 @@ describe("the Claude plugin package", () => {
     expect(intro.replace(/\s+/g, " ")).toMatch(/get the photos in from chat with `upload_photos`/);
   });
 
+  // @verifies REQ-AGENT-1
+  it("BUI-2147 (REQ-AGENT-1): the skill's hosted wait step stops on draft or failed and offers start_generation again", async () => {
+    const skill = await readFile(join(repoRoot, "skills/wanderpage/SKILL.md"), "utf8");
+    const hosted = skill.split(/^## /m).find(text => text.startsWith("Hosted stories")) ?? "";
+    const step = /^\d+\. \*\*Start generation\.\*\*([\s\S]*?)(?=^\d+\. \*\*|^\S)/m.exec(hosted)?.[1] ?? "";
+    const plain = step.replace(/\s+/g, " ");
+    expect(plain, "Start generation step").toContain("get_story");
+    // lib/web/types.ts: a failed generation never reaches draft, so the wait must also end on failed.
+    expect(plain).toMatch(/until the status is `draft` or `failed`/);
+    // lib/web/story-service.ts queueGeneration accepts a failed story, so the skill offers another start_generation.
+    expect(plain).toMatch(/`failed`[^.]*tell the (?:user|owner)[^.]*offer[^.]*`start_generation` again/i);
+  });
+
   // @verifies REQ-AGENT-3
   it("BUI-2101 R4 (REQ-PLUGIN-3): the README leads with the claude.ai plugin and keeps the local servers as the offline option", async () => {
     const section = claudeSection(await readFile(join(repoRoot, "README.md"), "utf8"));
