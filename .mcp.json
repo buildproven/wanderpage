@@ -1,18 +1,8 @@
 {
   "mcpServers": {
     "wanderpage": {
-      "type": "stdio",
-      "command": "node",
-      "args": [
-        "${user_config.project}/node_modules/tsx/dist/cli.mjs",
-        "--tsconfig",
-        "${user_config.project}/tsconfig.json",
-        "${user_config.project}/mcp/server.ts"
-      ],
-      "env": {
-        "WANDERPAGE_WORKSPACE": "${user_config.project}",
-        "OPENAI_API_KEY": "${user_config.openai_api_key}"
-      }
+      "type": "http",
+      "url": "https://wanderpage.buildproven.ai/api/mcp"
     }
   }
 }

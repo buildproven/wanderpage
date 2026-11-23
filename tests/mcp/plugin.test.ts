@@ -1,19 +1,19 @@
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { assertPreviewUrl } from "@/lib/web/preview-policy";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const toolNames = ["inspect_photos", "create_draft", "get_draft", "list_drafts", "edit_draft", "preview_draft", "publish_site"];
+const productionMcpUrl = "https://wanderpage.buildproven.ai/api/mcp";
 
-type StdioServer = { type: string; command: string; args: string[]; env: Record<string, string> };
+type McpServerEntry = Record<string, unknown> & { type?: unknown; url?: unknown };
 type PluginManifest = {
   name: string;
   description: string;
-  userConfig: Record<string, { type: string; required: boolean; sensitive?: boolean }>;
+  userConfig?: unknown;
+  network?: { hosts?: unknown };
 };
 
 async function readJson<T>(path: string): Promise<T> {
@@ -27,54 +27,16 @@ function claudeCliMissing(): string | null {
   return null;
 }
 
-function substitute(value: string, userConfig: Record<string, string>): string {
-  return value.replace(/\$\{user_config\.([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, key: string) => {
-    if (!(key in userConfig)) throw new Error(`no value for user_config.${key}`);
-    return userConfig[key]!;
-  });
-}
-
-function cleanEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extra };
-  for (const name of Object.keys(env)) if (name.startsWith("GIT_") || (name === "OPENAI_API_KEY" && !(name in extra))) delete env[name];
-  return env;
-}
-
-function listTools(command: string, args: string[], env: NodeJS.ProcessEnv, cwd: string) {
-  const child = spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
-  let stdout = "",
-    stderr = "";
-  child.stderr.on("data", chunk => (stderr += String(chunk)));
-  return new Promise<string[]>((resolvePromise, reject) => {
-    const timer = setTimeout(() => reject(new Error(`no tools/list answer. stderr:\n${stderr}`)), 60_000);
-    child.on("error", reject);
-    child.on("close", code => reject(new Error(`server exited (${code}). stderr:\n${stderr}`)));
-    child.stdout.on("data", chunk => {
-      stdout += String(chunk);
-      const lines = stdout.split("\n");
-      stdout = lines.pop() ?? "";
-      for (const line of lines.filter(Boolean)) {
-        const message = JSON.parse(line) as { id?: number; result?: { tools?: Array<{ name: string }> } };
-        if (message.id === 1)
-          child.stdin.write(
-            `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`
-          );
-        if (message.id === 2) {
-          clearTimeout(timer);
-          resolvePromise(message.result?.tools?.map(tool => tool.name) ?? []);
-        }
-      }
-    });
-    child.stdin.write(
-      `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "plugin-test", version: "1" } } })}\n`
-    );
-  }).finally(() => child.kill());
+function claudeSection(readme: string): string {
+  const section = readme.split(/^## /m).find(text => text.startsWith("Use Wanderpage in Claude"));
+  if (!section) throw new Error("README.md has no Use Wanderpage in Claude section");
+  return section;
 }
 
 // @verifies ARCH-MCP
 describe("the Claude plugin package", () => {
   // @verifies REQ-AGENT-2
-  it("REQ-PLUGIN-1 validates at the repo root as part of npm test", async ctx => {
+  it("REQ-PLUGIN-1 (BUI-2101 R3) validates at the repo root as part of npm test", async ctx => {
     const plugin = await readJson<PluginManifest>(".claude-plugin/plugin.json");
     const pkg = await readJson<{ scripts: { test: string } }>("package.json");
     expect(plugin.name).toBe("wanderpage");
@@ -97,69 +59,69 @@ describe("the Claude plugin package", () => {
     expect(output).not.toMatch(/MANIFEST_NOT_FOUND/);
   }, 60_000);
 
-  // @verifies REQ-MCP-1
-  it("REQ-PLUGIN-2 declares one portable stdio server that starts mcp/server.ts", async () => {
-    const config = await readJson<{ mcpServers: Record<string, StdioServer> }>(".mcp.json");
-    const plugin = await readJson<PluginManifest>(".claude-plugin/plugin.json");
+  // @verifies REQ-AGENT-2
+  it("BUI-2101 R1 (REQ-PLUGIN-2): .mcp.json names one http server at the production /api/mcp", async () => {
+    const config = await readJson<{ mcpServers: Record<string, McpServerEntry> }>(".mcp.json");
     expect(Object.keys(config.mcpServers)).toEqual(["wanderpage"]);
-    expect(config.mcpServers.wanderpage).toEqual({
-      type: "stdio",
-      command: "node",
-      args: [
-        "${user_config.project}/node_modules/tsx/dist/cli.mjs",
-        "--tsconfig",
-        "${user_config.project}/tsconfig.json",
-        "${user_config.project}/mcp/server.ts",
-      ],
-      env: { WANDERPAGE_WORKSPACE: "${user_config.project}", OPENAI_API_KEY: "${user_config.openai_api_key}" },
-    });
+    const server = config.mcpServers.wanderpage;
+    if (!server) throw new Error(".mcp.json does not declare wanderpage");
+    // OAuth on the hosted server signs the user in: no command, local path, header or environment value ships in the plugin.
+    expect(server).toEqual({ type: "http", url: productionMcpUrl });
+    const url = new URL(String(server.url));
+    expect(url.protocol).toBe("https:");
+    expect(url.pathname).toBe("/api/mcp");
+    expect(url.search + url.hash + url.username + url.password).toBe("");
+    // lib/web/preview-policy.ts keeps the list of production hosts; the plugin must point at one of them, never at a preview.
+    expect(() => assertPreviewUrl(url.href, [url.hostname])).toThrow(/Production Wanderpage domains/);
+  });
 
-    const launch = config.mcpServers.wanderpage;
-    if (!launch) throw new Error(".mcp.json does not declare wanderpage");
-    for (const value of [launch.command, ...launch.args, ...Object.values(launch.env)]) {
-      expect(value).not.toContain(repoRoot);
-      expect(value).not.toMatch(/^(?:\/|~\/|[A-Za-z]:[\\/])/);
-      expect(value).not.toMatch(/\/(?:Users|home)\//);
-    }
-    expect(plugin.userConfig.project).toMatchObject({ type: "directory", required: true });
-    expect(plugin.userConfig.openai_api_key).toMatchObject({ type: "string", required: false, sensitive: true });
+  // @verifies REQ-AGENT-2
+  it("BUI-2101 R2 (REQ-PLUGIN-2): plugin.json has no userConfig, declares the hosted host, and describes the one-time link", async () => {
+    const plugin = await readJson<PluginManifest>(".claude-plugin/plugin.json");
+    expect(plugin).not.toHaveProperty("userConfig");
+    expect(plugin.network?.hosts).toEqual([new URL(productionMcpUrl).hostname]);
+    const description = plugin.description.replace(/\s+/g, " ");
+    expect(description).toMatch(/Wanderpage makes private trip pages from photos/i);
+    expect(description).toMatch(/upload(?:ed)? through a one-time link/i);
+    expect(description).toMatch(/in Claude on the web, desktop and phone/i);
+    expect(description).not.toMatch(/on this Mac/i);
+  });
 
-    const values = { project: repoRoot, openai_api_key: "" };
-    const args = launch.args.map(value => substitute(value, values));
-    const env = Object.fromEntries(Object.entries(launch.env).map(([name, value]) => [name, substitute(value, values)]));
-    for (const path of args.filter(value => !value.startsWith("--"))) expect(existsSync(path), path).toBe(true);
-    const elsewhere = await mkdtemp(join(tmpdir(), "wanderpage-plugin-cwd-"));
-    try {
-      let listed: string[];
-      try {
-        listed = await listTools(launch.command, args, cleanEnv(env), elsewhere);
-      } catch (cause) {
-        // The gate runs the exact launch. The restricted builder sandbox can forbid only the tsx CLI's local signal socket; in that
-        // environment its installed loader still proves that the selected project starts the same TypeScript server.
-        if (!(cause instanceof Error) || !/listen EPERM[\s\S]*tsx-/i.test(cause.message)) throw cause;
-        listed = await listTools(
-          launch.command,
-          ["--import", join(values.project, "node_modules/tsx/dist/loader.mjs"), join(values.project, "mcp/server.ts")],
-          cleanEnv({ ...env, TSX_TSCONFIG_PATH: join(values.project, "tsconfig.json") }),
-          elsewhere
-        );
-      }
-      expect(listed.sort()).toEqual([...toolNames].sort());
-    } finally {
-      await rm(elsewhere, { recursive: true, force: true });
-    }
-  }, 90_000);
+  // @verifies REQ-AGENT-1
+  it("BUI-2101 R5 (REQ-AGENT-1): the skill names upload_photos for getting photos in from chat", async () => {
+    const skill = await readFile(join(repoRoot, "skills/wanderpage/SKILL.md"), "utf8");
+    const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(skill)?.[1] ?? "";
+    const description = /^description:\s*(.*)$/m.exec(frontmatter)?.[1] ?? "";
+    expect(description).toContain("upload_photos");
+    expect(description.length).toBeLessThanOrEqual(1024);
+    const intro = skill.slice(skill.indexOf("# Wanderpage"), skill.indexOf("## Workflow"));
+    expect(intro.replace(/\s+/g, " ")).toMatch(/get the photos in from chat with `upload_photos`/);
+  });
 
   // @verifies REQ-AGENT-3
-  it("REQ-PLUGIN-3 documents the one-time marketplace install and the local-server limit", async () => {
-    const readme = await readFile(join(repoRoot, "README.md"), "utf8");
-    const claudeSection = readme.split(/^## /m).find(section => section.startsWith("Use Wanderpage in Claude"));
-    expect(claudeSection).toBeDefined();
-    if (!claudeSection) throw new Error("README.md has no Use Wanderpage in Claude section");
-    expect(claudeSection).toContain("/plugin install wanderpage --marketplace buildproven/claude-plugins");
-    expect(claudeSection).toMatch(/install it once/i);
-    expect(claudeSection).toMatch(/Claude Code and (?:Claude )?Desktop only/i);
-    expect(claudeSection.replace(/\s+/g, " ")).toMatch(/chat on the web and in the mobile apps cannot reach a local server/i);
+  it("BUI-2101 R4 (REQ-PLUGIN-3): the README leads with the claude.ai plugin and keeps the local servers as the offline option", async () => {
+    const section = claudeSection(await readFile(join(repoRoot, "README.md"), "utf8"));
+    const plain = section.replace(/\s+/g, " ");
+    const plugin = plain.indexOf("Customize > Plugins");
+    const offline = plain.search(/\*\*Offline, on your Mac\.\*\*/);
+    expect(plugin, "claude.ai plugin install").toBeGreaterThan(-1);
+    expect(offline, "offline heading").toBeGreaterThan(plugin);
+    const hosted = plain.slice(0, offline);
+    const local = plain.slice(offline);
+    expect(hosted).toMatch(/claude\.ai plugin/);
+    expect(hosted).toMatch(/Customize > Plugins, then select \*\*Connect\*\*/);
+    expect(hosted).toContain(productionMcpUrl);
+    expect(hosted).toMatch(/install it once/i);
+    expect(hosted).toMatch(/web, in Claude Desktop, in the mobile apps and in Claude Code/);
+    expect(hosted).toContain("upload_photos");
+    expect(hosted).toContain("/plugin install wanderpage --marketplace buildproven/claude-plugins");
+    // The Desktop extension and the Claude Code local server come after, as the offline option.
+    expect(local).toMatch(/\*\*Claude Desktop extension\.\*\*/);
+    expect(local).toMatch(/\.mcpb/);
+    expect(local).toMatch(/claude mcp add/);
+    expect(local).toMatch(/local tools work in Claude Code and Claude Desktop only/i);
+    expect(local).toMatch(/chat on the web and in the mobile apps cannot reach a local server/i);
+    expect(hosted).not.toMatch(/\.mcpb|claude mcp add/);
   });
 
   // @verifies REQ-AGENT-2
@@ -186,14 +148,12 @@ describe("the Claude plugin package", () => {
   // @verifies REQ-AGENT-3
   it("REQ-AGENT-3 names the default project folder as wanderpage in the folder where npx ran", async () => {
     type Described = Record<string, { description?: string }>;
-    const plugin = await readJson<{ userConfig: Described }>(".claude-plugin/plugin.json");
     const manifest = await readJson<{ long_description: string; user_config: Described }>("manifest.json");
     const readme = await readFile(join(repoRoot, "README.md"), "utf8");
     const texts: Record<string, string | undefined> = {
       "README.md": readme,
       "manifest.json long_description": manifest.long_description,
       "manifest.json user_config.project": manifest.user_config.project?.description,
-      ".claude-plugin/plugin.json userConfig.project": plugin.userConfig.project?.description,
     };
     for (const [where, text] of Object.entries(texts)) {
       const plain = (text ?? "").replace(/`/g, "").replace(/\s+/g, " ");
