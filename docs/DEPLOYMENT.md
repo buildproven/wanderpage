@@ -77,7 +77,9 @@ Neon provides it so the build runner uses a direct migration connection.
 Use separate random peppers and operator credentials for preview. Keep the
 generation limit low enough to make accidental spend visible.
 
-`WANDERPAGE_GENERATION_ENABLED` opens the anonymous web creator (`/create`).
+`WANDERPAGE_GENERATION_ENABLED` opens generation to anonymous (public)
+sessions made through `/api/stories`. The browser creator is retired: the
+Claude plugin is the only creator, and `/create` redirects (308) to `/`.
 While it is not `true`, the signed-in hosted MCP owner can still create,
 upload and generate stories, including through an upload link. Set
 `WANDERPAGE_OWNER_GENERATION_ENABLED=false` to stop the owner too; leave it
@@ -116,8 +118,11 @@ WANDERPAGE_HOSTED_SMOKE=1 \
 pnpm hosted:preview
 ```
 
-The smoke mode proves routing, authentication, owner isolation, private upload,
-and unpublished deletion without invoking generation. After the preview has
+The smoke mode proves routing (including the `/create` redirect),
+authentication, owner isolation, private upload on the `/stories/<id>` page,
+and unpublished deletion without invoking generation. The harness creates its
+story through `/api/stories`, so it needs `WANDERPAGE_GENERATION_ENABLED=true`
+on the preview. After the preview has
 been inspected and generation has been explicitly enabled, the full lifecycle
 can be run with `WANDERPAGE_HOSTED_ACCEPTANCE=1` and
 `WANDERPAGE_HOSTED_ALLOW_GENERATION=1` instead of `WANDERPAGE_HOSTED_SMOKE=1`.

@@ -173,7 +173,8 @@ absent.
 
 ### ARCH-WEB-UI Hosted creator interface
 
-The `/create` page, the private draft desk, and publish controls. Not offered in v1: the landing page links to it only when the operator enables generation.
+The private draft desk (`/stories/<id>`, the page an upload link opens) with its photo picker and publish controls. The Claude plugin is the
+only creator: the browser creator is retired, `/create` redirects (308) to `/`, and the landing page links only to the plugin.
 
 - **Satisfies:** REQ-WEB-02, REQ-WEB-06
 

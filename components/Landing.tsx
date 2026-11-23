@@ -12,7 +12,22 @@ const reveal = {
   transition: { duration: 0.75, ease: [0.2, 0.7, 0.2, 1] as const },
 };
 
-export default function Landing({ hostedCreatorEnabled = false }: { hostedCreatorEnabled?: boolean }) {
+// The Claude plugin is the only creator (BUI-2148); the landing page shows how to use it.
+const claudeSteps = [
+  <>
+    Connect the Wanderpage plugin in{" "}
+    <a href="https://claude.ai" rel="noreferrer">
+      claude.ai
+    </a>
+    .
+  </>,
+  <>Say &quot;make a trip page from my photos&quot;.</>,
+  <>Open the upload link Claude gives you and add your photos.</>,
+  <>Publish the finished draft when you like it.</>,
+  <>Download the ZIP of your static trip site.</>,
+];
+
+export default function Landing() {
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, reduce ? 1 : 1.07]);
@@ -37,11 +52,6 @@ export default function Landing({ hostedCreatorEnabled = false }: { hostedCreato
           <Link href="/demo" className="product-nav-link">
             View the demo ↗
           </Link>
-          {hostedCreatorEnabled && (
-            <Link href="/create" className="product-nav-link">
-              Create a story ↗
-            </Link>
-          )}
         </nav>
         <motion.div
           className="product-hero-copy"
@@ -73,11 +83,6 @@ export default function Landing({ hostedCreatorEnabled = false }: { hostedCreato
           <span>Review before sharing</span>
           <span>Share when ready</span>
         </div>
-        {hostedCreatorEnabled && (
-          <Link href="/create" className="product-nav-link" style={{ position: "absolute", right: "6vw", bottom: "3rem" }}>
-            Create a private story →
-          </Link>
-        )}
       </section>
 
       <section className="product-premise" aria-labelledby="premise-title">
@@ -164,6 +169,22 @@ export default function Landing({ hostedCreatorEnabled = false }: { hostedCreato
             </figure>
           </motion.article>
         </div>
+      </section>
+
+      <section className="product-privacy" aria-labelledby="claude-title">
+        <div>
+          <p className="product-kicker">Agent first</p>
+          <h2 id="claude-title">Use it in Claude</h2>
+        </div>
+        <ol className="product-privacy-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {claudeSteps.map((step, index) => (
+            <li key={index}>
+              <p>
+                <span>{String(index + 1).padStart(2, "0")}</span> {step}
+              </p>
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section className="product-privacy" aria-labelledby="privacy-title">

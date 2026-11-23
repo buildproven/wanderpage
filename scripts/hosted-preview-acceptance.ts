@@ -56,32 +56,28 @@ async function expectStatus(context: BrowserContext, path: string, status: numbe
   return response;
 }
 
-async function createAndUpload(page: Page, onCreated: (storyId: string, csrfToken: string) => void) {
-  await page.goto(new URL("/create", baseUrl).toString(), { waitUntil: "networkidle" });
-  await page.getByLabel("Story title").fill("Hosted preview acceptance");
-  await page.getByLabel(/Photos \(JPEG/).setInputFiles(
+// The browser creator is retired (BUI-2148): create the story through the API, as the plugin does, then add the photos on the private
+// story page, the page an upload link opens.
+async function createAndUpload(context: BrowserContext, page: Page, onCreated: (storyId: string, csrfToken: string) => void) {
+  const createdBody = await apiRequest<StoryEnvelope>(context, "/api/stories", "POST", undefined, {
+    title: "Hosted preview acceptance",
+    peopleMode: "exclude",
+    locationPrivacy: "broad",
+    termsVersion: currentDisclosureVersion,
+    uploadConsentVersion: currentDisclosureVersion,
+  });
+  if (!createdBody.csrfToken) throw new Error("Story creation did not return a cleanup-capable CSRF token.");
+  const created = { storyId: createdBody.story.id, csrfToken: createdBody.csrfToken };
+  onCreated(created.storyId, created.csrfToken);
+  await page.goto(new URL(`/stories/${created.storyId}`, baseUrl).toString(), { waitUntil: "networkidle" });
+  await page.getByLabel("Photos", { exact: true }).setInputFiles(
     Array.from({ length: 6 }, (_, index) => ({
       name: `acceptance-${index + 1}.png`,
       mimeType: "image/png",
       buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
     }))
   );
-  await page.getByRole("checkbox").check();
-  const createResponse = page.waitForResponse(
-    response => response.url().endsWith("/api/stories") && response.request().method() === "POST"
-  );
-  await page.getByRole("button", { name: "Upload privately" }).click();
-  const createdBody = (await (await createResponse).json()) as ApiEnvelope<StoryEnvelope>;
-  const createdStory = createdBody.data?.story,
-    createdCsrf = createdBody.data?.csrfToken;
-  if (!createdStory || !createdCsrf) throw new Error("Story creation did not return a cleanup-capable CSRF token.");
-  const created = { storyId: createdStory.id, csrfToken: createdCsrf };
-  onCreated(created.storyId, created.csrfToken);
-  await page.getByRole("status").filter({ hasText: "Photos uploaded privately" }).waitFor({ state: "visible", timeout: timeoutMs });
-  const href = await page.getByRole("link", { name: /Open private review/ }).getAttribute("href");
-  const storyId = href?.match(/^\/stories\/([0-9a-f-]+)$/i)?.[1];
-  if (!storyId) throw new Error("The hosted creator did not return a private story link.");
-  if (storyId !== created.storyId) throw new Error("The hosted creator returned a different story than the creation response.");
+  await page.getByRole("status").filter({ hasText: "Photos stored privately" }).waitFor({ state: "visible", timeout: timeoutMs });
   return created;
 }
 
@@ -120,10 +116,10 @@ async function run() {
     if (!demo.ok() || !(await demo.text()).includes("Wanderpage")) throw new Error("/demo did not render the deployed app.");
     mark("demo-route");
 
-    const create = await owner.request.get(new URL("/create", baseUrl).toString());
-    if (!create.ok() || !(await create.text()).includes("Private browser creation"))
-      throw new Error("/create did not render the hosted creator.");
-    mark("create-route");
+    const create = await owner.request.get(new URL("/create", baseUrl).toString(), { maxRedirects: 0 });
+    if (create.status() !== 308 || new URL(create.headers()["location"] ?? "", baseUrl).pathname !== "/")
+      throw new Error(`/create returned ${create.status()}, expected a 308 redirect to /.`);
+    mark("create-redirect");
 
     const unauthenticated = await otherOwner.request.get(new URL("/api/stories", baseUrl).toString());
     if (unauthenticated.status() !== 401 || ((await unauthenticated.json()) as ApiEnvelope<unknown>).error?.code !== "AUTH_REQUIRED") {
@@ -132,7 +128,7 @@ async function run() {
     mark("unauthenticated-api");
 
     const page = await owner.newPage();
-    const created = await createAndUpload(page, (id, token) => {
+    const created = await createAndUpload(owner, page, (id, token) => {
       storyId = id;
       csrfToken = token;
     });

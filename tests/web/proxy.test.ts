@@ -27,7 +27,7 @@ describe("owner cookie renewal proxy", () => {
   });
 
   it("allows the Vercel Blob client token exchange", () => {
-    const response = proxy(new NextRequest("https://wanderpage.example/create"));
+    const response = proxy(new NextRequest("https://wanderpage.example/stories/story-id"));
     expect(response.headers.get("content-security-policy")).toContain("connect-src 'self' https://vercel.com https://*.vercel-storage.com");
   });
 });
