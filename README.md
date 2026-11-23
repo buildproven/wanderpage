@@ -2,32 +2,36 @@
 
 Turn a folder of travel photos into a private, cinematic trip page you can host anywhere as plain static files.
 
-- **Private by default.** Nothing is public until you publish it. Your originals are never modified or uploaded.
+- **Private by default.** Nothing is public until you publish it. Your originals are never modified, and the local tools never upload them.
 - **No people identified. No exact GPS.** Place names and map points appear only when the evidence supports them, rounded, and only as precisely as you allow.
 - **Metadata removed.** Published images are resized WebP files with no camera, GPS, or file-path data.
-- **Local first.** One command on your machine. No account, server, or database.
+- **Local first, or in chat.** Run one command on your machine with no account, server, or database, or use the claude.ai plugin, which takes photos only through a one-time upload link you open.
 
 ## Use Wanderpage in Claude
 
-Wanderpage is made to be driven from a chat with Claude: Claude calls the Wanderpage tools on your Mac, and your photos never leave it.
-First run `npx @buildproven/wanderpage` once (see [Quickstart](#quickstart)) to set up your project folder (by default,
-`wanderpage` in the folder where you ran `npx @buildproven/wanderpage`).
-The Claude tools run from that folder, so it must contain `mcp/server.ts`. Versions up to 1.1.0 do not ship it, and running the command
+Wanderpage is made to be driven from a chat with Claude.
+
+**Claude on the web, desktop and phone (claude.ai plugin).** Add the Wanderpage plugin to your claude.ai account at
+Customize > Plugins, then select **Connect** and sign in to the hosted Wanderpage server (`https://wanderpage.buildproven.ai/api/mcp`).
+Install it once; it then works in chat on the web, in Claude Desktop, in the mobile apps and in Claude Code. Ask Claude for a trip
+page: it creates a private story and gives you a one-time upload link (`upload_photos`). Open the link in a browser, pick your photos,
+and Claude makes the page. Stories stay private until you ask Claude to publish one. In Claude Code, install the same plugin from the
+BuildProven marketplace (`buildproven/claude-plugins`):
+
+```text
+/plugin install wanderpage --marketplace buildproven/claude-plugins
+```
+
+**Offline, on your Mac.** To keep your photos on your Mac, run the Wanderpage tools locally from the Desktop extension or a Claude
+Code local server. Chat on the web and in the mobile apps cannot reach a local server, so the local tools work in Claude Code and
+Claude Desktop only. First run `npx @buildproven/wanderpage` once (see [Quickstart](#quickstart)) to set up your project folder (by
+default, `wanderpage` in the folder where you ran `npx @buildproven/wanderpage`).
+The local tools run from that folder, so it must contain `mcp/server.ts`. Versions up to 1.1.0 do not ship it, and running the command
 again does not update an existing folder. If your folder has no `mcp/server.ts`, set up a new one with
 `npx @buildproven/wanderpage@latest ~/wanderpage-claude` (a version after 1.1.0) and choose that folder, or choose a checkout of this
 repository after `pnpm install`. Your old folder and its drafts stay as they are.
 
 Then use one of these:
-
-- **Claude plugin (Claude Code).** Install it once from the BuildProven marketplace (`buildproven/claude-plugins`):
-
-  ```text
-  /plugin install wanderpage --marketplace buildproven/claude-plugins
-  ```
-
-  When asked, choose your Wanderpage project folder; an OpenAI API key is optional. The plugin brings the skill and a local (stdio)
-  server that runs `mcp/server.ts` from that folder with the `tsx` its `npm install` set up, so your photos stay on your Mac. Chat on
-  the web and in the mobile apps cannot reach a local server, so the Wanderpage tools work in Claude Code and Claude Desktop only.
 
 - **Claude Desktop extension.** Download
   [`wanderpage.mcpb`](https://github.com/buildproven/wanderpage/releases/latest/download/wanderpage.mcpb) from the latest GitHub

@@ -1,15 +1,18 @@
 ---
 name: wanderpage
-description: Turn a folder of travel photos on this Mac into a private, curated static trip page with the Wanderpage MCP tools (inspect_photos, create_draft, get_draft, list_drafts, preview_draft, edit_draft, publish_site). Use when the user wants to make, review, edit, or publish a trip page or photo story from a local photo folder. Keeps the privacy rules - never identifies a person, keeps the chosen location precision, and never publishes when the privacy scan reports findings.
+description: Make a private, curated trip page from travel photos with the Wanderpage MCP tools. With the hosted connector (Claude on the web, desktop, or phone) use create_story, upload_photos (a one-time link that gets photos in from chat), get_story, start_generation, set_title, and publish. With the local server on a Mac use inspect_photos, create_draft, get_draft, list_drafts, preview_draft, edit_draft, and publish_site. Use when the user wants to make, review, edit, or publish a trip page or photo story. Keeps the privacy rules - never identifies a person, keeps the chosen location precision, and never publishes when the privacy scan reports findings.
 ---
 
 # Wanderpage
 
-Wanderpage makes a trip page from a folder of photos on this Mac. The tools do the work: they read the photos, select and order
-them, and build the site. You explain the result and carry out the user's choices. Photos stay on the Mac; every tool takes a folder
-path or a draft slug.
+Wanderpage makes a trip page from travel photos. The tools do the work: they read the photos, select and order them, and build the
+page. You explain the result and carry out the user's choices.
 
-## Workflow
+Check which tools you have. The hosted connector (the claude.ai plugin, in Claude on the web, desktop, or phone) has `create_story` and
+`upload_photos`: follow [Hosted stories](#hosted-stories), and get the photos in from chat with `upload_photos`. The local server on a
+Mac has `inspect_photos`: follow the workflow below. Photos stay on the Mac; every local tool takes a folder path or a draft slug.
+
+## Workflow (local server)
 
 1. **Inspect the folder.** Ask for the folder path, then call `inspect_photos` with it. Report the photo count and whether GPS data
    and capture dates were found. This call changes nothing.
