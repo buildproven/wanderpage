@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { currentDisclosureVersion } from "@/lib/consent";
+import { currentDisclosureVersion, uploadConsentText } from "@/lib/consent";
 import { uploadPhotos } from "@/lib/web/photo-upload";
 import styles from "./HostedDraftDesk.module.css";
 
@@ -118,9 +118,7 @@ export default function WebCreator() {
         </label>
         <label>
           <input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} required /> I have the right to
-          upload these photos. I consent to source uploads expiring after 24 hours and being automatically deleted within 48 hours, derived
-          contact-sheet processing by OpenAI, and automatic deletion of an unpublished draft after 30 days of inactivity. I understand that
-          losing this anonymous browser session means losing access.
+          upload these photos. {uploadConsentText} I understand that losing this anonymous browser session means losing access.
         </label>
         <button className="product-cta" type="submit" disabled={busy || !accepted || files.length < 6 || files.length > 60}>
           {busy ? (uploadIndex ? `Uploading ${uploadIndex} of ${files.length}…` : "Starting private draft…") : "Upload privately"}
