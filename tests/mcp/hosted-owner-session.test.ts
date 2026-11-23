@@ -68,6 +68,13 @@ describe("hosted MCP owner session binding (BUI-2099)", () => {
     await expect(stories.requireSession(ownerSecret)).resolves.toMatchObject({ id: created[0]?.id });
   });
 
+  it("BUI-2136 R1: a created owner session has kind owner", async () => {
+    const { created, stories, sessions } = fixture(),
+      ownerSecret = await sessions.secretFor(owner);
+    expect(created[0]?.kind).toBe("owner");
+    await expect(stories.requireSession(ownerSecret)).resolves.toMatchObject({ kind: "owner" });
+  });
+
   it("BUI-2099 R3: every later call reuses the bound session", async () => {
     const { created, sessions } = fixture(),
       first = await sessions.secretFor(owner),

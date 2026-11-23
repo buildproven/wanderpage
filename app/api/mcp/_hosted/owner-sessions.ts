@@ -57,6 +57,7 @@ export class HostedOwnerSessions {
       now = this.options.now?.() ?? new Date();
     await this.options.repository.createSession({
       id: sessionId,
+      kind: "owner",
       secretHash: this.options.hashSecret(secret),
       csrfToken: randomBytes(32).toString("base64url"),
       createdAt: now,

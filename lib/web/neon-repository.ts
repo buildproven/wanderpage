@@ -1,8 +1,10 @@
 // @design DES-WEB-STORE
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import { SessionKinds } from "@/lib/web/types";
 import type {
   GenerationLimits,
   OwnerSession,
+  SessionKind,
   Story,
   StoryCreationLimits,
   StoryRepository,
@@ -53,8 +55,8 @@ export class NeonStoryRepository implements StoryRepository {
 
   async createSession(session: OwnerSession) {
     await this.sql`
-      INSERT INTO owner_sessions (id, secret_hash, csrf_token, created_at, last_seen_at, expires_at, terms_version, upload_consent_version)
-      VALUES (${session.id}, ${session.secretHash}, ${session.csrfToken}, ${session.createdAt}, ${session.lastSeenAt}, ${session.expiresAt}, ${session.termsVersion}, ${session.uploadConsentVersion})
+      INSERT INTO owner_sessions (id, secret_hash, csrf_token, created_at, last_seen_at, expires_at, terms_version, upload_consent_version, kind)
+      VALUES (${session.id}, ${session.secretHash}, ${session.csrfToken}, ${session.createdAt}, ${session.lastSeenAt}, ${session.expiresAt}, ${session.termsVersion}, ${session.uploadConsentVersion}, ${session.kind ?? "public"})
     `;
   }
 
@@ -66,8 +68,8 @@ export class NeonStoryRepository implements StoryRepository {
         SELECT 1 FROM admission_lock
         WHERE (SELECT count(*) FROM stories WHERE admission_key = ${value.admissionKey ?? null} AND created_at >= ${limits.since}) < ${limits.clientStories}
       ), inserted_session AS (
-        INSERT INTO owner_sessions (id, secret_hash, csrf_token, created_at, last_seen_at, expires_at, terms_version, upload_consent_version)
-        SELECT ${session.id}, ${session.secretHash}, ${session.csrfToken}, ${session.createdAt}, ${session.lastSeenAt}, ${session.expiresAt}, ${session.termsVersion}, ${session.uploadConsentVersion}
+        INSERT INTO owner_sessions (id, secret_hash, csrf_token, created_at, last_seen_at, expires_at, terms_version, upload_consent_version, kind)
+        SELECT ${session.id}, ${session.secretHash}, ${session.csrfToken}, ${session.createdAt}, ${session.lastSeenAt}, ${session.expiresAt}, ${session.termsVersion}, ${session.uploadConsentVersion}, ${session.kind ?? "public"}
         FROM admitted RETURNING id
       )
       INSERT INTO stories (id, owner_session_id, admission_key, status, title, people_mode, location_privacy, processor_revision, source_expires_at, created_at, updated_at, version)
@@ -574,7 +576,15 @@ function session(row: Row): OwnerSession {
     revokedAt: optionalDate(row, "revoked_at"),
     termsVersion: string(row, "terms_version"),
     uploadConsentVersion: string(row, "upload_consent_version"),
+    kind: sessionKind(row),
   };
+}
+
+/** The `owner_sessions.kind` column (migration 0009); an unknown value fails visibly instead of reading as either kind. */
+function sessionKind(row: Row): SessionKind {
+  const kind = SessionKinds.find(value => value === row.kind);
+  if (!kind) throw new Error(`owner_sessions.kind has an unknown value: ${String(row.kind)}`);
+  return kind;
 }
 
 function story(row: Row): Story {

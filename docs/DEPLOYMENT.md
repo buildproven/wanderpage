@@ -65,6 +65,7 @@ OPENAI_API_KEY
 WANDERPAGE_SESSION_PEPPER
 WANDERPAGE_ADMISSION_PEPPER
 WANDERPAGE_GENERATION_ENABLED=true
+WANDERPAGE_OWNER_GENERATION_ENABLED
 WANDERPAGE_DAILY_GENERATION_LIMIT
 CRON_SECRET
 WANDERPAGE_OPERATOR_SECRET
@@ -75,6 +76,13 @@ Neon provides it so the build runner uses a direct migration connection.
 
 Use separate random peppers and operator credentials for preview. Keep the
 generation limit low enough to make accidental spend visible.
+
+`WANDERPAGE_GENERATION_ENABLED` opens the anonymous web creator (`/create`).
+While it is not `true`, the signed-in hosted MCP owner can still create,
+upload and generate stories, including through an upload link. Set
+`WANDERPAGE_OWNER_GENERATION_ENABLED=false` to stop the owner too; leave it
+unset (or `true`) to keep it on. Any other value fails the request. The daily
+generation limit counts the owner's runs.
 
 ## Safe activation sequence
 

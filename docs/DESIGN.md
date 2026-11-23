@@ -387,7 +387,10 @@ one browser-side upload, shared by `WebCreator` and `DraftControls`: it reserves
 
 `StoryService` creates sessions and stories only with the current consent versions and within per-owner and daily admission limits;
 authorizes every read by owner session (reads fail once deletion starts); queues exactly one run per story after a confirmed upload,
-binding the run to the admitted source set; rejects duplicates and generation when disabled (`assertGenerationOpen`); saves title edits
+binding the run to the admitted source set; rejects duplicates and generation when disabled (`assertGenerationOpen`), judged per session
+kind (BUI-2136): `WANDERPAGE_GENERATION_ENABLED=true` admits every session, and while it is off an `owner` session (the hosted MCP owner)
+is still admitted unless `WANDERPAGE_OWNER_GENERATION_ENABLED=false`, and a `public` session (the anonymous web creator) is refused at
+create, upload reserve, upload authorize and queue; the daily and per-story limits bind both kinds; saves title edits
 with a version check that rejects stale edits; retries failed runs while sources remain; and publishes only finalized drafts. Types and the
 `StoryRepository` interface live in `types.ts`; `confirmedPhotoCount` counts a read story's confirmed uploads; `runtime.ts` builds the singleton service; the four story routes are thin adapters.
 
@@ -398,7 +401,9 @@ with a version check that rejects stale edits; retries failed runs while sources
 
 `NeonStoryRepository` implements `StoryRepository` over `@neondatabase/serverless` with transactional claims, leases, tombstones,
 version-checked writes, and PostgreSQL `bigint` handling; `MemoryStoryRepository` implements the same contract for tests and refuses to
-be selected in production. SQL migrations in `db/migrations` are applied in numeric order. `NeonUploadLinkStore` keeps `upload_links` (migration 0008): it inserts only
+be selected in production. SQL migrations in `db/migrations` are applied in numeric order. `owner_sessions.kind` (migration 0009) records
+`public` or `owner`; existing rows default to `public`, the sessions bound in `mcp_owner_bindings` become `owner`, and an unknown value read
+back is an error. `NeonUploadLinkStore` keeps `upload_links` (migration 0008): it inserts only
 id, story id and expiry, uses a link in one `UPDATE … WHERE used_at IS NULL AND expires_at > now()`, and the tombstone purge deletes a
 story's links with its uploads and runs. `PostgresGrantStore` is the
 `@buildproven/mcp-oauth` `GrantStore` for the hosted MCP sign-in: `claim` inserts into `oauth_grants` (primary key on the id) with
@@ -490,7 +495,7 @@ the stdio entry (`mcp/server.ts`) is unchanged. Every request first passes `auth
 `resource_metadata="<origin>/.well-known/oauth-protected-resource"`, another subject a 403, and a missing setting a 503 that names it.
 `/.well-known/oauth-protected-resource` publishes the MCP URL and the issuer; `/.well-known/oauth-authorization-server` and `/oauth/*`
 (authorize, GitHub callback, token, register, jwks) are the package's `createOAuthServer` with `PostgresGrantStore`. On the owner's first
-tool call, `HostedOwnerSessions` creates an owner session with the current consent versions and binds it in `mcp_owner_bindings`
+tool call, `HostedOwnerSessions` creates an owner session (kind `owner`) with the current consent versions and binds it in `mcp_owner_bindings`
 (a keyed hash of the subject and the session id, insert-if-absent or compare-and-set, so concurrent first calls share one session). The
 session secret is an HMAC of the owner-session key (`mcpSessionKey`: an HMAC of `WANDERPAGE_SESSION_PEPPER` under its own label, so no
 extra secret), the subject and the session id: never stored or sent.
