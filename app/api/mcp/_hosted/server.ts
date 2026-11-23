@@ -1,7 +1,7 @@
 // @design DES-WEB-MCP
 // Hosted MCP tools: the signed-in owner's hosted stories through StoryService with the owner's bound session. BUI-2099 reads them;
-// BUI-2100 creates, generates, titles, publishes and deletes them with StoryService's own rules. The stdio entry (mcp/server.ts) serves
-// the local tools and is unchanged.
+// BUI-2100 creates, generates, titles, publishes and deletes them with StoryService's own rules; BUI-2095 returns a one-time link to a
+// story's private upload page. The stdio entry (mcp/server.ts) serves the local tools and is unchanged.
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
@@ -9,12 +9,21 @@ import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { cleanupStoryObjects } from "@/lib/web/object-cleanup";
 import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
+import type { UploadLinks } from "@/lib/web/upload-link";
 import type { HostedOwnerSessions } from "@/app/api/mcp/_hosted/owner-sessions";
 
 export type HostedServerOptions = {
   stories: Pick<
     StoryService,
-    "listOwnedStories" | "getOwnedStory" | "createStory" | "queueGeneration" | "updateStory" | "publish" | "unpublish" | "prepareDelete"
+    | "listOwnedStories"
+    | "getOwnedStory"
+    | "createStory"
+    | "queueGeneration"
+    | "updateStory"
+    | "publish"
+    | "unpublish"
+    | "prepareDelete"
+    | "confirmedPhotoCount"
   >;
   sessions: Pick<HostedOwnerSessions, "secretFor" | "admissionKeyFor">;
   /** The access token's subject (`sub`). */
@@ -25,6 +34,8 @@ export type HostedServerOptions = {
   publicOrigin?: string;
   /** Removes a deleted story's source uploads and derivatives, as the web DELETE route does. Default: Vercel Blob via Neon. */
   removeObjects?: (storyId: string) => Promise<void>;
+  /** Issues one-time upload links (`upload_photos`): Neon `upload_links` under the session pepper's upload-link key in production. */
+  uploadLinks?: Pick<UploadLinks, "issue">;
 };
 
 const storyId = z.uuid().describe("Story id, as returned by list_stories or create_story");
@@ -41,14 +52,17 @@ const titleInput = z.strictObject({
   version: z.number().int().nonnegative().describe("The story version this edit is based on, as returned by get_story"),
 });
 
-/** What the tools report for one story: never the manifest, the owner session or the admission key. */
-export function storySummary(story: Story) {
+/**
+ * What the tools report for one story: never the manifest, the owner session or the admission key. `photoCount` is the confirmed uploads
+ * while the story is uploading (`confirmedPhotos`), and the curated photos once it has a manifest.
+ */
+export function storySummary(story: Story, confirmedPhotos = 0) {
   const published = story.status === "published";
   return {
     id: story.id,
     title: story.title,
     status: story.status,
-    photoCount: story.manifest?.photos.length ?? 0,
+    photoCount: story.status === "uploading" ? confirmedPhotos : (story.manifest?.photos.length ?? 0),
     published,
     publicPath: published && story.publicSlug ? `/s/${story.publicSlug}` : null,
     publishedAt: published && story.publishedAt ? story.publishedAt.toISOString() : null,
@@ -95,6 +109,7 @@ export function createHostedServer({
   ownerSubject,
   publicOrigin,
   removeObjects = removeWithNeon,
+  uploadLinks,
 }: HostedServerOptions) {
   const server = new McpServer({ name: "wanderpage-hosted", version: "1.0.0" });
   // Serverless instances share no event bus and the tool list is fixed, so no change events are advertised.
@@ -106,6 +121,8 @@ export function createHostedServer({
   };
   // Called only after ownerSecret() has accepted the subject, so ownerSubject is the caller.
   const admissionKey = () => sessions.admissionKeyFor(ownerSubject);
+  const summarize = async (story: Story) =>
+    storySummary(story, story.status === "uploading" ? await stories.confirmedPhotoCount(story) : 0);
   const published = (story: Story) => {
     const summary = storySummary(story);
     return { ...summary, publicUrl: summary.publicPath && publicOrigin ? `${publicOrigin}${summary.publicPath}` : null };
@@ -118,7 +135,7 @@ export function createHostedServer({
       inputSchema: listInput,
       annotations: { readOnlyHint: true },
     },
-    () => answered(async () => ({ stories: (await stories.listOwnedStories(await ownerSecret())).map(storySummary) }))
+    () => answered(async () => ({ stories: await Promise.all((await stories.listOwnedStories(await ownerSecret())).map(summarize)) }))
   );
   server.registerTool(
     "get_story",
@@ -128,7 +145,7 @@ export function createHostedServer({
       inputSchema: getInput,
       annotations: { readOnlyHint: true },
     },
-    ({ storyId }) => answered(async () => storySummary(await stories.getOwnedStory(await ownerSecret(), storyId)))
+    ({ storyId }) => answered(async () => summarize(await stories.getOwnedStory(await ownerSecret(), storyId)))
   );
   server.registerTool(
     "create_story",
@@ -136,7 +153,7 @@ export function createHostedServer({
       title: "Create a hosted story",
       description:
         "Create a private hosted story with a title, a people choice and a location privacy choice, under the current upload terms. " +
-        "Returns the new story's id; upload photos to it before start_generation.",
+        "Returns the new story's id; then call upload_photos and open its link to add photos before start_generation.",
       inputSchema: createInput,
     },
     input =>
@@ -178,7 +195,7 @@ export function createHostedServer({
           story = await stories.getOwnedStory(secret, storyId);
         if (story.version !== version) throw versionConflict(storyId, version, story.version);
         try {
-          return storySummary(
+          return await summarize(
             await stories.updateStory(secret, storyId, version, {
               title,
               peopleMode: story.peopleMode,
@@ -189,6 +206,38 @@ export function createHostedServer({
           if (!(error instanceof StoryServiceError) || error.code !== "STORY_VERSION_CONFLICT") throw error;
           throw versionConflict(storyId, version, (await stories.getOwnedStory(secret, storyId)).version);
         }
+      })
+  );
+  server.registerTool(
+    "upload_photos",
+    {
+      title: "Upload photos to a hosted story",
+      description:
+        "Return a one-time link, valid for 15 minutes, that opens this story's private page in your browser, where you pick the photos " +
+        "(JPEG, PNG or WebP, 6 to 60). Photos attached to the chat do not reach Wanderpage. Only a story that is still uploading takes " +
+        "photos. After the upload, call start_generation.",
+      inputSchema: getInput,
+    },
+    ({ storyId }) =>
+      answered(async () => {
+        const secret = await ownerSecret();
+        let story: Story;
+        try {
+          story = await stories.getOwnedStory(secret, storyId);
+        } catch (error) {
+          if (error instanceof StoryServiceError && error.code === "FORBIDDEN")
+            throw new ToolRefusal("upload_photos refused: this story belongs to another private session.");
+          throw error;
+        }
+        if (story.status !== "uploading")
+          throw new ToolRefusal(
+            `upload_photos refused: "${story.title}" is ${story.status}. Photos can be added only while a story is uploading, before ` +
+              "start_generation. Create a new story with create_story to upload other photos.",
+            { storyId: story.id, status: story.status }
+          );
+        if (!publicOrigin || !uploadLinks) throw new Error("upload_photos needs the deployment origin and an upload-link store.");
+        const link = await uploadLinks.issue(story.id, secret);
+        return { storyId: story.id, uploadUrl: `${publicOrigin}/upload/${link.token}`, expiresAt: link.expiresAt.toISOString() };
       })
   );
   server.registerTool(

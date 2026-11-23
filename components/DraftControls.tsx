@@ -4,6 +4,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { TripManifest } from "@/lib/schemas/trip";
+import { uploadPhotos } from "@/lib/web/photo-upload";
 import styles from "./HostedDraftDesk.module.css";
 
 type DraftStory = {
@@ -17,13 +18,24 @@ type DraftStory = {
   manifest?: TripManifest;
 };
 
-export default function DraftControls({ story: initialStory, csrfToken }: { story: DraftStory; csrfToken: string }) {
+export default function DraftControls({
+  story: initialStory,
+  csrfToken,
+  storedPhotos: initialStoredPhotos = 0,
+}: {
+  story: DraftStory;
+  csrfToken: string;
+  /** Confirmed uploads already on the server, so a second upload link shows the story's real total. */
+  storedPhotos?: number;
+}) {
   const [story, setStory] = useState(initialStory),
     [title, setTitle] = useState(initialStory.title),
     [peopleMode, setPeopleMode] = useState(initialStory.peopleMode),
     [locationPrivacy, setLocationPrivacy] = useState(initialStory.locationPrivacy),
     [message, setMessage] = useState<string>(),
     [busy, setBusy] = useState(false),
+    [storedPhotos, setStoredPhotos] = useState(initialStoredPhotos),
+    [uploading, setUploading] = useState<{ position: number; total: number }>(),
     router = useRouter();
   const active = story.status === "queued" || story.status === "processing",
     editable = story.status === "uploading" || story.status === "draft",
@@ -72,6 +84,28 @@ export default function DraftControls({ story: initialStory, csrfToken }: { stor
       setMessage(messageFor(error));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function addPhotos(files: File[]) {
+    if (story.status !== "uploading" || !files.length) return;
+    setBusy(true);
+    setMessage(undefined);
+    const before = storedPhotos;
+    try {
+      await uploadPhotos({
+        storyId: story.id,
+        files,
+        csrfToken,
+        onUploading: (position, total) => setUploading({ position, total }),
+        onStored: stored => setStoredPhotos(before + stored),
+      });
+      setMessage("Photos stored privately. Add more, or return to Claude and start generation when every photo is stored.");
+    } catch (error) {
+      setMessage(messageFor(error));
+    } finally {
+      setBusy(false);
+      setUploading(undefined);
     }
   }
 
@@ -260,6 +294,35 @@ export default function DraftControls({ story: initialStory, csrfToken }: { stor
             </button>
           </div>
         </form>
+      )}
+
+      {story.status === "uploading" && (
+        <div className={styles["hosted-draft-editor"]} aria-label="Add photos">
+          <div>
+            <p className="product-kicker">Add photos</p>
+            <h2>Upload from this browser.</h2>
+            <p>JPEG, PNG, or WebP; 6–60 photos in total. Your photos stay private until you publish a finished draft.</p>
+          </div>
+          <label>
+            Photos
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              disabled={busy}
+              onChange={event => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = "";
+                void addPhotos(files);
+              }}
+            />
+          </label>
+          <p>
+            {uploading
+              ? `Uploading ${uploading.position} of ${uploading.total}…`
+              : `${storedPhotos} ${storedPhotos === 1 ? "photo" : "photos"} stored.`}
+          </p>
+        </div>
       )}
 
       <div className={styles["hosted-draft-actions"]}>

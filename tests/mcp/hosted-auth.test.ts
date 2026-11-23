@@ -145,6 +145,7 @@ describe("hosted MCP sign-in (BUI-2099)", () => {
       "set_title",
       "start_generation",
       "unpublish",
+      "upload_photos",
     ]);
     const response = await client.callTool({ name: "list_stories", arguments: {} });
     expect(response.isError).not.toBe(true);

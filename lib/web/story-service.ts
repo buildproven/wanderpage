@@ -130,6 +130,11 @@ export class StoryService {
     return story;
   }
 
+  /** The confirmed uploads of a story the caller has already read with `getOwnedStory` or `listOwnedStories`. */
+  async confirmedPhotoCount(story: Pick<Story, "id">) {
+    return (await this.repository.listUploads(story.id)).filter(upload => upload.status === "confirmed").length;
+  }
+
   async listOwnedStories(rawSecret: string) {
     const session = await this.requireSession(rawSecret);
     return (await this.repository.listStories(session.id)).filter(story => story.status !== "deleting" && story.status !== "deleted");

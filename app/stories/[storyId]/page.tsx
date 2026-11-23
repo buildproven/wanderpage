@@ -18,6 +18,7 @@ export default async function PrivateStoryPage({ params }: { params: Promise<{ s
           key={`${privateStory.story.id}:${privateStory.story.version}`}
           story={privateStory.story}
           csrfToken={privateStory.session.csrfToken}
+          storedPhotos={privateStory.storedPhotos}
         />
       </main>
     );
@@ -38,8 +39,9 @@ async function loadPrivateStory(storyId: string) {
     secret = await ownerSecret();
   if (!secret) notFound();
   try {
-    const [story, session] = await Promise.all([stories.getOwnedStory(secret, storyId), stories.requireSession(secret)]);
-    return { story, session };
+    const [story, session] = await Promise.all([stories.getOwnedStory(secret, storyId), stories.requireSession(secret)]),
+      storedPhotos = story.status === "uploading" ? await stories.confirmedPhotoCount(story) : 0;
+    return { story, session, storedPhotos };
   } catch (error) {
     if (error instanceof StoryServiceError && (error.code === "NOT_FOUND" || error.code === "FORBIDDEN" || error.code === "AUTH_REQUIRED"))
       notFound();

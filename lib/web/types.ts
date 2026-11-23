@@ -79,6 +79,14 @@ export type StoryUpload = {
   deletedAt?: Date;
 };
 
+/** One `upload_links` row (BUI-2095): the sealed token carries the owner session secret; the row never does. */
+export type UploadLink = {
+  id: string;
+  storyId: string;
+  expiresAt: Date;
+  usedAt?: Date;
+};
+
 export type CreateStoryInput = {
   title: string;
   peopleMode: PeopleMode;

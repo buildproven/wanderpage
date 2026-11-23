@@ -1,9 +1,9 @@
 // @design DES-WEB-UI
 "use client";
 
-import { upload } from "@vercel/blob/client";
 import { useEffect, useState } from "react";
 import { currentDisclosureVersion } from "@/lib/consent";
+import { uploadPhotos } from "@/lib/web/photo-upload";
 import styles from "./HostedDraftDesk.module.css";
 
 const termsVersion = currentDisclosureVersion;
@@ -44,21 +44,7 @@ export default function WebCreator() {
       });
       setStory(created.story);
       setCsrfToken(created.csrfToken);
-      for (const [index, file] of files.entries()) {
-        setUploadIndex(index + 1);
-        const reservation = await request<{ upload: { blobPath: string }; uploadPayload: string }>("/api/upload-reservations", {
-          method: "POST",
-          headers: { "x-wanderpage-csrf": created.csrfToken },
-          body: JSON.stringify({ storyId: created.story.id, originalName: file.name, contentType: file.type, byteSize: file.size }),
-        });
-        await upload(reservation.upload.blobPath, file, {
-          access: "private",
-          handleUploadUrl: "/api/uploads",
-          clientPayload: reservation.uploadPayload,
-          headers: { "x-wanderpage-csrf": created.csrfToken },
-          contentType: file.type,
-        });
-      }
+      await uploadPhotos({ storyId: created.story.id, files, csrfToken: created.csrfToken, onUploading: setUploadIndex });
       setExistingStories(current => [created.story, ...current.filter(value => value.id !== created.story.id)]);
       setMessage("Photos uploaded privately. Generate the draft when you are ready.");
     } catch (error) {
