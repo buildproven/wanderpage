@@ -427,6 +427,17 @@ all when the call carries no progress token.
 
 - **Needs:** SN-09
 
+### REQ-MCP-9 Reach every hosted tool through run_tool
+
+When `run_tool` is called with no arguments, the hosted server shall list every tool it has now, except `delete_story`, with a one-line
+summary and its arguments (required ones end in `*`); when it is called with a tool name and arguments, it shall check the arguments
+against that tool's current schema and return the tool's own result, and it shall refuse an unknown tool, itself and `delete_story` with
+a tool error that names the tools it can run. Its own input schema shall stay fixed, with `arguments` an open object, so a tool added
+after a chat started is still reachable (Claude keeps a connector's tool list from the start of a chat). The server instructions shall
+tell the agent to call it first and never to ask the owner to start a new chat.
+
+- **Needs:** SN-09
+
 ### REQ-AGENT-1 Give Claude the trip workflow as a skill
 
 The repository shall contain `skills/wanderpage/SKILL.md` whose `name` matches its folder and whose `description` is at most 1,024

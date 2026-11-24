@@ -14,6 +14,7 @@ import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
 import type { DownloadLinks } from "@/lib/web/download-link";
 import type { UploadLinks } from "@/lib/web/upload-link";
 import type { HostedOwnerSessions } from "@/app/api/mcp/_hosted/owner-sessions";
+import { recordTools, registerToolDoor } from "@/app/api/mcp/_hosted/tool-door";
 import { uploadPickerHtml, uploadPickerMeta, uploadPickerMimeType, uploadPickerUri } from "@/app/api/mcp/_hosted/upload-page";
 
 export type HostedServerOptions = {
@@ -118,7 +119,15 @@ export function createHostedServer({
   uploadLinks,
   downloadLinks,
 }: HostedServerOptions) {
-  const server = new McpServer({ name: "wanderpage-hosted", version: "1.0.0" });
+  const server = new McpServer(
+    { name: "wanderpage-hosted", version: "1.0.0" },
+    {
+      instructions:
+        "Start each chat with run_tool and no arguments: it lists every Wanderpage tool the server has now. A tool in that list but not in your tool list was added after this chat started: call it through run_tool with its name and arguments, never by asking the owner to start a new chat.",
+    }
+  );
+  // BUI-2220: record every tool so run_tool can list and reach it.
+  const registry = recordTools(server);
   // Serverless instances share no event bus and the tool list is fixed, so no change events are advertised.
   server.server.registerCapabilities({ tools: { listChanged: false } });
   const ownerSecret = () => {
@@ -338,6 +347,7 @@ export function createHostedServer({
         return { id: deletion.story.id, status: deletion.story.status, deleted: true };
       })
   );
+  registerToolDoor(server, registry);
   return server;
 }
 

@@ -538,8 +538,13 @@ and a story that is no longer a draft or published answer 410 with a short page.
 The ZIP is sent as a streamed body; Vercel's 4.5 MB function response limit is documented as lifted for streaming functions, which
 the first production download of a large story confirms.
 
+`run_tool` (BUI-2220, `app/api/mcp/_hosted/tool-door.ts`) is the one stable door: `recordTools` wraps `registerTool` before the first
+tool so every tool's name, description, zod schema and handler go into a registry; with no arguments `run_tool` lists them (not
+`delete_story`), and with a name it validates the arguments against the registered schema and calls the registered handler, so the call
+path and refusals are the tool's own. Its schema never changes, so tools added in later releases reach chats opened before them.
+
 - **Realizes:** ARCH-WEB-STORY
-- **Code:** app/api/mcp/route.ts, app/api/mcp/_hosted/http.ts, app/api/mcp/_hosted/oauth.ts, app/api/mcp/_hosted/owner-sessions.ts, app/api/mcp/_hosted/runtime.ts, app/api/mcp/_hosted/server.ts, lib/web/upload-link.ts, app/api/mcp/_hosted/upload-page.ts, app/upload/[token]/route.ts, app/api/mcp/_hosted/link-page.ts, lib/web/download-link.ts, lib/web/page-archive.ts, app/api/mcp/_hosted/download-page.ts, app/download/[token]/route.ts, app/oauth/authorize/route.ts, app/oauth/github/callback/route.ts, app/oauth/jwks/route.ts, app/oauth/register/route.ts, app/oauth/token/route.ts
+- **Code:** app/api/mcp/route.ts, app/api/mcp/_hosted/http.ts, app/api/mcp/_hosted/oauth.ts, app/api/mcp/_hosted/owner-sessions.ts, app/api/mcp/_hosted/runtime.ts, app/api/mcp/_hosted/server.ts, app/api/mcp/_hosted/tool-door.ts, lib/web/upload-link.ts, app/api/mcp/_hosted/upload-page.ts, app/upload/[token]/route.ts, app/api/mcp/_hosted/link-page.ts, lib/web/download-link.ts, lib/web/page-archive.ts, app/api/mcp/_hosted/download-page.ts, app/download/[token]/route.ts, app/oauth/authorize/route.ts, app/oauth/github/callback/route.ts, app/oauth/jwks/route.ts, app/oauth/register/route.ts, app/oauth/token/route.ts
 
 ### DES-WEB-PREVIEW Preview acceptance policy
 
