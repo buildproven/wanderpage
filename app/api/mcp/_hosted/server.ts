@@ -3,13 +3,15 @@
 // BUI-2100 creates, generates, titles, publishes and deletes them with StoryService's own rules; BUI-2095 returns a one-time link to a
 // story's private upload page; BUI-2146 returns a one-time link to a page that downloads a finished story as a ZIP. The stdio entry
 // (mcp/server.ts) serves the local tools and is unchanged. BUI-2204 adds the `ui://` MCP App that `upload_photos` names: an in-chat
-// photo picker that posts to the same link, which stays in the result as the browser fallback.
+// photo picker that posts to the same link, which stays in the result as the browser fallback. BUI-2205 lets the owner's own Claude
+// curate the page: `get_photos` pages small WebP thumbnails of the uploads as image content, and `save_curation` saves the chosen photos,
+// captions, title and intro as the draft, so the server builds the page without calling OpenAI.
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { cleanupStoryObjects } from "@/lib/web/object-cleanup";
-import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
+import { StoryServiceError, type PhotoPage, type StoryService } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
 import type { DownloadLinks } from "@/lib/web/download-link";
 import type { UploadLinks } from "@/lib/web/upload-link";
@@ -28,6 +30,8 @@ export type HostedServerOptions = {
     | "unpublish"
     | "prepareDelete"
     | "confirmedPhotoCount"
+    | "getPhotos"
+    | "saveCuration"
   >;
   sessions: Pick<HostedOwnerSessions, "secretFor" | "admissionKeyFor">;
   /** The access token's subject (`sub`). */
@@ -51,6 +55,36 @@ const createInput = z.strictObject({
   title: z.string().trim().min(1).max(120).describe("Story title, 1 to 120 characters"),
   peopleMode: z.enum(PeopleModes).describe("include: photos may show people; exclude: leave photos with people out"),
   locationPrivacy: z.enum(LocationPrivacyModes).describe("broad: region names; approximate: city-level places; hidden: no places"),
+});
+const photosInput = z.strictObject({
+  storyId,
+  cursor: z
+    .string()
+    .regex(/^\d{1,3}$/, "A cursor is the nextCursor value of an earlier get_photos page")
+    .nullish()
+    .describe("The nextCursor of the previous page; leave it out (or null) for the first page"),
+});
+const curationInput = z.strictObject({
+  storyId,
+  version: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe("The story version this curation is based on, as returned by get_story; a stale version is refused"),
+  title: z.string().trim().min(1).max(120).describe("Page title, 1 to 120 characters"),
+  intro: z.string().trim().min(1).max(1200).describe("The page's opening text, 1 to 1200 characters"),
+  closing: z.string().trim().min(1).max(600).optional().describe("Optional closing text, 1 to 600 characters"),
+  photos: z
+    .array(
+      z.strictObject({
+        id: z.string().min(1).max(100).describe("A photo id from get_photos"),
+        caption: z.string().trim().min(1).max(280).describe("The photo's caption and alt text, 1 to 280 characters"),
+      })
+    )
+    .min(1)
+    .max(60)
+    .describe("The chosen photos in page order; the first is the hero photo"),
 });
 const titleInput = z.strictObject({
   storyId,
@@ -222,6 +256,59 @@ export function createHostedServer({
         } catch (error) {
           if (!(error instanceof StoryServiceError) || error.code !== "STORY_VERSION_CONFLICT") throw error;
           throw versionConflict(storyId, version, (await stories.getOwnedStory(secret, storyId)).version);
+        }
+      })
+  );
+  server.registerTool(
+    "get_photos",
+    {
+      title: "Review a hosted story's photos",
+      description:
+        "Return one page of a story's uploaded photos as small WebP images, with each photo's id, capture time and place (city level " +
+        "at most, never exact GPS; none for a hidden story), and nextCursor. Call it again with nextCursor until nextCursor is null. " +
+        "Works while the story is uploading or failed, before its draft is made; then choose, order and caption photos for save_curation.",
+      inputSchema: photosInput,
+      annotations: { readOnlyHint: true },
+    },
+    async ({ storyId, cursor }) => {
+      let photos: PhotoPage["photos"] = [];
+      const result = await answered(async () => {
+        const secret = await ownerSecret();
+        await ownedStory(secret, storyId, "get_photos");
+        const page = await stories.getPhotos(secret, storyId, cursor ?? undefined);
+        photos = page.photos;
+        return { ...page, photos: photos.map(({ id, capturedAt, place }) => ({ id, capturedAt, place })) };
+      });
+      if ("isError" in result) return result;
+      // Each image goes out once, as image content after a label naming its photo, and stays out of the text and structured content.
+      const images = photos.flatMap(photo => [
+        { type: "text" as const, text: `Photo ${photo.id}` },
+        { type: "image" as const, data: photo.image, mimeType: photo.mimeType },
+      ]);
+      return { ...result, content: [...result.content, ...images] };
+    }
+  );
+  server.registerTool(
+    "save_curation",
+    {
+      title: "Save Claude's curation as the draft",
+      description:
+        "Save the chosen photos in page order, a caption for each, the title and the intro as the story's private draft; the server " +
+        "builds the page from them. Photo ids must come from get_photos (or the draft's own photos when it is already a draft). Text that " +
+        "names or identifies a person is refused. Pass the version from get_story to refuse a stale edit; a stale version is refused with the " +
+        "current version.",
+      inputSchema: curationInput,
+    },
+    ({ storyId, ...curation }) =>
+      answered(async () => {
+        const secret = await ownerSecret();
+        await ownedStory(secret, storyId, "save_curation");
+        try {
+          return storySummary(await stories.saveCuration(secret, storyId, curation, admissionKey()));
+        } catch (error) {
+          if (!(error instanceof StoryServiceError) || error.code !== "STORY_VERSION_CONFLICT" || curation.version === undefined)
+            throw error;
+          throw versionConflict(storyId, curation.version, (await stories.getOwnedStory(secret, storyId)).version);
         }
       })
   );

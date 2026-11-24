@@ -1,12 +1,13 @@
 ---
 name: wanderpage
-description: Make a private, curated trip page from travel photos with the Wanderpage MCP tools. With the hosted connector (Claude on the web, desktop, or phone) use create_story, upload_photos (a one-time link that gets photos in from chat), get_story, start_generation, set_title, download_page (a one-time link to a ZIP of the page), and publish. With the local server on a Mac use inspect_photos, create_draft, get_draft, list_drafts, preview_draft, edit_draft, and publish_site. Use when the user wants to make, review, edit, or publish a trip page or photo story. Keeps the privacy rules - never identifies a person, keeps the chosen location precision, and never publishes when the privacy scan reports findings.
+description: Make a private, curated trip page from travel photos with the Wanderpage MCP tools. With the hosted connector (Claude on the web, desktop, or phone) use create_story, upload_photos (a one-time link that gets photos in from chat), get_story, get_photos and save_curation (you review the photos and write the page), start_generation, set_title, download_page (a one-time link to a ZIP of the page), and publish. With the local server on a Mac use inspect_photos, create_draft, get_draft, list_drafts, preview_draft, edit_draft, and publish_site. Use when the user wants to make, review, edit, or publish a trip page or photo story. Keeps the privacy rules - never identifies a person, keeps the chosen location precision, and never publishes when the privacy scan reports findings.
 ---
 
 # Wanderpage
 
-Wanderpage makes a trip page from travel photos. The tools do the work: they read the photos, select and order them, and build the
-page. You explain the result and carry out the user's choices.
+Wanderpage makes a trip page from travel photos. On a Mac the local tools read, select and order the photos and build the page. With
+the hosted connector you review the photos and write the page text, and the server stores the photos and builds the page. You
+explain the result and carry out the user's choices.
 
 Check which tools you have. The hosted connector (the claude.ai plugin, in Claude on the web, desktop, or phone) has `create_story` and
 `upload_photos`: follow [Hosted stories](#hosted-stories), and get the photos in from chat with `upload_photos`. The local server on a
@@ -45,10 +46,21 @@ server instead of a folder. Photos attached to the chat do not reach the server,
 3. **Open the link.** The user opens the link in a browser, presses Continue, and picks 6 to 60 JPEG, PNG, or WebP photos on the
    story's private page. Call `get_story` to check `photoCount` (the stored photos). If the link has expired or was used, call
    `upload_photos` again.
-4. **Start generation.** Call `start_generation` when every photo is stored, then `get_story` until the status is `draft` or `failed`.
-   Stop on either status. On `failed`, tell the user that generation failed and offer to call `start_generation` again: a failed
-   story can be generated again. If `start_generation` returns an error (for example, the photos have expired), report it.
-5. **Offer the download.** When the draft is ready, offer `download_page`: it returns a one-time `downloadUrl` that expires at
+4. **Curate the page yourself.** Call `get_photos` with the story id, then again with its `nextCursor` until `nextCursor` is null.
+   Each page shows small images of the photos, each after a line naming its id, with its capture time and a place that is city level
+   at most (none for a `hidden` story). Look at every photo, then choose the best ones (about 12 to 36), put them in story order (the
+   first is the hero photo), and write a short caption for each, a title, and an intro of two to four sentences. Follow the
+   [privacy rules](#privacy-rules): describe scenes and places, never people; leave out photos that show a person when `peopleMode` is
+   `exclude`; and name no place more precise than the story's `locationPrivacy` (no place at all for `hidden`). Then call
+   `save_curation` with the story id, the `version` from `get_story`, the `title`, the `intro`, and `photos` (each `id` with its
+   `caption`). The server builds the draft from your choices. If it refuses a photo id or text that names a person, fix that and call
+   it again; on a version conflict, read `get_story` and try again. To change the draft later (captions, order, or fewer photos), call
+   `save_curation` again with the draft's photo ids: the original photos are removed once the draft is made.
+5. **Start generation.** Use this only when the user asks Wanderpage's server to choose and write the page instead of you. Call
+   `start_generation` when every photo is stored, then `get_story` until the status is `draft` or `failed`. Stop on either status. On
+   `failed`, tell the user that generation failed and offer to call `start_generation` again: a failed story can be generated again. If
+   `start_generation` returns an error (for example, the photos have expired), report it.
+6. **Offer the download.** When the draft is ready, offer `download_page`: it returns a one-time `downloadUrl` that expires at
    `expiresAt`, 15 minutes later. The user opens it in a browser and presses Download to get a ZIP with `index.html` and the page's
    images, which opens from the unzipped folder and can be hosted anywhere. A chat cannot receive the file, so give the link, not
    a file. A story that is published downloads the same way. If the link has expired or was used, call `download_page` again.
