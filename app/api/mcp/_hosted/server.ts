@@ -2,7 +2,8 @@
 // Hosted MCP tools: the signed-in owner's hosted stories through StoryService with the owner's bound session. BUI-2099 reads them;
 // BUI-2100 creates, generates, titles, publishes and deletes them with StoryService's own rules; BUI-2095 returns a one-time link to a
 // story's private upload page; BUI-2146 returns a one-time link to a page that downloads a finished story as a ZIP. The stdio entry
-// (mcp/server.ts) serves the local tools and is unchanged.
+// (mcp/server.ts) serves the local tools and is unchanged. BUI-2204 adds the `ui://` MCP App that `upload_photos` names: an in-chat
+// photo picker that posts to the same link, which stays in the result as the browser fallback.
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
@@ -13,6 +14,7 @@ import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
 import type { DownloadLinks } from "@/lib/web/download-link";
 import type { UploadLinks } from "@/lib/web/upload-link";
 import type { HostedOwnerSessions } from "@/app/api/mcp/_hosted/owner-sessions";
+import { uploadPickerHtml, uploadPickerMeta, uploadPickerMimeType, uploadPickerUri } from "@/app/api/mcp/_hosted/upload-page";
 
 export type HostedServerOptions = {
   stories: Pick<
@@ -223,18 +225,33 @@ export function createHostedServer({
         }
       })
   );
+  server.registerResource(
+    "upload_photos_picker",
+    uploadPickerUri,
+    {
+      title: "Wanderpage photo picker",
+      description: "The in-chat photo picker upload_photos shows: it uploads the picked photos to the story through its one-time link.",
+      mimeType: uploadPickerMimeType,
+    },
+    uri => ({
+      contents: [{ uri: uri.href, mimeType: uploadPickerMimeType, text: uploadPickerHtml(), _meta: uploadPickerMeta(publicOrigin) }],
+    })
+  );
+  const pickerLink = { ui: { resourceUri: uploadPickerUri } };
   server.registerTool(
     "upload_photos",
     {
       title: "Upload photos to a hosted story",
       description:
-        "Return a one-time link, valid for 15 minutes, that opens this story's private page in your browser, where you pick the photos " +
-        "(JPEG, PNG or WebP, 6 to 60). Photos attached to the chat do not reach Wanderpage. Only a story that is still uploading takes " +
-        "photos. After the upload, call start_generation.",
+        "Show an in-chat photo picker for this story and return a one-time link, valid for 15 minutes, that opens the story's private " +
+        "page in your browser. Pick the photos (JPEG, PNG or WebP, 6 to 60) in the picker, or open the link when the picker does not " +
+        "show or fails. Photos attached to the chat do not reach Wanderpage. Only a story that is still uploading takes photos. After the " +
+        "upload, call start_generation.",
       inputSchema: getInput,
+      _meta: pickerLink,
     },
-    ({ storyId }) =>
-      answered(async () => {
+    async ({ storyId }) => {
+      const result = await answered(async () => {
         const secret = await ownerSecret(),
           story = await ownedStory(secret, storyId, "upload_photos");
         if (story.status !== "uploading")
@@ -246,7 +263,21 @@ export function createHostedServer({
         if (!publicOrigin || !uploadLinks) throw new Error("upload_photos needs the deployment origin and an upload-link store.");
         const link = await uploadLinks.issue(story.id, secret);
         return { storyId: story.id, uploadUrl: `${publicOrigin}/upload/${link.token}`, expiresAt: link.expiresAt.toISOString() };
-      })
+      });
+      if ("isError" in result) return result;
+      const { uploadUrl } = result.structuredContent as { uploadUrl: string };
+      // The picker this call opens, with its link: a host that shows embedded resources needs no template read.
+      const picker = {
+        type: "resource" as const,
+        resource: {
+          uri: uploadPickerUri,
+          mimeType: uploadPickerMimeType,
+          text: uploadPickerHtml(uploadUrl),
+          _meta: uploadPickerMeta(publicOrigin),
+        },
+      };
+      return { ...result, content: [...result.content, picker], _meta: pickerLink };
+    }
   );
   server.registerTool(
     "download_page",
