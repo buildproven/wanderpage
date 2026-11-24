@@ -13,6 +13,12 @@ const reveal = {
 };
 
 // The Claude plugin is the only creator (BUI-2148); the landing page shows how to use it.
+const mcpServerUrl = "https://wanderpage.buildproven.ai/api/mcp";
+
+// Each step line is a two-column grid (number, text), so a step's text and inline link must sit in one
+// element; loose children each take a grid cell and wrap (BUI-2210). The style undoes the number-span style.
+const stepTextStyle = { color: "inherit", font: "inherit" } as const;
+
 const claudeSteps = [
   <>
     Connect the Wanderpage plugin in{" "}
@@ -175,12 +181,15 @@ export default function Landing() {
         <div>
           <p className="product-kicker">Agent first</p>
           <h2 id="claude-title">Use it in Claude</h2>
+          <p style={{ margin: "2rem 0 0", maxWidth: "28rem", lineHeight: 1.5 }}>
+            Server URL: <code style={{ overflowWrap: "anywhere" }}>{mcpServerUrl}</code>. Sign-in is invite-only for now.
+          </p>
         </div>
         <ol className="product-privacy-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {claudeSteps.map((step, index) => (
             <li key={index}>
               <p>
-                <span>{String(index + 1).padStart(2, "0")}</span> {step}
+                <span>{String(index + 1).padStart(2, "0")}</span> <span style={stepTextStyle}>{step}</span>
               </p>
             </li>
           ))}
