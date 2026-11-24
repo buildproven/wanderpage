@@ -449,11 +449,30 @@ Skills, or run `claude mcp add` for Claude Code. It shall state that Studio is f
 
 - **Needs:** SN-09, SN-06
 
-The repository root is also the Wanderpage Claude plugin: `.claude-plugin/plugin.json` names the plugin, and
-`claude plugin validate .` passes at the root through the `npm test` Vitest run (REQ-PLUGIN-1). `.mcp.json` declares one local stdio
-server named `wanderpage`; it uses the selected Wanderpage project and the `tsx` installed there to start `mcp/server.ts`, without an
-absolute local path (REQ-PLUGIN-2). The README gives the one-time `buildproven/claude-plugins` marketplace install and says that chat
-on the web and mobile cannot reach the local server, so these tools work in Claude Code and Desktop only (REQ-PLUGIN-3, BUI-1902).
+### REQ-PLUGIN-1 Validate the repository root as the Claude plugin
+
+The repository root shall be the Wanderpage Claude plugin: `.claude-plugin/plugin.json` names the plugin `wanderpage`, carries the
+`package.json` version, and `claude plugin validate .` passes at the root, with no version warning, through the `npm test` Vitest run.
+
+- **Needs:** SN-09, SN-06
+
+### REQ-PLUGIN-2 Point the plugin at the hosted MCP server
+
+`.mcp.json` shall declare one server, `wanderpage`, of type `http` at the production `https://wanderpage.buildproven.ai/api/mcp`, with no
+command, local path, header, or environment value; OAuth on the hosted server signs the user in. `plugin.json` shall have no
+`userConfig`, declare only that host under `network.hosts`, link the production `/privacy` page as its privacy policy, and describe
+uploading photos through a one-time link in Claude on the web, desktop, and phone.
+
+- **Needs:** SN-09, SN-06
+
+### REQ-PLUGIN-3 Lead the README with the claude.ai plugin
+
+The README's "Use Wanderpage in Claude" section shall start with the claude.ai plugin (Customize > Plugins, then **Connect**, install
+once, works on the web, in Claude Desktop, in the mobile apps, and in Claude Code) and the `buildproven/claude-plugins` marketplace
+install. It shall then give the local Desktop extension and `claude mcp add` as the offline option, and say that chat on the web and in
+the mobile apps cannot reach a local server.
+
+- **Needs:** SN-09, SN-06
 
 ### REQ-CLI-05 Publish only a revalidated draft
 
