@@ -9,7 +9,9 @@ name: Quality Checks
 # The local gate stays fast. CI is the full safety net for this generator repo.
 
 on:
-  # No branch or path filter: REQ-INST-3 parses install.ps1 on every push to any branch (BUI-1770)
+  # No branch or path filter: REQ-INST-3 parses install.ps1 on every push to any branch (BUI-1770).
+  # A push to a branch whose open pull request has a pull_request run of the same
+  # commit skips the jobs that run repeats; installer-parse still runs (BUI-2181).
   push:
   pull_request: # No paths-ignore: the required "summary" check must report on docs-only PRs
     branches: [main, master, develop]
@@ -46,6 +48,14 @@ jobs:
       is-turborepo: ${{ steps.detect-pm.outputs.is-turborepo }}
       turbo-prefix: ${{ steps.detect-pm.outputs.turbo-prefix }}
       quality-only: ${{ steps.change-scope.outputs.quality-only }}
+      pr-covered: ${{ steps.pr-coverage.outputs.pr-covered }}
+      pr-tests-covered: ${{ steps.pr-coverage.outputs.pr-tests-covered }}
+    # pull-requests: read and actions: read let the pr-coverage step list this
+    # branch's open pull requests and the pull_request runs of this commit.
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout code
@@ -69,6 +79,75 @@ jobs:
             [ -n "$APPLICATION_CHANGES" ] || QUALITY_ONLY=true
           fi
           echo "quality-only=$QUALITY_ONLY" >> "$GITHUB_OUTPUT"
+
+      # A push to a branch with an open pull request into main, master or develop
+      # also triggers a pull_request run of the same commit. When that run exists,
+      # it does the security, documentation and test jobs, so this push run skips
+      # them (BUI-2181). The push run skips only after it finds that run: GitHub
+      # starts no pull_request run for a pull request with a merge conflict, and
+      # then the push run does every check. Draft pull requests skip tests in the
+      # pull_request run, so the push run keeps tests for a draft. When a lookup
+      # fails, the push run does every check and logs a warning.
+      - name: Detect pull request coverage
+        id: pr-coverage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+          PR_RUN_WAIT_ATTEMPTS="${PR_RUN_WAIT_ATTEMPTS:-12}"
+          PR_RUN_WAIT_SECONDS="${PR_RUN_WAIT_SECONDS:-5}"
+          PR_COVERED=false
+          PR_TESTS_COVERED=false
+          # Prints how many pull_request runs of this workflow, not cancelled, exist for HEAD_SHA.
+          pr_runs() {
+            gh api --method GET "repos/$REPOSITORY/actions/runs" -f event=pull_request -f head_sha="$HEAD_SHA" |
+              jq --arg path "$WORKFLOW_PATH" '[.workflow_runs[] | select(.path == $path and .conclusion != "cancelled")] | length'
+          }
+          case "$EVENT_NAME:$REF_TYPE:$REF_NAME" in
+            push:branch:main | push:branch:master | push:branch:develop) ;;
+            push:branch:*)
+              WORKFLOW_PATH="${WORKFLOW_REF#"$REPOSITORY"/}"
+              WORKFLOW_PATH="${WORKFLOW_PATH%%@*}"
+              if PULLS="$(gh api --method GET "repos/$REPOSITORY/pulls" -f state=open -f head="$REPOSITORY_OWNER:$REF_NAME")" &&
+                 COVERAGE="$(printf '%s' "$PULLS" | jq -r '[.[] | select(.base.ref == "main" or .base.ref == "master" or .base.ref == "develop")] | "\(length) \(map(select(.draft != true)) | length)"')"; then
+                read -r OPEN READY <<< "$COVERAGE"
+                if [ "$OPEN" -gt 0 ]; then
+                  RUNS=0
+                  ATTEMPT=1
+                  while :; do
+                    if ! RUNS="$(pr_runs)"; then
+                      echo "::warning::Could not list pull_request runs for $HEAD_SHA; this push runs every check."
+                      RUNS=0
+                      break
+                    fi
+                    if [ "$RUNS" -gt 0 ] || [ "$ATTEMPT" -ge "$PR_RUN_WAIT_ATTEMPTS" ]; then break; fi
+                    ATTEMPT=$((ATTEMPT + 1))
+                    sleep "$PR_RUN_WAIT_SECONDS"
+                  done
+                  if [ "$RUNS" -gt 0 ]; then
+                    PR_COVERED=true
+                    if [ "$READY" -gt 0 ]; then PR_TESTS_COVERED=true; fi
+                  else
+                    echo "No pull_request run of $WORKFLOW_PATH started for $HEAD_SHA (a pull request with a merge conflict gets none); this push runs every check."
+                  fi
+                fi
+              else
+                echo "::warning::Could not list open pull requests for $REF_NAME; this push runs every check."
+              fi
+              ;;
+          esac
+          if [ "$PR_COVERED" = true ]; then
+            echo "A pull_request run checks $HEAD_SHA; this push skips the jobs that run there."
+          fi
+          echo "pr-covered=$PR_COVERED" >> "$GITHUB_OUTPUT"
+          echo "pr-tests-covered=$PR_TESTS_COVERED" >> "$GITHUB_OUTPUT"
 
       - name: Setup pnpm
         if: always()
@@ -166,7 +245,8 @@ jobs:
       (github.event_name == 'pull_request' || github.event_name == 'push' ||
        github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
       needs.detect-maturity.outputs.has-deps == 'true' &&
-      needs.detect-maturity.outputs.quality-only != 'true'
+      needs.detect-maturity.outputs.quality-only != 'true' &&
+      needs.detect-maturity.outputs.pr-covered != 'true'
 
     steps:
       - name: Checkout code
@@ -353,6 +433,7 @@ jobs:
     if: |
       fromJSON(needs.detect-maturity.outputs.test-count) > 0 &&
       needs.detect-maturity.outputs.quality-only != 'true' &&
+      needs.detect-maturity.outputs.pr-tests-covered != 'true' &&
       (github.event.pull_request.draft != true || github.event_name != 'pull_request')
     strategy:
       fail-fast: false
@@ -469,7 +550,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: detect-maturity
-    if: needs.detect-maturity.outputs.maturity == 'production-ready' && needs.detect-maturity.outputs.quality-only != 'true'
+    if: needs.detect-maturity.outputs.maturity == 'production-ready' && needs.detect-maturity.outputs.quality-only != 'true' && needs.detect-maturity.outputs.pr-covered != 'true'
 
     steps:
       - name: Checkout code
@@ -629,7 +710,12 @@ jobs:
           Write-Output 'install.ps1 parsed with no errors.'
 
   # Step 5: Summary - report what checks ran
+  # The required status check is the check run named "summary". A push run that
+  # skipped jobs because a pull_request run checks the same commit posts its
+  # result under another name, so only a run that did every check can report
+  # "summary" (BUI-2181).
   summary:
+    name: ${{ needs.detect-maturity.outputs.pr-covered == 'true' && 'summary (push; the pull_request run is the gate)' || 'summary' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs:
@@ -647,6 +733,8 @@ jobs:
           SECURITY_RESULT: ${{ needs.security.result }}
           TESTS_RESULT: ${{ needs.tests.result }}
           DOCS_RESULT: ${{ needs.documentation.result }}
+          PR_COVERED: ${{ needs.detect-maturity.outputs.pr-covered }}
+          PR_TESTS_COVERED: ${{ needs.detect-maturity.outputs.pr-tests-covered }}
         run: |
           {
             echo "## Quality Checks Summary 📊"
@@ -663,6 +751,10 @@ jobs:
             echo ""
             echo "Note: Lint/format checks run locally in pre-commit (not duplicated here)"
             echo ""
+            if [ "$PR_COVERED" = 'true' ]; then
+              echo "Note: a pull_request run checks this commit; this push run is not the required summary check (BUI-2181)"
+              echo ""
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
           # Security
@@ -670,6 +762,8 @@ jobs:
             echo "- ✅ Security: Passed" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$SECURITY_RESULT" == "failure" ]; then
             echo "- ❌ Security: Failed" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$SECURITY_RESULT" == "skipped" ] && [ "$PR_COVERED" == "true" ]; then
+            echo "- ⏭️ Security: Skipped (the pull_request run checks this commit)" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$SECURITY_RESULT" == "skipped" ]; then
             echo "- ⏭️ Security: Skipped (runs on schedule/manual trigger)" >> "$GITHUB_STEP_SUMMARY"
           else
@@ -681,6 +775,8 @@ jobs:
             echo "- ✅ Tests: Passed" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$TESTS_RESULT" == "failure" ]; then
             echo "- ❌ Tests: Failed" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$TESTS_RESULT" == "skipped" ] && [ "$PR_TESTS_COVERED" == "true" ]; then
+            echo "- ⏭️ Tests: Skipped (the pull_request run checks this commit)" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$TESTS_RESULT" == "skipped" ]; then
             echo "- ⏭️ Tests: Skipped (no test files)" >> "$GITHUB_STEP_SUMMARY"
           else
@@ -692,6 +788,8 @@ jobs:
             echo "- ✅ Documentation: Passed" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$DOCS_RESULT" == "failure" ]; then
             echo "- ❌ Documentation: Failed" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$DOCS_RESULT" == "skipped" ] && [ "$PR_COVERED" == "true" ]; then
+            echo "- ⏭️ Documentation: Skipped (the pull_request run checks this commit)" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$DOCS_RESULT" == "skipped" ]; then
             echo "- ⏭️ Documentation: Skipped (not production-ready)" >> "$GITHUB_STEP_SUMMARY"
           else
