@@ -120,7 +120,10 @@ so it stays in the project that `npx @buildproven/wanderpage` installs; the npm 
 validates the manifest, packs it with `@anthropic-ai/mcpb` into `dist/mcpb/wanderpage.mcpb`, and zips `skills/wanderpage/` (the
 workflow and privacy rules for Claude) into `dist/mcpb/wanderpage-skill.zip`.
 
-- **Satisfies:** REQ-MCP-1, REQ-MCP-2, REQ-MCP-3, REQ-MCP-4, REQ-MCP-5, REQ-MCP-6, REQ-MCP-7, REQ-MCP-8, REQ-AGENT-1, REQ-AGENT-2, REQ-AGENT-3
+Plugin: the repository root is also the Wanderpage Claude plugin. `.claude-plugin/plugin.json` describes it and `.mcp.json` points it at
+the hosted MCP server (`/api/mcp`), which signs the user in with OAuth, so the plugin carries no command, path, or key.
+
+- **Satisfies:** REQ-MCP-1, REQ-MCP-2, REQ-MCP-3, REQ-MCP-4, REQ-MCP-5, REQ-MCP-6, REQ-MCP-7, REQ-MCP-8, REQ-AGENT-1, REQ-AGENT-2, REQ-AGENT-3, REQ-PLUGIN-1, REQ-PLUGIN-2, REQ-PLUGIN-3
 
 ### ARCH-WEB-EDGE Hosted request edge
 

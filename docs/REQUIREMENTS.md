@@ -449,11 +449,29 @@ Skills, or run `claude mcp add` for Claude Code. It shall state that Studio is f
 
 - **Needs:** SN-09, SN-06
 
-The repository root is also the Wanderpage Claude plugin: `.claude-plugin/plugin.json` names the plugin, and
-`claude plugin validate .` passes at the root through the `npm test` Vitest run (REQ-PLUGIN-1). `.mcp.json` declares one local stdio
-server named `wanderpage`; it uses the selected Wanderpage project and the `tsx` installed there to start `mcp/server.ts`, without an
-absolute local path (REQ-PLUGIN-2). The README gives the one-time `buildproven/claude-plugins` marketplace install and says that chat
-on the web and mobile cannot reach the local server, so these tools work in Claude Code and Desktop only (REQ-PLUGIN-3, BUI-1902).
+### REQ-PLUGIN-1 Validate the repository root as the Claude plugin
+
+The repository root shall be the Wanderpage Claude plugin: `.claude-plugin/plugin.json` shall name the plugin `wanderpage` and carry the
+`package.json` version, and `claude plugin validate .` shall pass at the root, without a version warning, in the `npm test` Vitest run.
+
+- **Needs:** SN-09, SN-06
+
+### REQ-PLUGIN-2 Connect the plugin to the hosted MCP server
+
+`.mcp.json` shall declare one server, `wanderpage`, of type `http` at the production `https://wanderpage.buildproven.ai/api/mcp`, with no
+command, local path, header, or environment value. `.claude-plugin/plugin.json` shall have no `userConfig`, declare only that host in
+`network.hosts`, link the production `/privacy` page as its privacy policy, and say that photos are uploaded through a one-time link.
+
+- **Needs:** SN-09, SN-06, SN-03
+
+### REQ-PLUGIN-3 Lead the README with the claude.ai plugin
+
+The README "Use Wanderpage in Claude" section shall first give the claude.ai plugin (Customize > Plugins, then **Connect**), which works on
+the web, in Claude Desktop, in the mobile apps, and in Claude Code, and the one-time `buildproven/claude-plugins` marketplace install for
+Claude Code. It shall then give the local Desktop extension and Claude Code server as the offline option, and say that chat on the web and in
+the mobile apps cannot reach a local server.
+
+- **Needs:** SN-09, SN-06
 
 ### REQ-CLI-05 Publish only a revalidated draft
 
