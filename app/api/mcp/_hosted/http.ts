@@ -1,7 +1,8 @@
 // @design DES-WEB-MCP
 // Hosted MCP entry over Streamable HTTP (BUI-2099). Every request passes the bearer-token check of @buildproven/mcp-oauth first: no or
 // an invalid token is a 401 whose WWW-Authenticate header points at /.well-known/oauth-protected-resource, and another subject is a 403.
-import { authorizeMcpRequest, resourceUrls, type AuthorizeConfig } from "@buildproven/mcp-oauth";
+// With `WANDERPAGE_SIGNUP=open` (BUI-2215) every valid token's subject is served, each with its own owner session.
+import { authorizeMcpRequest, resourceUrls, signupMode, type AuthorizeConfig, type SignupMode } from "@buildproven/mcp-oauth";
 import { createMcpHandler, type AuthInfo, type McpHttpHandler } from "@modelcontextprotocol/server";
 import { createHostedServer, type HostedServerOptions } from "@/app/api/mcp/_hosted/server";
 
@@ -29,11 +30,15 @@ export function createHostedMcpHandler(options: HostedMcpOptions) {
     if (dependencies instanceof Response) return dependencies;
     // One handler per request (the SDK transport is per request and keeps no session), so each request's server uses that request's
     // dependencies, never the first request's.
+    const settings = env(),
+      signup = signupMode(hostedPrefix, settings),
+      ownerSubject = (settings[`${hostedPrefix}_OWNER_SUBJECT`] ?? "").trim();
     const handler: McpHttpHandler = createMcpHandler(({ authInfo }) =>
       createHostedServer({
         ...dependencies,
-        subject: subjectOf(authInfo),
-        ownerSubject: (env()[`${hostedPrefix}_OWNER_SUBJECT`] ?? "").trim(),
+        subject: servedSubject(subjectOf(authInfo), signup, ownerSubject),
+        ownerSubject,
+        signup,
         publicOrigin: new URL(request.url).origin,
       })
     );
@@ -44,6 +49,16 @@ export function createHostedMcpHandler(options: HostedMcpOptions) {
 function subjectOf(authInfo: AuthInfo | undefined) {
   const subject = authInfo?.extra?.subject;
   return typeof subject === "string" ? subject : undefined;
+}
+
+/**
+ * The subject whose owner session serves the request. An open-mode token names the GitHub login in lower case, while an owner-mode
+ * token names `OWNER_GITHUB_LOGIN` as configured; so in open mode the owner's login maps back to `WANDERPAGE_OWNER_SUBJECT`, and the
+ * owner keeps the session and stories bound before signup opened.
+ */
+function servedSubject(subject: string | undefined, signup: SignupMode, ownerSubject: string) {
+  if (signup === "open" && subject && ownerSubject && subject.toLowerCase() === ownerSubject.toLowerCase()) return ownerSubject;
+  return subject;
 }
 
 /** RFC 9728 metadata: the MCP URL of this deployment and the authorization server that signs its owner in. */

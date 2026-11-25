@@ -1,6 +1,7 @@
 // @design DES-WEB-PRIVACY
 // The hosted privacy policy (BUI-2135), linked from `.claude-plugin/plugin.json` as `privacyPolicyUrl`. The static export removes this
 // folder: a user's own trip site has no server, no sign-in and no cookies.
+import { signupMode } from "@buildproven/mcp-oauth";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -20,6 +21,9 @@ const ownerCookieName = "wanderpage_owner",
   oauthNonceCookieName = "wanderpage_oauth_nonce";
 
 export default function PrivacyPage() {
+  // `WANDERPAGE_SIGNUP` (BUI-2215), read with the prefix the hosted MCP entry passes (`hostedPrefix`); not imported, so this page does
+  // not bundle the MCP server. The root layout is force-dynamic, so each request reads the current setting.
+  const open = signupMode("WANDERPAGE") === "open";
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "3rem 1.25rem", lineHeight: 1.6, fontFamily: "var(--font-sans)" }}>
       <p>
@@ -32,13 +36,27 @@ export default function PrivacyPage() {
       </p>
 
       <h2>Who can sign in</h2>
-      <p>
-        Only the one owner can sign in, through GitHub OAuth. GitHub tells Wanderpage the login name of the account that signed in; any
-        other GitHub account is refused. Wanderpage does not keep your GitHub password or read your repositories.
-      </p>
+      {open ? (
+        <p>
+          Any GitHub account can sign in, through GitHub OAuth. GitHub tells Wanderpage the login name of the account that signed in. Each
+          account sees only its own stories. Wanderpage does not keep your GitHub password or read your repositories.
+        </p>
+      ) : (
+        <p>
+          Only the one owner can sign in, through GitHub OAuth. GitHub tells Wanderpage the login name of the account that signed in; any
+          other GitHub account is refused. Wanderpage does not keep your GitHub password or read your repositories.
+        </p>
+      )}
 
       <h2>What Wanderpage stores and for how long</h2>
       <ul>
+        {open ? (
+          <li>
+            For each account: a keyed hash of your GitHub login (not the login itself), kept so that your next sign-in finds your stories,
+            and your private session, which ends {ownerDays} days after you last use it. Each account can create 3 stories and start 3
+            generation runs in any 24 hours.
+          </li>
+        ) : null}
         <li>
           Source uploads expire after 24 hours and are deleted within 48 hours. Once a draft is finalized, its original photos are deleted.
         </li>

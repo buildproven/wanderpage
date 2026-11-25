@@ -3,7 +3,10 @@
 // BUI-2100 creates, generates, titles, publishes and deletes them with StoryService's own rules; BUI-2095 returns a one-time link to a
 // story's private upload page; BUI-2146 returns a one-time link to a page that downloads a finished story as a ZIP. The stdio entry
 // (mcp/server.ts) serves the local tools and is unchanged. BUI-2204 adds the `ui://` MCP App that `upload_photos` names: an in-chat
-// photo picker that posts to the same link, which stays in the result as the browser fallback.
+// photo picker that posts to the same link, which stays in the result as the browser fallback. BUI-2215 serves every signed-in subject
+// when `WANDERPAGE_SIGNUP=open`, each with its own owner session, and turns the story and generation limits into refusals that name the
+// limit and when it resets.
+import type { SignupMode } from "@buildproven/mcp-oauth";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
@@ -33,8 +36,10 @@ export type HostedServerOptions = {
   sessions: Pick<HostedOwnerSessions, "secretFor" | "admissionKeyFor">;
   /** The access token's subject (`sub`). */
   subject: string | undefined;
-  /** `WANDERPAGE_OWNER_SUBJECT`: the one subject the server serves. */
+  /** `WANDERPAGE_OWNER_SUBJECT`: the one subject the server serves in owner mode. */
   ownerSubject: string;
+  /** `WANDERPAGE_SIGNUP`: `owner` (default) serves only `ownerSubject`; `open` serves every subject, each with its own owner session. */
+  signup?: SignupMode;
   /** The deployment origin the request reached (`https://host`), so `publish` can return the full public URL. */
   publicOrigin?: string;
   /** Removes a deleted story's source uploads and derivatives, as the web DELETE route does. Default: Vercel Blob via Neon. */
@@ -93,6 +98,46 @@ class ToolRefusal extends Error {
   }
 }
 
+/** The per-session limits StoryService applies (`lib/web/story-service.ts`), in a rolling window of `limitWindowHours`. */
+const sessionStoryLimit = 3;
+const sessionGenerationLimit = 3;
+const limitWindowHours = 24;
+const limitWindowMs = limitWindowHours * 60 * 60 * 1000;
+// StoryService reports every admission limit as INVALID_STATE with these messages, and gives no other sign of which limit it was.
+const storyLimitMessage = /creation limit has been reached/,
+  generationLimitMessage = /generation limit has been reached/;
+
+const isLimit = (error: unknown, message: RegExp) =>
+  error instanceof StoryServiceError && error.code === "INVALID_STATE" && message.test(error.message);
+
+/**
+ * The refusal for a reached story-creation limit. The reset is exact when every counted story is still listed (the oldest one stops
+ * counting `limitWindowHours` after it was created); a deleted story still counts, so otherwise only the rolling rule is named.
+ */
+function storyLimitRefusal(listed: Story[], now: Date) {
+  const counted = listed
+      .map(story => story.createdAt.getTime())
+      .filter(created => created + limitWindowMs > now.getTime())
+      .sort((a, b) => a - b),
+    oldest = counted.length >= sessionStoryLimit ? counted[0] : undefined,
+    resetsAt = oldest === undefined ? undefined : new Date(oldest + limitWindowMs).toISOString();
+  return new ToolRefusal(
+    `create_story refused: each account can create ${sessionStoryLimit} new stories in any ${limitWindowHours} hours, and this one has ` +
+      `reached that limit. A story stops counting ${limitWindowHours} hours after it was created` +
+      (resetsAt ? `, so the next story can be created at ${resetsAt}.` : "; try again then."),
+    { limit: "stories", maximum: sessionStoryLimit, windowHours: limitWindowHours, ...(resetsAt ? { resetsAt } : {}) }
+  );
+}
+
+function generationLimitRefusal() {
+  return new ToolRefusal(
+    `start_generation refused: each account can start ${sessionGenerationLimit} generation runs in any ${limitWindowHours} hours, and ` +
+      `Wanderpage also has a daily limit for all accounts together; a limit has been reached. A run stops counting ${limitWindowHours} ` +
+      "hours after it started; try again then.",
+    { limit: "generations", maximum: sessionGenerationLimit, windowHours: limitWindowHours }
+  );
+}
+
 /** StoryService refusals become tool errors the owner can read; any other failure propagates to the MCP SDK. */
 async function answered(task: () => Promise<Record<string, unknown>>) {
   try {
@@ -114,6 +159,7 @@ export function createHostedServer({
   sessions,
   subject,
   ownerSubject,
+  signup = "owner",
   publicOrigin,
   removeObjects = removeWithNeon,
   uploadLinks,
@@ -130,13 +176,24 @@ export function createHostedServer({
   const registry = recordTools(server);
   // Serverless instances share no event bus and the tool list is fixed, so no change events are advertised.
   server.server.registerCapabilities({ tools: { listChanged: false } });
-  const ownerSecret = () => {
+  /** The caller's subject. Open mode serves every signed-in subject; owner mode serves only the owner. */
+  const caller = () => {
+    if (signup === "open") {
+      if (!subject) throw new StoryServiceError("AUTH_REQUIRED", "The access token names no account. Sign in again.");
+      return subject;
+    }
     if (!ownerSubject || subject !== ownerSubject)
       throw new StoryServiceError("FORBIDDEN", "This Wanderpage serves only its owner. Sign in with the owner account.");
-    return sessions.secretFor(subject);
+    return subject;
   };
-  // Called only after ownerSecret() has accepted the subject, so ownerSubject is the caller.
-  const admissionKey = () => sessions.admissionKeyFor(ownerSubject);
+  // Every signed-in subject gets an `owner`-kind session: the kind marks a signed-in MCP account, held to per-account limits, apart from
+  // the anonymous web creator's `public` session. The operator's controls for signed-in accounts other than the owner are
+  // `WANDERPAGE_SIGNUP` (read on every request; unset, it refuses them at the token check and leaves the owner working) and
+  // `WANDERPAGE_OWNER_GENERATION_ENABLED=false` (refuses every signed-in account's writes). `WANDERPAGE_GENERATION_ENABLED` stays the
+  // anonymous creator's switch, so opening signup never needs it on and never reopens anonymous creation.
+  const ownerSecret = () => sessions.secretFor(caller());
+  // Each subject has its own admission key, so one account's creation and generation limits never count another's.
+  const admissionKey = () => sessions.admissionKeyFor(caller());
   const summarize = async (story: Story) =>
     storySummary(story, story.status === "uploading" ? await stories.confirmedPhotoCount(story) : 0);
   /** The owner's story, or a refusal naming the tool when it belongs to another private session. */
@@ -184,13 +241,18 @@ export function createHostedServer({
     },
     input =>
       answered(async () => {
-        const secret = await ownerSecret(),
-          story = await stories.createStory(
+        const secret = await ownerSecret();
+        try {
+          const story = await stories.createStory(
             secret,
             { ...input, termsVersion: currentDisclosureVersion, uploadConsentVersion: currentDisclosureVersion },
             admissionKey()
           );
-        return storySummary(story);
+          return storySummary(story);
+        } catch (error) {
+          if (!isLimit(error, storyLimitMessage)) throw error;
+          throw storyLimitRefusal(await stories.listOwnedStories(secret), new Date());
+        }
       })
   );
   server.registerTool(
@@ -203,7 +265,12 @@ export function createHostedServer({
     ({ storyId }) =>
       answered(async () => {
         const secret = await ownerSecret();
-        return storySummary(await stories.queueGeneration(secret, storyId, admissionKey()));
+        try {
+          return storySummary(await stories.queueGeneration(secret, storyId, admissionKey()));
+        } catch (error) {
+          if (isLimit(error, generationLimitMessage)) throw generationLimitRefusal();
+          throw error;
+        }
       })
   );
   server.registerTool(
