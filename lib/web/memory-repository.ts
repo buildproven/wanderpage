@@ -1,4 +1,5 @@
 // @design DES-WEB-STORE
+import { curationRevision } from "@/lib/web/story-service";
 import type {
   GenerationLimits,
   OwnerSession,
@@ -91,7 +92,10 @@ export class MemoryStoryRepository implements StoryRepository {
     if (!current || current.version !== story.version) throw new Error("STORY_VERSION_CONFLICT");
     const confirmed = [...this.uploads.values()].filter(value => value.storyId === story.id && value.status === "confirmed");
     if (story.sourceExpiresAt <= limits.now || confirmed.length < limits.minPhotos) throw new Error("SOURCE_NOT_READY");
-    const recent = [...this.runs.values()].filter(value => value.admittedAt >= limits.since),
+    // A curation run (BUI-2205) made no AI call, so it never counts toward the paid generation limits.
+    const recent = [...this.runs.values()].filter(
+        value => value.admittedAt >= limits.since && value.processorRevision !== curationRevision
+      ),
       sessionStoryIds = new Set(
         [...this.stories.values()].filter(value => value.ownerSessionId === story.ownerSessionId).map(value => value.id)
       );
@@ -240,7 +244,8 @@ export class MemoryStoryRepository implements StoryRepository {
         this.runs.set(id, {
           ...run,
           workflowRunId: undefined,
-          processorRevision: "deleted",
+          // A curation run keeps its revision, so it stays out of the paid generation counts after its story is deleted (BUI-2205).
+          processorRevision: run.processorRevision === curationRevision ? curationRevision : "deleted",
           admissionKey: undefined,
           stage: "deleted",
           errorCode: undefined,

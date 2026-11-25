@@ -1,6 +1,6 @@
 ---
 name: wanderpage
-description: Make a private, curated trip page from travel photos with the Wanderpage MCP tools. With the hosted connector (Claude on the web, desktop, or phone) use create_story, upload_photos (a one-time link that gets photos in from chat), get_story, start_generation, set_title, download_page (a one-time link to a ZIP of the page), and publish. With the local server on a Mac use inspect_photos, create_draft, get_draft, list_drafts, preview_draft, edit_draft, and publish_site. Use when the user wants to make, review, edit, or publish a trip page or photo story. Keeps the privacy rules - never identifies a person, keeps the chosen location precision, and never publishes when the privacy scan reports findings.
+description: Make a private, curated trip page from travel photos with the Wanderpage MCP tools. With the hosted connector (Claude on the web, desktop, or phone) use create_story, upload_photos (a one-time link that gets photos in from chat), get_story, get_photos and save_curation (you review the photos and write the page text yourself), set_title, download_page (a one-time link to a ZIP of the page), and publish. With the local server on a Mac use inspect_photos, create_draft, get_draft, list_drafts, preview_draft, edit_draft, and publish_site. Use when the user wants to make, review, edit, or publish a trip page or photo story. Keeps the privacy rules - never identifies a person, keeps the chosen location precision, and never publishes when the privacy scan reports findings.
 ---
 
 # Wanderpage
@@ -45,10 +45,21 @@ server instead of a folder. Photos attached to the chat do not reach the server,
 3. **Open the link.** The user opens the link in a browser, presses Continue, and picks 6 to 60 JPEG, PNG, or WebP photos on the
    story's private page. Call `get_story` to check `photoCount` (the stored photos). If the link has expired or was used, call
    `upload_photos` again.
-4. **Start generation.** Call `start_generation` when every photo is stored, then `get_story` until the status is `draft` or `failed`.
-   Stop on either status. On `failed`, tell the user that generation failed and offer to call `start_generation` again: a failed
-   story can be generated again. If `start_generation` returns an error (for example, the photos have expired), report it.
-5. **Offer the download.** When the draft is ready, offer `download_page`: it returns a one-time `downloadUrl` that expires at
+4. **Make the page yourself.** When every photo is stored, call `get_photos` with the story id, then again with each `nextCursor`
+   until it is `null`, and look at every preview. Each photo comes with its `photoId`, capture date, and a `place` no finer than the
+   story's location privacy. Choose and order the photos for the page (the first one is the hero), and write the captions, the
+   title, and the intro yourself: describe scenes and places, never who a person is, and name no place more precise than `place`
+   (none in a `hidden` story). In a story whose `peopleMode` is `exclude`, leave out every photo that shows a person and send
+   `containsPeople: false` for each photo you keep; send it only when you checked. Then call `save_curation` with the story id, the
+   chosen photo ids in order with a caption each, the `title`, and the `intro`. The draft is ready when it returns; it does not count
+   toward the generation limit. If it returns an error (an unknown photo id, text that identifies a person, a missing
+   `containsPeople`), fix that and call it again. If it says the page is still being built, an earlier call was interrupted: call
+   `save_curation` again after the time it names.
+5. **Start generation.** Only when the user asks Wanderpage to write the page instead, call `start_generation` when every photo is
+   stored, then `get_story` until the status is `draft` or `failed`. Stop on either status. On `failed`, tell the user that
+   generation failed and offer to call `start_generation` again: a failed story can be generated again. If `start_generation`
+   returns an error (for example, the photos have expired), report it.
+6. **Offer the download.** When the draft is ready, offer `download_page`: it returns a one-time `downloadUrl` that expires at
    `expiresAt`, 15 minutes later. The user opens it in a browser and presses Download to get a ZIP with `index.html` and the page's
    images, which opens from the unzipped folder and can be hosted anywhere. A chat cannot receive the file, so give the link, not
    a file. A story that is published downloads the same way. If the link has expired or was used, call `download_page` again.
