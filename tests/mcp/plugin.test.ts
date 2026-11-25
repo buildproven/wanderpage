@@ -112,16 +112,18 @@ describe("the Claude plugin package", () => {
   });
 
   // @verifies REQ-AGENT-1
-  it("BUI-2147 (REQ-AGENT-1): the skill's hosted wait step stops on draft or failed and offers start_generation again", async () => {
+  it("BUI-2206 (REQ-AGENT-1): the skill's hosted confirm step follows save_curation and returns to step 4 when there is no saved curation", async () => {
     const skill = await readFile(join(repoRoot, "skills/wanderpage/SKILL.md"), "utf8");
     const hosted = skill.split(/^## /m).find(text => text.startsWith("Hosted stories")) ?? "";
-    const step = /^\d+\. \*\*Start generation\.\*\*([\s\S]*?)(?=^\d+\. \*\*|^\S)/m.exec(hosted)?.[1] ?? "";
+    const step = /^\d+\. \*\*Confirm the draft\.\*\*([\s\S]*?)(?=^\d+\. \*\*|^\S)/m.exec(hosted)?.[1] ?? "";
     const plain = step.replace(/\s+/g, " ");
-    expect(plain, "Start generation step").toContain("get_story");
-    // lib/web/types.ts: a failed generation never reaches draft, so the wait must also end on failed.
-    expect(plain).toMatch(/until the status is `draft` or `failed`/);
-    // lib/web/story-service.ts queueGeneration accepts a failed story, so the skill offers another start_generation.
-    expect(plain).toMatch(/`failed`[^.]*tell the (?:user|owner)[^.]*offer[^.]*`start_generation` again/i);
+    expect(plain, "Confirm the draft step").toMatch(/After `save_curation`, call `start_generation`/);
+    // app/api/mcp/_hosted/server.ts: start_generation reports the draft and queues no run, so there is no status to wait on.
+    expect(plain).not.toMatch(/get_story|until the status/);
+    // A story with no saved curation is refused, and the skill sends the model back to the step that makes the curation.
+    expect(plain).toMatch(/no saved curation[^.]*go back to step 4/i);
+    expect(hosted).not.toMatch(/generation limit/i);
+    expect(hosted).not.toMatch(/instead, call `start_generation`/);
   });
 
   // @verifies REQ-AGENT-3

@@ -164,40 +164,57 @@ describe("hosted MCP story tools (BUI-2100)", () => {
     expect(result).toMatchObject({ isError: true, text: "This Wanderpage serves only its owner. Sign in with the owner account." });
   });
 
-  it("BUI-2100 R2: start_generation queues exactly one run and reports the queued state", async () => {
+  it("BUI-2100 R2 (BUI-2206): start_generation reports a story with a saved draft and queues no run", async () => {
     const context = await fixture(),
       story = await ownerStory(context);
     await confirmUploads(context, story.id);
-    const result = await call(context.client, "start_generation", { storyId: story.id });
-    expect(result.isError).toBe(false);
-    expect(result.data).toMatchObject({ id: story.id, status: "queued" });
-    expect(await context.repository.listRuns(story.id)).toHaveLength(1);
-    expect(context.started).toEqual([story.id]);
-
+    const draft = await asDraft(context, story),
+      result = await call(context.client, "start_generation", { storyId: story.id });
+    expect(result.isError, result.text).toBe(false);
+    expect(result.data).toMatchObject({ id: story.id, status: "draft", version: draft.version });
     const again = await call(context.client, "start_generation", { storyId: story.id });
-    expect(again).toMatchObject({ isError: true, text: "This story is already queued or cannot be generated." });
-    expect(await context.repository.listRuns(story.id)).toHaveLength(1);
-    expect(context.started).toEqual([story.id]);
-  });
-
-  it("BUI-2100 R2: start_generation says generation is disabled and queues nothing", async () => {
-    const context = await fixture(),
-      story = await ownerStory(context);
-    await confirmUploads(context, story.id);
-    context.policy.enabled = false;
-    const result = await call(context.client, "start_generation", { storyId: story.id });
-    expect(result).toMatchObject({ isError: true, text: "Story generation is temporarily unavailable." });
+    expect(again.data).toEqual(result.data);
     expect(await context.repository.listRuns(story.id)).toEqual([]);
     expect(context.started).toEqual([]);
   });
 
-  it("BUI-2100 R2: start_generation refuses a story without enough confirmed uploads", async () => {
+  it("BUI-2100 R2 (BUI-2206): start_generation is not stopped by the generation switch, which save_curation now answers to", async () => {
+    const context = await fixture(),
+      story = await ownerStory(context);
+    await confirmUploads(context, story.id);
+    await asDraft(context, story);
+    const fresh = await ownerStory(context, "Another trip");
+    await confirmUploads(context, fresh.id);
+    context.policy.enabled = false;
+    const confirmed = await call(context.client, "start_generation", { storyId: story.id });
+    expect(confirmed.isError, confirmed.text).toBe(false);
+    const saved = await call(context.client, "save_curation", {
+      storyId: fresh.id,
+      title: "Another trip",
+      intro: "An intro.",
+      namesNoPerson: true,
+      photos: [{ photoId: `${fresh.id}-upload-0`, caption: "A street at dusk.", containsPeople: false }],
+    });
+    expect(saved).toMatchObject({ isError: true, text: "Story creation is temporarily unavailable." });
+    expect(await context.repository.listRuns(fresh.id)).toEqual([]);
+    expect(context.started).toEqual([]);
+  });
+
+  it("BUI-2100 R2 (BUI-2206): start_generation refuses a story with uploads but no saved curation and queues nothing", async () => {
     const context = await fixture(),
       story = await ownerStory(context);
     await confirmUploads(context, story.id, minStoryPhotos - 1);
-    const result = await call(context.client, "start_generation", { storyId: story.id });
-    expect(result).toMatchObject({ isError: true, text: `Add at least ${minStoryPhotos} completed photos before generating a story.` });
+    const few = await call(context.client, "start_generation", { storyId: story.id });
+    expect(few.isError).toBe(true);
+    expect(few.text).toMatch(/no saved curation.*get_photos.*save_curation/s);
+    const complete = await ownerStory(context, "Complete uploads");
+    await confirmUploads(context, complete.id);
+    const enough = await call(context.client, "start_generation", { storyId: complete.id });
+    expect(enough.isError).toBe(true);
+    expect(enough.text).toMatch(/no saved curation.*get_photos.*save_curation/s);
+    expect(await context.repository.listRuns(complete.id)).toEqual([]);
     expect(await context.repository.listRuns(story.id)).toEqual([]);
+    expect(context.started).toEqual([]);
   });
 
   it("BUI-2100 R3: set_title changes the title at the current version and keeps the privacy choices", async () => {
@@ -248,16 +265,13 @@ describe("hosted MCP story tools (BUI-2100)", () => {
     expect(result).toMatchObject({ isError: true, text: "This story cannot be edited while it is processing or published." });
   });
 
-  it("BUI-2100 R1, R2: create_story and start_generation count limits by a stable keyed hash of the subject, never the subject", async () => {
+  it("BUI-2100 R1 (BUI-2206): create_story counts its limit by a stable keyed hash of the subject, never the subject", async () => {
     const context = await fixture(),
       first = await call(context.client, "create_story", { title: "One", peopleMode: "exclude", locationPrivacy: "hidden" }),
       second = await call(context.client, "create_story", { title: "Two", peopleMode: "exclude", locationPrivacy: "hidden" });
-    await confirmUploads(context, first.data?.id as string);
-    await call(context.client, "start_generation", { storyId: first.data?.id });
     const keys = [
       (await context.repository.findStory(first.data?.id as string))?.admissionKey,
       (await context.repository.findStory(second.data?.id as string))?.admissionKey,
-      (await context.repository.listRuns(first.data?.id as string))[0]?.admissionKey,
     ];
     expect(new Set(keys)).toEqual(new Set([context.sessions.admissionKeyFor(owner)]));
     expect(keys[0]).not.toContain(owner);
