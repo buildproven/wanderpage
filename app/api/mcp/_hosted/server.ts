@@ -9,7 +9,15 @@ import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { cleanupStoryObjects } from "@/lib/web/object-cleanup";
-import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
+import {
+  curatableStatuses,
+  curationSchema,
+  StoryServiceError,
+  thumbnailEdge,
+  withholdsCuratedText,
+  type StoryService,
+} from "@/lib/web/story-service";
+import { maxStoryPhotos } from "@/lib/web/limits";
 import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
 import type { DownloadLinks } from "@/lib/web/download-link";
 import type { UploadLinks } from "@/lib/web/upload-link";
@@ -29,6 +37,8 @@ export type HostedServerOptions = {
     | "unpublish"
     | "prepareDelete"
     | "confirmedPhotoCount"
+    | "listStoryPhotos"
+    | "saveCuration"
   >;
   sessions: Pick<HostedOwnerSessions, "secretFor" | "admissionKeyFor">;
   /** The access token's subject (`sub`). */
@@ -57,6 +67,37 @@ const titleInput = z.strictObject({
   storyId,
   title: z.string().trim().min(1).max(120).describe("New story title, 1 to 120 characters"),
   version: z.number().int().nonnegative().describe("The story version this edit is based on, as returned by get_story"),
+});
+
+const photosInput = z.strictObject({
+  storyId,
+  cursor: z
+    .string()
+    .regex(/^\d{1,4}$/)
+    .nullable()
+    .optional()
+    .describe("The nextCursor of the page before; leave it out, or null, for the first page"),
+});
+const curatedPhoto = curationSchema.shape.photos.element.shape;
+const curationInput = z.strictObject({
+  storyId,
+  title: curationSchema.shape.title.describe("Page title, 1 to 120 characters"),
+  intro: curationSchema.shape.intro.describe("Opening text of the page, 1 to 2,000 characters"),
+  closing: curationSchema.shape.closing.describe("Optional closing line of the page, up to 2,000 characters"),
+  photos: z
+    .array(
+      z.strictObject({
+        id: curatedPhoto.id.describe("Photo id, as returned by get_photos"),
+        caption: curatedPhoto.caption.describe("Caption you wrote for this photo: the scene and place, never who a person is"),
+        containsPeople: z
+          .boolean()
+          .optional()
+          .describe("Whether a person is visible in this photo; required for every photo when the story excludes people"),
+      })
+    )
+    .min(1)
+    .max(maxStoryPhotos)
+    .describe("The chosen photos in page order; the first is the cover"),
 });
 
 /**
@@ -255,7 +296,7 @@ export function createHostedServer({
         "Show an in-chat photo picker for this story and return a one-time link, valid for 15 minutes, that opens the story's private " +
         "page in your browser. Pick the photos (JPEG, PNG or WebP, 6 to 60) in the picker, or open the link when the picker does not " +
         "show or fails. Photos attached to the chat do not reach Wanderpage. Only a story that is still uploading takes photos. After the " +
-        "upload, call start_generation.",
+        "upload, call get_photos, then save_curation.",
       inputSchema: getInput,
       _meta: pickerLink,
     },
@@ -287,6 +328,70 @@ export function createHostedServer({
       };
       return { ...result, content: [...result.content, picker], _meta: pickerLink };
     }
+  );
+  /** BUI-2205: a refusal naming the tool when the story has no source photos left to curate. */
+  const curatableStory = async (secret: string, storyId: string, tool: string) => {
+    const story = await ownedStory(secret, storyId, tool);
+    if (!curatableStatuses.has(story.status))
+      throw new ToolRefusal(
+        `${tool} refused: "${story.title}" is ${story.status}. Only a story that is uploading, or whose generation failed, has photos ` +
+          "to curate. Create a new story with create_story and upload_photos to curate other photos.",
+        { storyId: story.id, status: story.status }
+      );
+    return story;
+  };
+  server.registerTool(
+    "get_photos",
+    {
+      title: "Review a hosted story's photos",
+      description:
+        `Return one page of this story's uploaded photos as small WebP images (at most ${thumbnailEdge} px), with each photo's id, ` +
+        "capture date and place (rounded to city level or coarser, never exact GPS), and the nextCursor for the next page (null on the " +
+        "last). Look at every page, then choose and order the photos, write the captions and page text yourself, and call save_curation.",
+      inputSchema: photosInput,
+      annotations: { readOnlyHint: true },
+    },
+    async ({ storyId, cursor }) => {
+      const pages: Array<{ id: string; thumbnail: string }> = [];
+      const result = await answered(async () => {
+        const secret = await ownerSecret();
+        await curatableStory(secret, storyId, "get_photos");
+        const page = await stories.listStoryPhotos(secret, storyId, cursor);
+        pages.push(...page.photos);
+        return {
+          storyId,
+          photos: page.photos.map(({ id, captureDate, place }) => ({ id, captureDate, place })),
+          nextCursor: page.nextCursor,
+          total: page.total,
+        };
+      });
+      if ("isError" in result) return result;
+      const images = pages.flatMap(photo => [
+        { type: "text" as const, text: `Photo ${photo.id}` },
+        { type: "image" as const, data: photo.thumbnail, mimeType: "image/webp" },
+      ]);
+      return { ...result, content: [...result.content, ...images] };
+    }
+  );
+  server.registerTool(
+    "save_curation",
+    {
+      title: "Save your curation as the draft",
+      description:
+        "Save the photos you chose, in page order, with a caption for each, a title and intro text (and an optional closing line) as " +
+        "this story's private draft; the first photo is the cover. Use ids from get_photos. Never name, guess or describe who a person " +
+        "is, and keep places at the story's location precision. When the story excludes people, send containsPeople for every photo " +
+        "and choose only photos with none. A hidden or broad story keeps your photos and order and its own title, but not your text: " +
+        "the page gets location-free text instead, and the result says textWithheld. Returns the draft; then offer download_page or publish.",
+      inputSchema: curationInput,
+    },
+    ({ storyId, ...curation }) =>
+      answered(async () => {
+        const secret = await ownerSecret();
+        await curatableStory(secret, storyId, "save_curation");
+        const story = await stories.saveCuration(secret, storyId, curation, admissionKey());
+        return { ...(await summarize(story)), textWithheld: withholdsCuratedText(story) };
+      })
   );
   server.registerTool(
     "download_page",
