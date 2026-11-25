@@ -8,7 +8,7 @@ import Home from "@/app/page";
 import PrivacyPage from "@/app/privacy/page";
 import Landing from "@/components/Landing";
 import { currentDisclosureVersion, uploadConsentText } from "@/lib/consent";
-import { minStoryPhotos } from "@/lib/web/limits";
+import type { TripManifest } from "@/lib/schemas/trip";
 import { MemoryStoryRepository } from "@/lib/web/memory-repository";
 import { StoryService, type GenerationPolicy } from "@/lib/web/story-service";
 import { createHostedMcpHandler } from "@/app/api/mcp/_hosted/http";
@@ -91,6 +91,40 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
     isError: response.isError === true,
     text: (response.content as Array<{ text?: string }>)[0]?.text ?? "",
     data: response.structuredContent as Record<string, unknown> | undefined,
+  };
+}
+
+/** The smallest manifest a saved draft carries. */
+function draftManifest(title: string): TripManifest {
+  return {
+    schemaVersion: "1.0",
+    generatedAt: "2026-11-01T00:00:00.000Z",
+    published: false,
+    title,
+    subtitle: "A private draft",
+    opening: "An opening.",
+    closing: "A closing.",
+    peopleMode: "exclude",
+    theme: { background: "#fff", foreground: "#111", accent: "#333", muted: "#666" },
+    heroPhotoId: "photo-1",
+    stats: [],
+    destinations: [],
+    route: [],
+    chapters: [],
+    photos: [
+      {
+        id: "photo-1",
+        srcLarge: "/api/media/story/web-v1--run--large-0.webp",
+        srcMedium: "/api/media/story/web-v1--run--medium-0.webp",
+        srcThumb: "/api/media/story/web-v1--run--thumb-0.webp",
+        width: 100,
+        height: 100,
+        alt: "Selected photograph",
+        containsPeople: false,
+        source: "user",
+      },
+    ],
+    sources: [],
   };
 }
 
@@ -309,47 +343,36 @@ describe("hosted MCP open signup (BUI-2215)", () => {
     expect(refused.data?.resetsAt).toBeUndefined();
   });
 
-  it("BUI-2215 R2: a non-owner over the per-session generation limit gets a message naming the limit and when it resets", async () => {
+  it("BUI-2215 R2 (BUI-2206): start_generation has no per-session generation limit, so a non-owner can confirm drafts without one", async () => {
     const context = services(),
       client = await memoryClient(
         createHostedServer({ stories: context.stories, sessions: context.sessions, subject: "alice", ownerSubject: owner, signup: "open" })
       ),
       created = await call(client, "create_story", createArgs),
-      storyId = created.data?.id as string;
-    for (let index = 0; index < minStoryPhotos; index += 1)
-      await context.repository.createUpload({
-        id: `${storyId}-upload-${index}`,
-        storyId,
-        blobPath: `sources/${storyId}/${index}.jpg`,
-        originalName: `${index}.jpg`,
-        declaredType: "image/jpeg",
-        status: "confirmed",
-        createdAt: new Date(),
-        confirmedAt: new Date(),
-      });
-    // A failed run may be generated again; the fourth start within 24 hours passes the per-session limit of three.
-    for (let run = 0; run < 3; run += 1) {
-      const started = await call(client, "start_generation", { storyId });
-      expect(started.isError, started.text).toBe(false);
-      const story = await context.repository.findStory(storyId);
-      if (!story) throw new Error("story missing");
-      await context.repository.saveStory({ ...story, status: "failed" }, story.version);
+      storyId = created.data?.id as string,
+      story = await context.repository.findStory(storyId);
+    if (!story) throw new Error("story missing");
+    await context.repository.saveStory({ ...story, status: "draft", manifest: draftManifest(story.title) }, story.version);
+    // Past the old per-session limit of three runs in 24 hours: every call still confirms the draft and none is a run.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const confirmed = await call(client, "start_generation", { storyId });
+      expect(confirmed.isError, confirmed.text).toBe(false);
+      expect(confirmed.data).toMatchObject({ id: storyId, status: "draft" });
     }
-    const refused = await call(client, "start_generation", { storyId });
-    expect(refused.isError).toBe(true);
-    expect(refused.text).toMatch(/3 generation runs in any 24 hours/);
-    expect(refused.text).toMatch(/24 hours after it started/);
-    expect(refused.data).toMatchObject({ limit: "generations", maximum: 3, windowHours: 24 });
+    expect(await context.repository.listRuns(storyId)).toEqual([]);
   });
 
-  it("BUI-2215 R2: other StoryService refusals keep their own message", async () => {
+  it("BUI-2215 R2 (BUI-2206): a story with no saved curation is refused with the steps to take, not a limit message", async () => {
     const context = services(),
       client = await memoryClient(
         createHostedServer({ stories: context.stories, sessions: context.sessions, subject: "alice", ownerSubject: owner, signup: "open" })
       ),
       created = await call(client, "create_story", createArgs),
       refused = await call(client, "start_generation", { storyId: created.data?.id });
-    expect(refused).toMatchObject({ isError: true, text: `Add at least ${minStoryPhotos} completed photos before generating a story.` });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toMatch(/no saved curation.*get_photos.*save_curation/s);
+    expect(refused.text).not.toMatch(/limit/);
+    expect(await context.repository.listRuns(created.data?.id as string)).toEqual([]);
   });
 });
 

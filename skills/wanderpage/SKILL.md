@@ -54,14 +54,14 @@ server instead of a folder. Photos attached to the chat do not reach the server,
    `containsPeople: false` for each photo you keep; send it only when you checked. Then call `save_curation` with the story id, the
    chosen photo ids in order with a caption each, the `title`, the `intro`, and `namesNoPerson: true`: your statement that no title,
    intro, or caption names or identifies a person. The server does not check names, so check every text yourself before you send it.
-   The draft is ready when the call returns; it does not count toward the generation limit. Show the user the title, intro, and
+   The draft is ready when the call returns. Show the user the title, intro, and
    captions so they can check the draft before it is published. If the call returns an error (an unknown photo id, a missing
    `namesNoPerson` or `containsPeople`), fix that and call it again. If it says the page is still being built, an earlier call was
    interrupted: call `save_curation` again after the time it names.
-5. **Start generation.** Only when the user asks Wanderpage to write the page instead, call `start_generation` when every photo is
-   stored, then `get_story` until the status is `draft` or `failed`. Stop on either status. On `failed`, tell the user that
-   generation failed and offer to call `start_generation` again: a failed story can be generated again. If `start_generation`
-   returns an error (for example, the photos have expired), report it.
+5. **Confirm the draft.** After `save_curation`, call `start_generation` with the story id: it builds nothing new and calls no AI
+   service, and it returns the story with its status, which is `draft` when your page is saved. If it is refused because the story has
+   no saved curation, go back to step 4: call `get_photos`, then `save_curation`, then `start_generation` again. If it returns any
+   other error (for example, the photos have expired), report it.
 6. **Offer the download.** When the draft is ready, offer `download_page`: it returns a one-time `downloadUrl` that expires at
    `expiresAt`, 15 minutes later. The user opens it in a browser and presses Download to get a ZIP with `index.html` and the page's
    images, which opens from the unzipped folder and can be hosted anywhere. A chat cannot receive the file, so give the link, not
