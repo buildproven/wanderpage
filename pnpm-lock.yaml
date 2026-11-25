@@ -34,8 +34,8 @@ importers:
   .:
     dependencies:
       '@buildproven/mcp-oauth':
-        specifier: https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz
-        version: https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz(@modelcontextprotocol/server@2.4.0)
+        specifier: https://github.com/buildproven/mcp-oauth/releases/download/v0.2.0/buildproven-mcp-oauth-0.2.0.tgz
+        version: https://github.com/buildproven/mcp-oauth/releases/download/v0.2.0/buildproven-mcp-oauth-0.2.0.tgz(@modelcontextprotocol/server@2.4.0)
       '@modelcontextprotocol/server':
         specifier: ^2.4.0
         version: 2.4.0
@@ -293,9 +293,9 @@ packages:
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
 
-  '@buildproven/mcp-oauth@https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz':
-    resolution: {integrity: sha512-Oy9Ms4zbrbAA8h0Kieuyn83/1vHIpM03IkNjTWHusbwh8yTOfU0YmyDef/elIghlMFQxitLR1wOG4XSTTMKlZA==, tarball: https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz}
-    version: 0.1.0
+  '@buildproven/mcp-oauth@https://github.com/buildproven/mcp-oauth/releases/download/v0.2.0/buildproven-mcp-oauth-0.2.0.tgz':
+    resolution: {integrity: sha512-9f13+088WOSWzHFVeIVp21hgpPxJAQOinQQj1258WaIt+uEfiwNYxaf9MgV7vDHHXcj+m2+QY0/GPf944llOng==, tarball: https://github.com/buildproven/mcp-oauth/releases/download/v0.2.0/buildproven-mcp-oauth-0.2.0.tgz}
+    version: 0.2.0
     engines: {node: '>=24'}
     peerDependencies:
       '@modelcontextprotocol/server': ^2.4.0
@@ -5779,7 +5779,7 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
-  '@buildproven/mcp-oauth@https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz(@modelcontextprotocol/server@2.4.0)':
+  '@buildproven/mcp-oauth@https://github.com/buildproven/mcp-oauth/releases/download/v0.2.0/buildproven-mcp-oauth-0.2.0.tgz(@modelcontextprotocol/server@2.4.0)':
     dependencies:
       '@modelcontextprotocol/server': 2.4.0
       jose: 6.2.18

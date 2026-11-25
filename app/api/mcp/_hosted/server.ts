@@ -3,7 +3,9 @@
 // BUI-2100 creates, generates, titles, publishes and deletes them with StoryService's own rules; BUI-2095 returns a one-time link to a
 // story's private upload page; BUI-2146 returns a one-time link to a page that downloads a finished story as a ZIP. The stdio entry
 // (mcp/server.ts) serves the local tools and is unchanged. BUI-2204 adds the `ui://` MCP App that `upload_photos` names: an in-chat
-// photo picker that posts to the same link, which stays in the result as the browser fallback.
+// photo picker that posts to the same link, which stays in the result as the browser fallback. BUI-2215: with `WANDERPAGE_SIGNUP=open`
+// any GitHub login is served, each through its own owner session, and a reached story or generation limit names itself and its reset.
+import { signupMode, type SignupMode } from "@buildproven/mcp-oauth";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
@@ -13,6 +15,7 @@ import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
 import type { DownloadLinks } from "@/lib/web/download-link";
 import type { UploadLinks } from "@/lib/web/upload-link";
+import { hostedPrefix } from "@/app/api/mcp/_hosted/http";
 import type { HostedOwnerSessions } from "@/app/api/mcp/_hosted/owner-sessions";
 import { recordTools, registerToolDoor } from "@/app/api/mcp/_hosted/tool-door";
 import { uploadPickerHtml, uploadPickerMeta, uploadPickerMimeType, uploadPickerUri } from "@/app/api/mcp/_hosted/upload-page";
@@ -33,8 +36,16 @@ export type HostedServerOptions = {
   sessions: Pick<HostedOwnerSessions, "secretFor" | "admissionKeyFor">;
   /** The access token's subject (`sub`). */
   subject: string | undefined;
-  /** `WANDERPAGE_OWNER_SUBJECT`: the one subject the server serves. */
+  /** `WANDERPAGE_OWNER_SUBJECT`: the one subject the server serves in owner mode; in open mode, the subject that keeps the owner's stories. */
   ownerSubject: string;
+  /**
+   * `owner` serves only `ownerSubject`; `open` serves every subject the token check accepted. Default: `signupMode` of `WANDERPAGE_SIGNUP`,
+   * and `open` when `ownerSubject` is empty: the token check answers 503 in owner mode without one, so an empty owner subject reaches the
+   * server only after the check ran in open mode (whatever settings source the entry was given).
+   */
+  signup?: SignupMode;
+  /** The clock the limit messages count from. Default: the system clock. */
+  now?: () => Date;
   /** The deployment origin the request reached (`https://host`), so `publish` can return the full public URL. */
   publicOrigin?: string;
   /** Removes a deleted story's source uploads and derivatives, as the web DELETE route does. Default: Vercel Blob via Neon. */
@@ -78,6 +89,12 @@ export function storySummary(story: Story, confirmedPhotos = 0) {
   };
 }
 
+/**
+ * The per-account limits StoryService applies to an MCP caller in any 24 hours. The owner session (one per account) and the admission key
+ * (a hash of the account) both count, so these are each account's limits; `lib/web/story-service.ts` holds the same numbers.
+ */
+export const accountLimits = { storiesPerDay: 3, generationsPerDay: 3, windowMs: 24 * 60 * 60 * 1000 } as const;
+
 const reply = (value: Record<string, unknown>) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
   structuredContent: value,
@@ -114,6 +131,8 @@ export function createHostedServer({
   sessions,
   subject,
   ownerSubject,
+  signup = ownerSubject ? signupMode(hostedPrefix) : "open",
+  now = () => new Date(),
   publicOrigin,
   removeObjects = removeWithNeon,
   uploadLinks,
@@ -130,13 +149,16 @@ export function createHostedServer({
   const registry = recordTools(server);
   // Serverless instances share no event bus and the tool list is fixed, so no change events are advertised.
   server.server.registerCapabilities({ tools: { listChanged: false } });
+  const account = accountOf(signup, subject, ownerSubject);
   const ownerSecret = () => {
-    if (!ownerSubject || subject !== ownerSubject)
+    if (account === undefined) {
+      if (signup === "open") throw new StoryServiceError("AUTH_REQUIRED", "The access token names no GitHub account. Sign in again.");
       throw new StoryServiceError("FORBIDDEN", "This Wanderpage serves only its owner. Sign in with the owner account.");
-    return sessions.secretFor(subject);
+    }
+    return sessions.secretFor(account);
   };
-  // Called only after ownerSecret() has accepted the subject, so ownerSubject is the caller.
-  const admissionKey = () => sessions.admissionKeyFor(ownerSubject);
+  // Called only after ownerSecret() has accepted the caller, so account is defined.
+  const admissionKey = () => sessions.admissionKeyFor(account ?? "");
   const summarize = async (story: Story) =>
     storySummary(story, story.status === "uploading" ? await stories.confirmedPhotoCount(story) : 0);
   /** The owner's story, or a refusal naming the tool when it belongs to another private session. */
@@ -184,13 +206,18 @@ export function createHostedServer({
     },
     input =>
       answered(async () => {
-        const secret = await ownerSecret(),
-          story = await stories.createStory(
+        const secret = await ownerSecret();
+        try {
+          const story = await stories.createStory(
             secret,
             { ...input, termsVersion: currentDisclosureVersion, uploadConsentVersion: currentDisclosureVersion },
             admissionKey()
           );
-        return storySummary(story);
+          return storySummary(story);
+        } catch (error) {
+          if (!isLimit(error, "creation")) throw error;
+          throw storyLimitRefusal(now());
+        }
       })
   );
   server.registerTool(
@@ -203,7 +230,12 @@ export function createHostedServer({
     ({ storyId }) =>
       answered(async () => {
         const secret = await ownerSecret();
-        return storySummary(await stories.queueGeneration(secret, storyId, admissionKey()));
+        try {
+          return storySummary(await stories.queueGeneration(secret, storyId, admissionKey()));
+        } catch (error) {
+          if (!isLimit(error, "generation")) throw error;
+          throw generationLimitRefusal(now());
+        }
       })
   );
   server.registerTool(
@@ -349,6 +381,53 @@ export function createHostedServer({
   );
   registerToolDoor(server, registry);
   return server;
+}
+
+/**
+ * The account a request acts for. Owner mode serves only `ownerSubject`. Open mode serves every subject; a subject that names the owner's
+ * GitHub login in another case (open mode signs logins in lower case) is the owner, so the owner keeps the session bound in owner mode.
+ */
+function accountOf(signup: SignupMode, subject: string | undefined, ownerSubject: string) {
+  if (!subject) return undefined;
+  if (ownerSubject && subject.toLowerCase() === ownerSubject.toLowerCase())
+    return signup === "open" || subject === ownerSubject ? ownerSubject : undefined;
+  return signup === "open" ? subject : undefined;
+}
+
+/** StoryService's refusal when a creation or generation limit is reached (it names no limit and no reset). */
+function isLimit(error: unknown, kind: "creation" | "generation") {
+  return (
+    error instanceof StoryServiceError &&
+    error.code === "INVALID_STATE" &&
+    error.message.startsWith(`The ${kind === "creation" ? "private story creation" : "story generation"} limit has been reached`)
+  );
+}
+
+/**
+ * The story-creation limit and the latest time it resets: a story counts for 24 hours after it was created, so the limit frees a place
+ * within 24 hours of the refusal.
+ */
+function storyLimitRefusal(at: Date) {
+  const resetsAt = new Date(at.getTime() + accountLimits.windowMs).toISOString();
+  return new ToolRefusal(
+    `create_story refused: this account's private session has reached its story limit of ${accountLimits.storiesPerDay} stories ` +
+      `in any 24 hours. The limit resets as each story turns 24 hours old: the next story can be created at ${resetsAt} at the latest.`,
+    { limit: "stories", perDay: accountLimits.storiesPerDay, resetsAt }
+  );
+}
+
+/**
+ * The generation limit, with the latest time it resets. StoryService reports the account limit and the service's daily total the same way,
+ * so the message names both; every generation counts for 24 hours after it started, so either limit frees a place within 24 hours.
+ */
+function generationLimitRefusal(at: Date) {
+  const resetsAt = new Date(at.getTime() + accountLimits.windowMs).toISOString();
+  return new ToolRefusal(
+    `start_generation refused: the generation limit has been reached. This account's private session can start ` +
+      `${accountLimits.generationsPerDay} generations in any 24 hours, and Wanderpage also has a daily total for all accounts. The limit ` +
+      `resets as each generation turns 24 hours old: try again at ${resetsAt} at the latest.`,
+    { limit: "generations", perDay: accountLimits.generationsPerDay, resetsAt }
+  );
 }
 
 function versionConflict(storyId: string, sentVersion: number, currentVersion: number) {

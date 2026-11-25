@@ -28,7 +28,33 @@ const claudeSteps = [
   <>Download the ZIP of your static trip site.</>,
 ];
 
-export default function Landing() {
+/**
+ * Who can sign in. Invite-only until `WANDERPAGE_SIGNUP=open` (BUI-2215); then any GitHub account, each with its own private stories. The
+ * retention periods are the ones the upload consent in `lib/consent.ts` states.
+ */
+function SignIn({ open }: { open: boolean }) {
+  if (!open) return <p>Sign-in is invite-only for now.</p>;
+  return (
+    <>
+      <p>Sign-in is open: you can sign in with any GitHub account. Each account sees only its own stories.</p>
+      <p>
+        For each account, Wanderpage stores its stories: source photos expire after 24 hours and are deleted within 48 hours, an unpublished
+        draft is deleted after 30 days of inactivity, and a published story stays until you unpublish or delete it. To delete a story, ask
+        Claude to run <code>delete_story</code>. <Link href="/privacy">Privacy policy</Link>
+      </p>
+    </>
+  );
+}
+
+/**
+ * `openSignup` is the hosted sign-in mode, which `app/page.tsx` reads on the server and passes. Without it, the mode comes from
+ * `WANDERPAGE_SIGNUP` where the page renders (`open`, in any case, opens it; the browser has no such setting, so it stays invite-only).
+ */
+export default function Landing({
+  openSignup = (process.env.WANDERPAGE_SIGNUP ?? "").trim().toLowerCase() === "open",
+}: {
+  openSignup?: boolean;
+}) {
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, reduce ? 1 : 1.07]);
@@ -176,7 +202,7 @@ export default function Landing() {
         <div>
           <p className="product-kicker">Agent first</p>
           <h2 id="claude-title">Use it in Claude</h2>
-          <p>Sign-in is invite-only for now.</p>
+          <SignIn open={openSignup} />
         </div>
         <ol className="product-privacy-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {claudeSteps.map((step, index) => (

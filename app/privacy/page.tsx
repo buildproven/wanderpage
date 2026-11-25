@@ -2,6 +2,7 @@
 // The hosted privacy policy (BUI-2135), linked from `.claude-plugin/plugin.json` as `privacyPolicyUrl`. The static export removes this
 // folder: a user's own trip site has no server, no sign-in and no cookies.
 import type { Metadata } from "next";
+import { signupMode } from "@buildproven/mcp-oauth";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -20,6 +21,8 @@ const ownerCookieName = "wanderpage_owner",
   oauthNonceCookieName = "wanderpage_oauth_nonce";
 
 export default function PrivacyPage() {
+  // BUI-2215: `WANDERPAGE_SIGNUP=open` lets any GitHub account sign in; the hosted MCP entry passes @buildproven/mcp-oauth the same prefix.
+  const open = signupMode("WANDERPAGE") === "open";
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "3rem 1.25rem", lineHeight: 1.6, fontFamily: "var(--font-sans)" }}>
       <p>
@@ -32,12 +35,27 @@ export default function PrivacyPage() {
       </p>
 
       <h2>Who can sign in</h2>
-      <p>
-        Only the one owner can sign in, through GitHub OAuth. GitHub tells Wanderpage the login name of the account that signed in; any
-        other GitHub account is refused. Wanderpage does not keep your GitHub password or read your repositories.
-      </p>
+      {open ? (
+        <p>
+          Sign-in is open: you can sign in with any GitHub account, through GitHub OAuth. GitHub tells Wanderpage the login name of the
+          account that signed in. Wanderpage stores only a keyed hash of it, which ties the account to its own private session and stories;
+          no account can see or change another account&rsquo;s stories. Each account can create 3 stories and start 3 generations in any 24
+          hours. Wanderpage does not keep your GitHub password or read your repositories.
+        </p>
+      ) : (
+        <p>
+          Only the one owner can sign in, through GitHub OAuth. GitHub tells Wanderpage the login name of the account that signed in; any
+          other GitHub account is refused. Wanderpage does not keep your GitHub password or read your repositories.
+        </p>
+      )}
 
       <h2>What Wanderpage stores and for how long</h2>
+      {open ? (
+        <p>
+          For each account, Wanderpage stores its stories: the title, the people and location choices, the uploaded photos, the derived
+          images and the story text. The same periods apply to every account.
+        </p>
+      ) : null}
       <ul>
         <li>
           Source uploads expire after 24 hours and are deleted within 48 hours. Once a draft is finalized, its original photos are deleted.
