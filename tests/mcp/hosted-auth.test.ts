@@ -143,6 +143,7 @@ describe("hosted MCP sign-in (BUI-2099)", () => {
       "get_story",
       "list_stories",
       "publish",
+      "run_tool",
       "set_title",
       "start_generation",
       "unpublish",

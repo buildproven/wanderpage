@@ -144,7 +144,7 @@ enforces count and byte ceilings.
 The authoritative application service: create a story with consent, authorize every read by owner session, queue one run, save drafts with
 optimistic concurrency, retry failed runs, publish and unpublish.
 
-- **Satisfies:** REQ-WEB-01, REQ-WEB-02, REQ-WEB-04, REQ-WEB-06, REQ-WEB-09
+- **Satisfies:** REQ-WEB-01, REQ-WEB-02, REQ-WEB-04, REQ-WEB-06, REQ-WEB-09, REQ-MCP-9
 
 ### ARCH-WEB-STORE Hosted persistence
 

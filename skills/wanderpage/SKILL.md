@@ -55,6 +55,10 @@ server instead of a folder. Photos attached to the chat do not reach the server,
 
 Use `set_title`, `publish`, `unpublish`, `delete_story`, and `list_stories` for the other changes the user asks for.
 
+Start each chat with `run_tool` and no arguments: it lists every tool the server has now. A tool in that list but missing from your
+tool list was added after the chat started; call it through `run_tool` with its name and arguments instead of asking the user to start
+a new chat.
+
 ## Privacy rules
 
 - **Never identify a person.** Do not name, guess, or describe who anyone in a photo is, in captions, titles, or chat, even when the
