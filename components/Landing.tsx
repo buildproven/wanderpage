@@ -1,6 +1,7 @@
 // @design DES-SITE-LANDING
 "use client";
 
+import type { SignupMode } from "@buildproven/mcp-oauth";
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -28,7 +29,23 @@ const claudeSteps = [
   <>Download the ZIP of your static trip site.</>,
 ];
 
-export default function Landing() {
+// Who can sign in to the hosted plugin (BUI-2215). The periods are the ones `uploadConsentText` (lib/consent.ts) asks consent for.
+function SignInNote({ signup }: { signup: SignupMode }) {
+  if (signup !== "open") return <p>Sign-in is invite-only for now.</p>;
+  return (
+    <>
+      <p>Any GitHub account can sign in. Each account sees only its own stories.</p>
+      <p>
+        For each account Wanderpage keeps a keyed hash of the GitHub login, a private session and its stories. Source uploads expire after
+        24 hours and are deleted within 48 hours. An unpublished draft is deleted after 30 days of inactivity. Each account can create 3
+        stories and start 3 generation runs in any 24 hours. To delete a story, ask Claude to run <code>delete_story</code>.
+      </p>
+    </>
+  );
+}
+
+/** `signup` is the hosted `WANDERPAGE_SIGNUP` mode (app/page.tsx reads it); the default keeps sign-in invite-only. */
+export default function Landing({ signup = "owner" }: { signup?: SignupMode }) {
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, reduce ? 1 : 1.07]);
@@ -176,7 +193,7 @@ export default function Landing() {
         <div>
           <p className="product-kicker">Agent first</p>
           <h2 id="claude-title">Use it in Claude</h2>
-          <p>Sign-in is invite-only for now.</p>
+          <SignInNote signup={signup} />
         </div>
         <ol className="product-privacy-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {claudeSteps.map((step, index) => (
