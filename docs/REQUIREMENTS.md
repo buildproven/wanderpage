@@ -479,8 +479,10 @@ command, local path, header, or environment value. `.claude-plugin/plugin.json` 
 ### REQ-PLUGIN-3 Lead the README with the claude.ai plugin
 
 The README "Use Wanderpage in Claude" section shall first give the claude.ai plugin (Customize > Plugins, then **Connect**), which works on
-the web, in Claude Desktop, in the mobile apps, and in Claude Code, and the one-time `buildproven/claude-plugins` marketplace install for
-Claude Code. It shall then give the local Desktop extension and Claude Code server as the offline option, and say that chat on the web and in
+the web, in Claude Desktop, in the mobile apps, and in Claude Code, the connector URL `https://wanderpage.buildproven.ai/api/mcp`, and
+the one-time `buildproven/wanderpage` marketplace install for Claude Code (`/plugin marketplace add buildproven/wanderpage`, then
+`/plugin install wanderpage@wanderpage`). `.claude-plugin/marketplace.json` shall make the repository its own one-plugin marketplace: name
+`wanderpage`, owner `BuildProven`, and one entry with the `plugin.json` name and description and source `./`. It shall then give the local Desktop extension and Claude Code server as the offline option, and say that chat on the web and in
 the mobile apps cannot reach a local server.
 
 - **Needs:** SN-09, SN-06
