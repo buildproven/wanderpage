@@ -28,8 +28,8 @@ Claude Desktop only. First run `npx @buildproven/wanderpage` once (see [Quicksta
 default, `wanderpage` in the folder where you ran `npx @buildproven/wanderpage`).
 The local tools run from that folder, so it must contain `mcp/server.ts`. Versions up to 1.1.0 do not ship it, and a 1.1.0 launcher run
 again does not update an existing folder. Version 1.2.0 or later ships it. If your folder has no `mcp/server.ts`, run
-`npx @buildproven/wanderpage@latest` again from the same folder: it updates the existing folder and keeps your trips and `.env.local`.
-Or set up a new one with `npx @buildproven/wanderpage@latest ~/wanderpage-claude` and choose that folder, or choose a checkout of this
+`npx @buildproven/wanderpage@latest` again from the same folder where you first ran it (not from inside the project folder); if you
+first gave a folder path, give the same folder path again. It updates the existing folder and keeps your trips and `.env.local`. Or set up a new one with `npx @buildproven/wanderpage@latest ~/wanderpage-claude` and choose that folder, or choose a checkout of this
 repository after `pnpm install`.
 
 Then use one of these:
