@@ -26,10 +26,11 @@ BuildProven marketplace (`buildproven/claude-plugins`):
 Code local server. Chat on the web and in the mobile apps cannot reach a local server, so the local tools work in Claude Code and
 Claude Desktop only. First run `npx @buildproven/wanderpage` once (see [Quickstart](#quickstart)) to set up your project folder (by
 default, `wanderpage` in the folder where you ran `npx @buildproven/wanderpage`).
-The local tools run from that folder, so it must contain `mcp/server.ts`. Versions up to 1.1.0 do not ship it, and running the command
-again does not update an existing folder. If your folder has no `mcp/server.ts`, set up a new one with
-`npx @buildproven/wanderpage@latest ~/wanderpage-claude` (a version after 1.1.0) and choose that folder, or choose a checkout of this
-repository after `pnpm install`. Your old folder and its drafts stay as they are.
+The local tools run from that folder, so it must contain `mcp/server.ts`. Versions up to 1.1.0 do not ship it, and a 1.1.0 launcher run
+again does not update an existing folder. Version 1.2.0 or later ships it. If your folder has no `mcp/server.ts`, run
+`npx @buildproven/wanderpage@latest` again from the same folder: it updates the existing folder and keeps your trips and `.env.local`.
+Or set up a new one with `npx @buildproven/wanderpage@latest ~/wanderpage-claude` and choose that folder, or choose a checkout of this
+repository after `pnpm install`.
 
 Then use one of these:
 
