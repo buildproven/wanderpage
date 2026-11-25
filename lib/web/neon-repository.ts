@@ -1,5 +1,6 @@
 // @design DES-WEB-STORE
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import { curationRevision } from "@/lib/web/story-service";
 import { SessionKinds } from "@/lib/web/types";
 import type {
   DownloadLink,
@@ -190,10 +191,12 @@ export class NeonStoryRepository implements StoryRepository {
         SELECT s.* FROM stories s WHERE s.id = ${value.id} AND s.version = ${value.version} FOR UPDATE
       ), admitted AS MATERIALIZED (
         SELECT target.id FROM target CROSS JOIN admission_lock
-        WHERE (SELECT count(*) FROM story_runs WHERE admitted_at >= ${limits.since}) < ${limits.globalStarts}
+        WHERE (SELECT count(*) FROM story_runs WHERE admitted_at >= ${limits.since} AND processor_revision <> ${curationRevision}) < ${limits.globalStarts}
           AND (SELECT count(*) FROM story_runs r JOIN stories owned ON owned.id = r.story_id
-               WHERE owned.owner_session_id = target.owner_session_id AND r.admitted_at >= ${limits.since}) < ${limits.sessionStarts}
-          AND (SELECT count(*) FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND admitted_at >= ${limits.since}) < ${limits.clientStarts}
+               WHERE owned.owner_session_id = target.owner_session_id AND r.admitted_at >= ${limits.since}
+                 AND r.processor_revision <> ${curationRevision}) < ${limits.sessionStarts}
+          AND (SELECT count(*) FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND admitted_at >= ${limits.since}
+                 AND processor_revision <> ${curationRevision}) < ${limits.clientStarts}
           AND target.source_expires_at > ${limits.now}
           AND (SELECT count(*) FROM story_uploads WHERE story_id = target.id AND status = 'confirmed') >= ${limits.minPhotos}
       ), inserted AS (
@@ -211,11 +214,14 @@ export class NeonStoryRepository implements StoryRepository {
     if (row) return story(row);
     const [current] = await this.sql`SELECT version, owner_session_id FROM stories WHERE id = ${value.id}`;
     if (!current || number(current, "version") !== value.version) throw new Error("STORY_VERSION_CONFLICT");
-    const [globalCount] = await this.sql`SELECT count(*)::int AS count FROM story_runs WHERE admitted_at >= ${limits.since}`;
+    const [globalCount] = await this.sql`
+      SELECT count(*)::int AS count FROM story_runs WHERE admitted_at >= ${limits.since} AND processor_revision <> ${curationRevision}
+    `;
     if (!globalCount) throw new Error("Generation admission query returned no result.");
     if (number(globalCount, "count") >= limits.globalStarts) throw new Error("GLOBAL_GENERATION_LIMIT");
     const [clientCount] = await this.sql`
       SELECT count(*)::int AS count FROM story_runs WHERE admission_key = ${run.admissionKey ?? null} AND admitted_at >= ${limits.since}
+        AND processor_revision <> ${curationRevision}
     `;
     if (clientCount && number(clientCount, "count") >= limits.clientStarts) throw new Error("CLIENT_GENERATION_LIMIT");
     const [sources] = await this.sql`
@@ -371,6 +377,7 @@ export class NeonStoryRepository implements StoryRepository {
   }
 
   async finishDeleteStory(storyId: string, now: Date) {
+    // A curation run keeps its revision, so it stays out of the paid generation counts after its story is deleted (BUI-2205).
     const rows = await this.sql`
       WITH finished AS (
         UPDATE stories SET status = 'deleted', admission_key = NULL, public_slug = NULL, title = 'Deleted story',
@@ -384,7 +391,8 @@ export class NeonStoryRepository implements StoryRepository {
           cleanup_claimed_at = NULL, deleted_at = ${now}
         WHERE story_id IN (SELECT id FROM finished) RETURNING id
       )
-      UPDATE story_runs SET workflow_run_id = NULL, processor_revision = 'deleted', admission_key = NULL,
+      UPDATE story_runs SET workflow_run_id = NULL,
+        processor_revision = CASE WHEN processor_revision = ${curationRevision} THEN processor_revision ELSE 'deleted' END, admission_key = NULL,
         stage = 'deleted', error_code = NULL, error_message = NULL, source_upload_ids = '{}', updated_at = ${now}
       WHERE story_id IN (SELECT id FROM finished)
       RETURNING id
