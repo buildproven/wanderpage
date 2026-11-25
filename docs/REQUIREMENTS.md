@@ -463,7 +463,8 @@ Skills, or run `claude mcp add` for Claude Code. It shall state that Studio is f
 ### REQ-PLUGIN-1 Validate the repository root as the Claude plugin
 
 The repository root shall be the Wanderpage Claude plugin: `.claude-plugin/plugin.json` shall name the plugin `wanderpage` and carry the
-`package.json` version, and `claude plugin validate .` shall pass at the root, without a version warning, in the `npm test` Vitest run.
+`package.json` version, and `claude plugin validate .` shall pass at the root, without a version or icon warning, in the `npm test` Vitest
+run. `.claude-plugin/icon.png` shall be a square PNG of 512 to 2048 px on each side, under 2 MB.
 
 - **Needs:** SN-09, SN-06
 

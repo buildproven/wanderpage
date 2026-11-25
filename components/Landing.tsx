@@ -13,13 +13,14 @@ const reveal = {
 };
 
 // The Claude plugin is the only creator (BUI-2148); the landing page shows how to use it.
+const mcpServerUrl = "https://wanderpage.buildproven.ai/api/mcp";
 const claudeSteps = [
   <>
     Connect the Wanderpage plugin in{" "}
     <a href="https://claude.ai" rel="noreferrer">
       claude.ai
     </a>
-    .
+    . Its server URL is <code style={{ overflowWrap: "anywhere" }}>{mcpServerUrl}</code>.
   </>,
   <>Say &quot;make a trip page from my photos&quot;.</>,
   <>Open the upload link Claude gives you and add your photos.</>,
@@ -175,12 +176,16 @@ export default function Landing() {
         <div>
           <p className="product-kicker">Agent first</p>
           <h2 id="claude-title">Use it in Claude</h2>
+          <p>Sign-in is invite-only for now.</p>
         </div>
         <ol className="product-privacy-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {claudeSteps.map((step, index) => (
             <li key={index}>
               <p>
-                <span>{String(index + 1).padStart(2, "0")}</span> {step}
+                <span>{String(index + 1).padStart(2, "0")}</span>{" "}
+                {/* One element per step: the <p> is a two-column grid, so loose text and links would each take a cell (BUI-2210).
+                    The inline style undoes the number style that `.product-privacy-list span` also gives this span. */}
+                <span style={{ color: "inherit", font: "inherit" }}>{step}</span>
               </p>
             </li>
           ))}
