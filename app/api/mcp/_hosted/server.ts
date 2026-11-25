@@ -4,16 +4,18 @@
 // story's private upload page; BUI-2146 returns a one-time link to a page that downloads a finished story as a ZIP. The stdio entry
 // (mcp/server.ts) serves the local tools and is unchanged. BUI-2204 adds the `ui://` MCP App that `upload_photos` names: an in-chat
 // photo picker that posts to the same link, which stays in the result as the browser fallback. BUI-2215 serves every signed-in subject
-// when `WANDERPAGE_SIGNUP=open`, each with its own owner session, and turns the story and generation limits into refusals that name the
-// limit and when it resets. BUI-2205 lets the owner's own Claude do the curation: `get_photos` pages through small WebP previews of the
-// uploads, and `save_curation` stores Claude's chosen photos, captions and text as the draft, with no AI call on the server.
+// when `WANDERPAGE_SIGNUP=open`, each with its own owner session, and turns the story-creation limit into a refusal that names the limit
+// and when it resets. BUI-2205 lets the owner's own Claude do the curation: `get_photos` pages through small WebP previews of the
+// uploads, and `save_curation` stores Claude's chosen photos, captions and text as the draft, with no AI call on the server. BUI-2206
+// makes that the only way a hosted page is built: `start_generation` reports the page built from the saved curation and never queues
+// an OpenAI generation run, so it has no generation limit; a story with no saved curation is refused.
 import type { SignupMode } from "@buildproven/mcp-oauth";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
 import { NeonStoryRepository } from "@/lib/web/neon-repository";
 import { cleanupStoryObjects } from "@/lib/web/object-cleanup";
-import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
+import { curationRevision, StoryServiceError, type StoryService } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
 import type { DownloadLinks } from "@/lib/web/download-link";
 import type { UploadLinks } from "@/lib/web/upload-link";
@@ -27,7 +29,6 @@ export type HostedServerOptions = {
     | "listOwnedStories"
     | "getOwnedStory"
     | "createStory"
-    | "queueGeneration"
     | "updateStory"
     | "publish"
     | "unpublish"
@@ -138,14 +139,12 @@ class ToolRefusal extends Error {
   }
 }
 
-/** The per-session limits StoryService applies (`lib/web/story-service.ts`), in a rolling window of `limitWindowHours`. */
+/** The per-session story limit StoryService applies (`lib/web/story-service.ts`), in a rolling window of `limitWindowHours`. */
 const sessionStoryLimit = 3;
-const sessionGenerationLimit = 3;
 const limitWindowHours = 24;
 const limitWindowMs = limitWindowHours * 60 * 60 * 1000;
-// StoryService reports every admission limit as INVALID_STATE with these messages, and gives no other sign of which limit it was.
-const storyLimitMessage = /creation limit has been reached/,
-  generationLimitMessage = /generation limit has been reached/;
+// StoryService reports every admission limit as INVALID_STATE with this message, and gives no other sign of which limit it was.
+const storyLimitMessage = /creation limit has been reached/;
 
 const isLimit = (error: unknown, message: RegExp) =>
   error instanceof StoryServiceError && error.code === "INVALID_STATE" && message.test(error.message);
@@ -169,14 +168,16 @@ function storyLimitRefusal(listed: Story[], now: Date) {
   );
 }
 
-function generationLimitRefusal() {
-  return new ToolRefusal(
-    `start_generation refused: each account can start ${sessionGenerationLimit} generation runs in any ${limitWindowHours} hours, and ` +
-      `Wanderpage also has a daily limit for all accounts together; a limit has been reached. A run stops counting ${limitWindowHours} ` +
-      "hours after it started; try again then.",
-    { limit: "generations", maximum: sessionGenerationLimit, windowHours: limitWindowHours }
-  );
-}
+/**
+ * Whether `save_curation` built, or is building, this story's page (BUI-2206): its processor revision is the curation revision and it is a
+ * draft or published page, or a curation build still in flight. A failed build keeps no page, and a page the retired OpenAI generation
+ * wrote (another revision) is not a curation.
+ */
+const hasSavedCuration = (story: Story) =>
+  story.processorRevision === curationRevision &&
+  (story.status === "queued" ||
+    story.status === "processing" ||
+    ((story.status === "draft" || story.status === "published") && Boolean(story.manifest)));
 
 /** StoryService refusals become tool errors the owner can read; any other failure propagates to the MCP SDK. */
 async function answered(task: () => Promise<Record<string, unknown>>) {
@@ -237,7 +238,7 @@ export function createHostedServer({
   // `WANDERPAGE_OWNER_GENERATION_ENABLED=false` (refuses every signed-in account's writes). `WANDERPAGE_GENERATION_ENABLED` stays the
   // anonymous creator's switch, so opening signup never needs it on and never reopens anonymous creation.
   const ownerSecret = () => sessions.secretFor(caller());
-  // Each subject has its own admission key, so one account's creation and generation limits never count another's.
+  // Each subject has its own admission key, so one account's creation limits never count another's.
   const admissionKey = () => sessions.admissionKeyFor(caller());
   const summarize = async (story: Story) =>
     storySummary(story, story.status === "uploading" ? await stories.confirmedPhotoCount(story) : 0);
@@ -303,19 +304,23 @@ export function createHostedServer({
   server.registerTool(
     "start_generation",
     {
-      title: "Generate a hosted story",
-      description: "Queue one generation run for a story whose photo uploads are complete. Returns the queued story.",
+      title: "Report a hosted story's built page",
+      description:
+        "Return the story whose trip page save_curation built from your curation: a draft or published page, or the build while " +
+        "save_curation still runs. Wanderpage makes no AI call and queues no run: review the photos with get_photos and save the page " +
+        "with save_curation first. A story with no saved curation is refused.",
       inputSchema: getInput,
     },
     ({ storyId }) =>
       answered(async () => {
-        const secret = await ownerSecret();
-        try {
-          return storySummary(await stories.queueGeneration(secret, storyId, admissionKey()));
-        } catch (error) {
-          if (isLimit(error, generationLimitMessage)) throw generationLimitRefusal();
-          throw error;
-        }
+        const story = await stories.getOwnedStory(await ownerSecret(), storyId);
+        if (!hasSavedCuration(story))
+          throw new ToolRefusal(
+            `start_generation refused: "${story.title}" has no saved curation. Call get_photos to review its photos, then save_curation ` +
+              "with the photos, captions and text you choose: save_curation builds the page, with no AI call.",
+            { storyId: story.id, status: story.status }
+          );
+        return storySummary(story);
       })
   );
   server.registerTool(
@@ -367,7 +372,7 @@ export function createHostedServer({
         "for each, a title and intro text (and an optional closing line), and namesNoPerson: true. Never name or identify a person; " +
         "the call is refused without namesNoPerson: true. When the story excludes people, send containsPeople for every photo and " +
         "leave out each photo that shows a person. The server only resizes the chosen photos and builds the page; it does not count " +
-        "toward the generation limit. Then show the owner the draft and offer download_page or publish.",
+        "toward any limit. Then show the owner the draft and offer download_page or publish.",
       inputSchema: curationInput,
     },
     ({ storyId, ...curation }) =>
@@ -433,7 +438,7 @@ export function createHostedServer({
         if (story.status !== "uploading")
           throw new ToolRefusal(
             `upload_photos refused: "${story.title}" is ${story.status}. Photos can be added only while a story is uploading, before ` +
-              "start_generation. Create a new story with create_story to upload other photos.",
+              "save_curation. Create a new story with create_story to upload other photos.",
             { storyId: story.id, status: story.status }
           );
         if (!publicOrigin || !uploadLinks) throw new Error("upload_photos needs the deployment origin and an upload-link store.");
@@ -472,7 +477,7 @@ export function createHostedServer({
         if (story.status !== "draft" && story.status !== "published")
           throw new ToolRefusal(
             `download_page refused: "${story.title}" is ${story.status}. Only a finished draft or a published story can be downloaded. ` +
-              "Wait for generation to finish, or create the story with create_story.",
+              "Save the page with save_curation, then download it once it is a draft.",
             { storyId: story.id, status: story.status }
           );
         if (!publicOrigin || !downloadLinks) throw new Error("download_page needs the deployment origin and a download-link store.");

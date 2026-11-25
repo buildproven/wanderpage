@@ -3,6 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey, type JWTVerifyGetKey } from "jose";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import sharp from "sharp";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import Home from "@/app/page";
 import PrivacyPage from "@/app/privacy/page";
@@ -10,7 +11,7 @@ import Landing from "@/components/Landing";
 import { currentDisclosureVersion, uploadConsentText } from "@/lib/consent";
 import { minStoryPhotos } from "@/lib/web/limits";
 import { MemoryStoryRepository } from "@/lib/web/memory-repository";
-import { StoryService, type GenerationPolicy } from "@/lib/web/story-service";
+import { curationRevision, StoryService, type CurationMedia, type GenerationPolicy } from "@/lib/web/story-service";
 import { createHostedMcpHandler } from "@/app/api/mcp/_hosted/http";
 import { HostedOwnerSessions, MemoryOwnerBindingStore } from "@/app/api/mcp/_hosted/owner-sessions";
 import { createHostedServer } from "@/app/api/mcp/_hosted/server";
@@ -24,9 +25,12 @@ const origin = "https://wander.test",
   },
   createArgs = { title: "A trip", peopleMode: "exclude", locationPrivacy: "broad" };
 
-let signingKey: CryptoKey, keys: JWTVerifyGetKey;
+let signingKey: CryptoKey, keys: JWTVerifyGetKey, photo: Buffer;
 
 beforeAll(async () => {
+  photo = await sharp({ create: { width: 320, height: 240, channels: 3, background: "#6b8fa3" } })
+    .jpeg()
+    .toBuffer();
   const pair = await generateKeyPair("ES256");
   signingKey = pair.privateKey;
   keys = createLocalJWKSet({ keys: [{ ...(await exportJWK(pair.publicKey)), kid: "test-key", alg: "ES256" }] });
@@ -49,13 +53,22 @@ function mint(subject: string) {
 
 function services(policy: GenerationPolicy = { enabled: true, dailyLimit: 25 }) {
   const repository = new MemoryStoryRepository(),
+    started: string[] = [],
+    // Every confirmed upload reads as the same small JPEG, so save_curation can build a page from any of them.
+    media: CurationMedia = { read: async () => photo, write: async () => undefined },
     stories = new StoryService(
       repository,
-      { start: async () => ({ workflowRunId: "workflow" }) },
+      {
+        start: async storyId => {
+          started.push(storyId);
+          return { workflowRunId: "workflow" };
+        },
+      },
       undefined,
       value => `hash:${value}`,
       () => policy,
-      async () => undefined
+      async () => undefined,
+      media
     ),
     sessions = new HostedOwnerSessions({
       service: stories,
@@ -64,7 +77,7 @@ function services(policy: GenerationPolicy = { enabled: true, dailyLimit: 25 }) 
       key: "k".repeat(40),
       hashSecret: value => `hash:${value}`,
     });
-  return { repository, stories, sessions };
+  return { repository, stories, sessions, started };
 }
 
 async function httpClient(handle: (request: Request) => Promise<Response>, subject: string) {
@@ -309,7 +322,7 @@ describe("hosted MCP open signup (BUI-2215)", () => {
     expect(refused.data?.resetsAt).toBeUndefined();
   });
 
-  it("BUI-2215 R2: a non-owner over the per-session generation limit gets a message naming the limit and when it resets", async () => {
+  it("BUI-2215 R2: a non-owner's start_generation reports the saved curation's page and never uses a generation run (BUI-2206)", async () => {
     const context = services(),
       client = await memoryClient(
         createHostedServer({ stories: context.stories, sessions: context.sessions, subject: "alice", ownerSubject: owner, signup: "open" })
@@ -327,29 +340,35 @@ describe("hosted MCP open signup (BUI-2215)", () => {
         createdAt: new Date(),
         confirmedAt: new Date(),
       });
-    // A failed run may be generated again; the fourth start within 24 hours passes the per-session limit of three.
-    for (let run = 0; run < 3; run += 1) {
-      const started = await call(client, "start_generation", { storyId });
-      expect(started.isError, started.text).toBe(false);
-      const story = await context.repository.findStory(storyId);
-      if (!story) throw new Error("story missing");
-      await context.repository.saveStory({ ...story, status: "failed" }, story.version);
+    const saved = await call(client, "save_curation", {
+      storyId,
+      title: "A trip",
+      intro: "Wide skies over the harbour.",
+      namesNoPerson: true,
+      photos: [0, 1].map(index => ({ photoId: `${storyId}-upload-${index}`, caption: "Boats at the quay.", containsPeople: false })),
+    });
+    expect(saved.isError, saved.text).toBe(false);
+    // More calls than the old per-session limit of three: none is refused, and none starts a paid generation run.
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const reported = await call(client, "start_generation", { storyId });
+      expect(reported.isError, reported.text).toBe(false);
+      expect(reported.data).toMatchObject({ id: storyId, status: "draft" });
     }
-    const refused = await call(client, "start_generation", { storyId });
-    expect(refused.isError).toBe(true);
-    expect(refused.text).toMatch(/3 generation runs in any 24 hours/);
-    expect(refused.text).toMatch(/24 hours after it started/);
-    expect(refused.data).toMatchObject({ limit: "generations", maximum: 3, windowHours: 24 });
+    expect((await context.repository.listRuns(storyId)).map(run => run.processorRevision)).toEqual([curationRevision]);
+    expect(context.started).toEqual([]);
   });
 
   it("BUI-2215 R2: other StoryService refusals keep their own message", async () => {
     const context = services(),
-      client = await memoryClient(
+      bob = await memoryClient(
+        createHostedServer({ stories: context.stories, sessions: context.sessions, subject: "bob", ownerSubject: owner, signup: "open" })
+      ),
+      alice = await memoryClient(
         createHostedServer({ stories: context.stories, sessions: context.sessions, subject: "alice", ownerSubject: owner, signup: "open" })
       ),
-      created = await call(client, "create_story", createArgs),
-      refused = await call(client, "start_generation", { storyId: created.data?.id });
-    expect(refused).toMatchObject({ isError: true, text: `Add at least ${minStoryPhotos} completed photos before generating a story.` });
+      created = await call(bob, "create_story", createArgs),
+      refused = await call(alice, "start_generation", { storyId: created.data?.id });
+    expect(refused).toMatchObject({ isError: true, text: "This story belongs to another private session." });
   });
 });
 
