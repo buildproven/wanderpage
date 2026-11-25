@@ -5,7 +5,8 @@
 // (mcp/server.ts) serves the local tools and is unchanged. BUI-2204 adds the `ui://` MCP App that `upload_photos` names: an in-chat
 // photo picker that posts to the same link, which stays in the result as the browser fallback. BUI-2215 serves every signed-in subject
 // when `WANDERPAGE_SIGNUP=open`, each with its own owner session, and turns the story and generation limits into refusals that name the
-// limit and when it resets.
+// limit and when it resets. BUI-2205 lets the owner's own Claude do the curation: `get_photos` pages through small WebP previews of the
+// uploads, and `save_curation` stores Claude's chosen photos, captions and text as the draft, with no AI call on the server.
 import type { SignupMode } from "@buildproven/mcp-oauth";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
@@ -32,6 +33,8 @@ export type HostedServerOptions = {
     | "unpublish"
     | "prepareDelete"
     | "confirmedPhotoCount"
+    | "listCurationPhotos"
+    | "saveCuration"
   >;
   sessions: Pick<HostedOwnerSessions, "secretFor" | "admissionKeyFor">;
   /** The access token's subject (`sub`). */
@@ -57,6 +60,43 @@ const createInput = z.strictObject({
   title: z.string().trim().min(1).max(120).describe("Story title, 1 to 120 characters"),
   peopleMode: z.enum(PeopleModes).describe("include: photos may show people; exclude: leave photos with people out"),
   locationPrivacy: z.enum(LocationPrivacyModes).describe("broad: region names; approximate: city-level places; hidden: no places"),
+});
+const photosInput = z.strictObject({
+  storyId,
+  cursor: z
+    .union([z.string().regex(/^\d{1,4}$/), z.number().int().nonnegative().max(9999)])
+    .nullable()
+    .optional()
+    .describe("The nextCursor of the previous get_photos page; leave it out (or send null) for the first page"),
+});
+const curationInput = z.strictObject({
+  storyId,
+  title: z.string().trim().min(1).max(120).describe("The page title, 1 to 120 characters"),
+  intro: z.string().trim().min(1).max(2000).describe("The opening text of the page, 1 to 2000 characters"),
+  closing: z.string().trim().max(1000).optional().describe("Optional closing line of the page, up to 1000 characters"),
+  namesNoPerson: z
+    .boolean()
+    .optional()
+    .describe(
+      "Required, and must be true: your statement that no title, intro, closing or caption names or identifies a person. The call is " +
+        "refused without it"
+    ),
+  photos: z
+    .array(
+      z.strictObject({
+        photoId: z.string().min(1).max(100).describe("A photoId from get_photos"),
+        caption: z.string().trim().min(1).max(300).describe("What the photo shows: scenes and places, never who a person is"),
+        containsPeople: z
+          .boolean()
+          .optional()
+          .describe(
+            "Whether a person is visible. Required for every photo when the story excludes people; send false only after you checked"
+          ),
+      })
+    )
+    .min(1)
+    .max(60)
+    .describe("The chosen photos in page order; the first one is the hero photo"),
 });
 const titleInput = z.strictObject({
   storyId,
@@ -143,13 +183,18 @@ async function answered(task: () => Promise<Record<string, unknown>>) {
   try {
     return reply(await task());
   } catch (error) {
-    if (!(error instanceof StoryServiceError) && !(error instanceof ToolRefusal)) throw error;
-    return {
-      isError: true as const,
-      content: [{ type: "text" as const, text: error.message }],
-      ...(error instanceof ToolRefusal && error.detail ? { structuredContent: error.detail } : {}),
-    };
+    return refusal(error);
   }
+}
+
+/** The tool error for a StoryService refusal or a ToolRefusal; any other failure is rethrown to the MCP SDK. */
+function refusal(error: unknown) {
+  if (!(error instanceof StoryServiceError) && !(error instanceof ToolRefusal)) throw error;
+  return {
+    isError: true as const,
+    content: [{ type: "text" as const, text: error.message }],
+    ...(error instanceof ToolRefusal && error.detail ? { structuredContent: error.detail } : {}),
+  };
 }
 
 const removeWithNeon = (storyId: string) => cleanupStoryObjects(NeonStoryRepository.fromEnvironment(), storyId);
@@ -236,7 +281,7 @@ export function createHostedServer({
       title: "Create a hosted story",
       description:
         "Create a private hosted story with a title, a people choice and a location privacy choice, under the current upload terms. " +
-        "Returns the new story's id; then call upload_photos and open its link to add photos before start_generation.",
+        "Returns the new story's id; then call upload_photos and open its link to add photos before get_photos and save_curation.",
       inputSchema: createInput,
     },
     input =>
@@ -272,6 +317,61 @@ export function createHostedServer({
           throw error;
         }
       })
+  );
+  server.registerTool(
+    "get_photos",
+    {
+      title: "Review a hosted story's photos",
+      description:
+        "Return one page of a story's uploaded photos as small WebP previews, each with its photoId, capture date and a place no finer " +
+        "than city level (none in a hidden story; never exact GPS), plus nextCursor. Call again with nextCursor until it is null, look " +
+        "at every photo, then choose and order the photos, write the captions and text yourself, and call save_curation. Works while " +
+        "the story is uploading or failed, before its photos expire.",
+      inputSchema: photosInput,
+      annotations: { readOnlyHint: true },
+    },
+    async ({ storyId, cursor }) => {
+      let page: Awaited<ReturnType<HostedServerOptions["stories"]["listCurationPhotos"]>>;
+      try {
+        page = await stories.listCurationPhotos(await ownerSecret(), storyId, cursor === undefined || cursor === null ? 0 : Number(cursor));
+      } catch (error) {
+        return refusal(error);
+      }
+      const summary = {
+        storyId: page.story.id,
+        peopleMode: page.story.peopleMode,
+        locationPrivacy: page.story.locationPrivacy,
+        total: page.total,
+        photos: page.photos.map(({ photoId, captureDate, place }) => ({ photoId, captureDate, place })),
+        nextCursor: page.nextCursor === null ? null : String(page.nextCursor),
+      };
+      // Each preview follows a line naming its photoId, so the model can match what it sees to the IDs save_curation takes.
+      return {
+        content: [
+          { type: "text" as const, text: JSON.stringify(summary, null, 2) },
+          ...page.photos.flatMap(photo => [
+            { type: "text" as const, text: `photoId ${photo.photoId}:` },
+            { type: "image" as const, data: photo.thumbnail.toString("base64"), mimeType: "image/webp" },
+          ]),
+        ],
+        structuredContent: summary,
+      };
+    }
+  );
+  server.registerTool(
+    "save_curation",
+    {
+      title: "Save Claude's curation as the draft",
+      description:
+        "Save the trip page you curated from get_photos as the story's private draft: the chosen photoIds in page order, a caption " +
+        "for each, a title and intro text (and an optional closing line), and namesNoPerson: true. Never name or identify a person; " +
+        "the call is refused without namesNoPerson: true. When the story excludes people, send containsPeople for every photo and " +
+        "leave out each photo that shows a person. The server only resizes the chosen photos and builds the page; it does not count " +
+        "toward the generation limit. Then show the owner the draft and offer download_page or publish.",
+      inputSchema: curationInput,
+    },
+    ({ storyId, ...curation }) =>
+      answered(async () => storySummary(await stories.saveCuration(await ownerSecret(), storyId, curation, admissionKey())))
   );
   server.registerTool(
     "set_title",
@@ -322,7 +422,7 @@ export function createHostedServer({
         "Show an in-chat photo picker for this story and return a one-time link, valid for 15 minutes, that opens the story's private " +
         "page in your browser. Pick the photos (JPEG, PNG or WebP, 6 to 60) in the picker, or open the link when the picker does not " +
         "show or fails. Photos attached to the chat do not reach Wanderpage. Only a story that is still uploading takes photos. After the " +
-        "upload, call start_generation.",
+        "upload, call get_photos to review them and save_curation to save the page you write.",
       inputSchema: getInput,
       _meta: pickerLink,
     },
