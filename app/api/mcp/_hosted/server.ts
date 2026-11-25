@@ -3,7 +3,9 @@
 // BUI-2100 creates, generates, titles, publishes and deletes them with StoryService's own rules; BUI-2095 returns a one-time link to a
 // story's private upload page; BUI-2146 returns a one-time link to a page that downloads a finished story as a ZIP. The stdio entry
 // (mcp/server.ts) serves the local tools and is unchanged. BUI-2204 adds the `ui://` MCP App that `upload_photos` names: an in-chat
-// photo picker that posts to the same link, which stays in the result as the browser fallback.
+// photo picker that posts to the same link, which stays in the result as the browser fallback. BUI-2215 serves every GitHub subject when
+// `WANDERPAGE_SIGNUP=open`, each with its own owner session, and names the per-account limit and its reset when a write is refused.
+import { signupMode, type SignupMode } from "@buildproven/mcp-oauth";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { currentDisclosureVersion } from "@/lib/consent";
@@ -13,6 +15,7 @@ import { StoryServiceError, type StoryService } from "@/lib/web/story-service";
 import { LocationPrivacyModes, PeopleModes, type Story } from "@/lib/web/types";
 import type { DownloadLinks } from "@/lib/web/download-link";
 import type { UploadLinks } from "@/lib/web/upload-link";
+import { hostedPrefix } from "@/app/api/mcp/_hosted/http";
 import type { HostedOwnerSessions } from "@/app/api/mcp/_hosted/owner-sessions";
 import { recordTools, registerToolDoor } from "@/app/api/mcp/_hosted/tool-door";
 import { uploadPickerHtml, uploadPickerMeta, uploadPickerMimeType, uploadPickerUri } from "@/app/api/mcp/_hosted/upload-page";
@@ -33,8 +36,13 @@ export type HostedServerOptions = {
   sessions: Pick<HostedOwnerSessions, "secretFor" | "admissionKeyFor">;
   /** The access token's subject (`sub`). */
   subject: string | undefined;
-  /** `WANDERPAGE_OWNER_SUBJECT`: the one subject the server serves. */
+  /** `WANDERPAGE_OWNER_SUBJECT`: the one subject the server serves in owner signup. */
   ownerSubject: string;
+  /**
+   * Who the server serves: `owner` (only `ownerSubject`) or `open` (every subject the token check accepted, each with its own owner
+   * session). Default: `WANDERPAGE_SIGNUP` in `process.env`, read as the token check reads it, so an unknown value stays owner-only.
+   */
+  signup?: SignupMode;
   /** The deployment origin the request reached (`https://host`), so `publish` can return the full public URL. */
   publicOrigin?: string;
   /** Removes a deleted story's source uploads and derivatives, as the web DELETE route does. Default: Vercel Blob via Neon. */
@@ -43,6 +51,8 @@ export type HostedServerOptions = {
   uploadLinks?: Pick<UploadLinks, "issue">;
   /** Issues one-time download links (`download_page`): Neon `download_links` under the session pepper's download-link key in production. */
   downloadLinks?: Pick<DownloadLinks, "issue">;
+  /** The clock a limit refusal dates its reset by; StoryService's own clock in tests. Default: the system clock. */
+  now?: () => Date;
 };
 
 const storyId = z.uuid().describe("Story id, as returned by list_stories or create_story");
@@ -77,6 +87,21 @@ export function storySummary(story: Story, confirmedPhotos = 0) {
     version: story.version,
   };
 }
+
+/**
+ * The per-account limits StoryService applies to an MCP account (one owner session and one admission key per subject): `storyLimits` and
+ * the `queueGeneration` limits in lib/web/story-service.ts, in a rolling 24-hour window. tests/mcp/hosted-open-signup.test.ts reaches each
+ * through StoryService, so it fails when these differ.
+ */
+const storiesPerAccount = 3,
+  generationsPerAccount = 3,
+  limitWindowHours = 24,
+  limitWindowMs = limitWindowHours * 60 * 60 * 1000;
+/** The refusals StoryService gives when an admission limit holds; it names neither the limit nor its reset. */
+const storyLimitMessage = "The private story creation limit has been reached. Try again after it resets.",
+  generationLimitMessage = "The story generation limit has been reached. Try again after the limit resets.";
+const isLimitRefusal = (error: unknown, message: string) =>
+  error instanceof StoryServiceError && error.code === "INVALID_STATE" && error.message === message;
 
 const reply = (value: Record<string, unknown>) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
@@ -114,10 +139,12 @@ export function createHostedServer({
   sessions,
   subject,
   ownerSubject,
+  signup = signupMode(hostedPrefix),
   publicOrigin,
   removeObjects = removeWithNeon,
   uploadLinks,
   downloadLinks,
+  now = () => new Date(),
 }: HostedServerOptions) {
   const server = new McpServer(
     { name: "wanderpage-hosted", version: "1.0.0" },
@@ -130,13 +157,40 @@ export function createHostedServer({
   const registry = recordTools(server);
   // Serverless instances share no event bus and the tool list is fixed, so no change events are advertised.
   server.server.registerCapabilities({ tools: { listChanged: false } });
-  const ownerSecret = () => {
+  /** The signed-in subject the server serves; `secretFor` and `admissionKeyFor` refuse a missing one. */
+  const caller = () => {
+    if (signup === "open") return subject ?? "";
     if (!ownerSubject || subject !== ownerSubject)
       throw new StoryServiceError("FORBIDDEN", "This Wanderpage serves only its owner. Sign in with the owner account.");
-    return sessions.secretFor(subject);
+    return subject;
   };
-  // Called only after ownerSecret() has accepted the subject, so ownerSubject is the caller.
-  const admissionKey = () => sessions.admissionKeyFor(ownerSubject);
+  const ownerSecret = () => sessions.secretFor(caller());
+  const admissionKey = () => sessions.admissionKeyFor(caller());
+  /**
+   * The story limit, named with the time a slot opens by: 24 hours after the oldest listed story of the window. A deleted story still
+   * counts until it leaves the window, so a slot can open earlier, never later.
+   */
+  const storyLimitRefusal = async (secret: string) => {
+    const since = now().getTime() - limitWindowMs,
+      oldest = (await stories.listOwnedStories(secret))
+        .map(story => story.createdAt.getTime())
+        .filter(created => created >= since)
+        .sort((a, b) => a - b)[0],
+      resetsBy = oldest === undefined ? null : new Date(oldest + limitWindowMs).toISOString();
+    return new ToolRefusal(
+      `create_story refused: each account can create ${storiesPerAccount} stories in ${limitWindowHours} hours, and this account has ` +
+        `reached that limit. Each story counts for ${limitWindowHours} hours after it was created, so ` +
+        (resetsBy ? `a new story can be created by ${resetsBy}.` : `try again ${limitWindowHours} hours after the oldest one.`),
+      { limit: "stories", perAccount: storiesPerAccount, windowHours: limitWindowHours, resetsBy }
+    );
+  };
+  const generationLimitRefusal = () =>
+    new ToolRefusal(
+      `start_generation refused: each account can start ${generationsPerAccount} generations in ${limitWindowHours} hours, and ` +
+        `Wanderpage also has a daily generation limit for all accounts together; one of them has been reached. Each start counts for ` +
+        `${limitWindowHours} hours after it started, so try again ${limitWindowHours} hours after the oldest start of the last day.`,
+      { limit: "generations", perAccount: generationsPerAccount, windowHours: limitWindowHours }
+    );
   const summarize = async (story: Story) =>
     storySummary(story, story.status === "uploading" ? await stories.confirmedPhotoCount(story) : 0);
   /** The owner's story, or a refusal naming the tool when it belongs to another private session. */
@@ -184,13 +238,18 @@ export function createHostedServer({
     },
     input =>
       answered(async () => {
-        const secret = await ownerSecret(),
-          story = await stories.createStory(
+        const secret = await ownerSecret();
+        try {
+          const story = await stories.createStory(
             secret,
             { ...input, termsVersion: currentDisclosureVersion, uploadConsentVersion: currentDisclosureVersion },
             admissionKey()
           );
-        return storySummary(story);
+          return storySummary(story);
+        } catch (error) {
+          if (isLimitRefusal(error, storyLimitMessage)) throw await storyLimitRefusal(secret);
+          throw error;
+        }
       })
   );
   server.registerTool(
@@ -203,7 +262,12 @@ export function createHostedServer({
     ({ storyId }) =>
       answered(async () => {
         const secret = await ownerSecret();
-        return storySummary(await stories.queueGeneration(secret, storyId, admissionKey()));
+        try {
+          return storySummary(await stories.queueGeneration(secret, storyId, admissionKey()));
+        } catch (error) {
+          if (isLimitRefusal(error, generationLimitMessage)) throw generationLimitRefusal();
+          throw error;
+        }
       })
   );
   server.registerTool(

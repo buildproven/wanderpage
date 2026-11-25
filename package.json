@@ -113,7 +113,7 @@
     "test:coverage:check": "vitest run --coverage --coverage.thresholds.lines=70 --coverage.thresholds.functions=70"
   },
   "dependencies": {
-    "@buildproven/mcp-oauth": "https://github.com/buildproven/mcp-oauth/releases/download/v0.1.0/buildproven-mcp-oauth-0.1.0.tgz",
+    "@buildproven/mcp-oauth": "https://github.com/buildproven/mcp-oauth/releases/download/v0.2.0/buildproven-mcp-oauth-0.2.0.tgz",
     "@modelcontextprotocol/server": "^2.4.0",
     "@neondatabase/serverless": "1.1.0",
     "@vercel/blob": "2.8.0",

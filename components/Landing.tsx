@@ -28,7 +28,28 @@ const claudeSteps = [
   <>Download the ZIP of your static trip site.</>,
 ];
 
-export default function Landing() {
+/**
+ * Who may sign in to hosted Wanderpage: `WANDERPAGE_SIGNUP` as `signupMode` of @buildproven/mcp-oauth reads it. The page that renders
+ * the landing passes it, because a client component cannot read server settings; the local edition never does, so it says owner.
+ */
+export type LandingSignup = "owner" | "open";
+
+/** What open signup tells a new user (BUI-2215): the retention periods are the ones the upload consent in `lib/consent.ts` names. */
+function OpenSignupNote() {
+  return (
+    <>
+      <p>Any GitHub account can sign in.</p>
+      <p>
+        Each account gets its own private stories; Wanderpage keeps a keyed hash of the GitHub login, never the login or a password. Source
+        photos expire after 24 hours and are deleted within 48 hours, an unpublished draft is deleted after 30 days of inactivity, and a
+        published story stays until you unpublish or delete it. Ask Claude to delete a story with <code>delete_story</code>. Details are in
+        the <Link href="/privacy">privacy policy</Link>.
+      </p>
+    </>
+  );
+}
+
+export default function Landing({ signup = "owner" }: { signup?: LandingSignup }) {
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, reduce ? 1 : 1.07]);
@@ -176,7 +197,7 @@ export default function Landing() {
         <div>
           <p className="product-kicker">Agent first</p>
           <h2 id="claude-title">Use it in Claude</h2>
-          <p>Sign-in is invite-only for now.</p>
+          {signup === "open" ? <OpenSignupNote /> : <p>Sign-in is invite-only for now.</p>}
         </div>
         <ol className="product-privacy-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {claudeSteps.map((step, index) => (

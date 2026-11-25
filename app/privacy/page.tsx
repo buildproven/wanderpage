@@ -1,6 +1,7 @@
 // @design DES-WEB-PRIVACY
 // The hosted privacy policy (BUI-2135), linked from `.claude-plugin/plugin.json` as `privacyPolicyUrl`. The static export removes this
 // folder: a user's own trip site has no server, no sign-in and no cookies.
+import { signupMode } from "@buildproven/mcp-oauth";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -19,6 +20,30 @@ const ownerCookieName = "wanderpage_owner",
   linkHours = 1,
   oauthNonceCookieName = "wanderpage_oauth_nonce";
 
+/**
+ * The settings prefix the hosted OAuth server reads: `hostedPrefix` in app/api/mcp/_hosted/http.ts, which this page does not import (the
+ * local edition has no app/api). tests/mcp/hosted-open-signup.test.ts sets `${hostedPrefix}_SIGNUP`, so it fails when they differ.
+ */
+const settingsPrefix = "WANDERPAGE";
+
+/** Who can sign in: `<prefix>_SIGNUP`, read as the OAuth server reads it (BUI-2215), so the page never claims more than sign-in allows. */
+function WhoCanSignIn() {
+  if (signupMode(settingsPrefix) === "open")
+    return (
+      <p>
+        Any GitHub account can sign in, through GitHub OAuth. GitHub tells Wanderpage the login name of the account that signed in.
+        Wanderpage keeps a keyed hash of your GitHub login, never the login itself, to find your own private stories at your next sign-in;
+        no other account can read them. Wanderpage does not keep your GitHub password or read your repositories.
+      </p>
+    );
+  return (
+    <p>
+      Only the one owner can sign in, through GitHub OAuth. GitHub tells Wanderpage the login name of the account that signed in; any other
+      GitHub account is refused. Wanderpage does not keep your GitHub password or read your repositories.
+    </p>
+  );
+}
+
 export default function PrivacyPage() {
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "3rem 1.25rem", lineHeight: 1.6, fontFamily: "var(--font-sans)" }}>
@@ -32,10 +57,7 @@ export default function PrivacyPage() {
       </p>
 
       <h2>Who can sign in</h2>
-      <p>
-        Only the one owner can sign in, through GitHub OAuth. GitHub tells Wanderpage the login name of the account that signed in; any
-        other GitHub account is refused. Wanderpage does not keep your GitHub password or read your repositories.
-      </p>
+      <WhoCanSignIn />
 
       <h2>What Wanderpage stores and for how long</h2>
       <ul>
