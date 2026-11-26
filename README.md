@@ -15,11 +15,13 @@ Wanderpage is made to be driven from a chat with Claude.
 Customize > Plugins, then select **Connect** and sign in to the hosted Wanderpage server (`https://wanderpage.buildproven.ai/api/mcp`).
 Install it once; it then works in chat on the web, in Claude Desktop, in the mobile apps and in Claude Code. Ask Claude for a trip
 page: it creates a private story and gives you a one-time upload link (`upload_photos`). Open the link in a browser, pick your photos,
-and Claude makes the page. Stories stay private until you ask Claude to publish one. In Claude Code, install the same plugin from the
-BuildProven marketplace (`buildproven/claude-plugins`):
+and Claude makes the page. Stories stay private until you ask Claude to publish one. If your account does not list the Wanderpage
+plugin, add Wanderpage as a custom connector with the URL `https://wanderpage.buildproven.ai/api/mcp`. In Claude Code, add
+this repository as a plugin marketplace and install the same plugin from it:
 
 ```text
-/plugin install wanderpage --marketplace buildproven/claude-plugins
+/plugin marketplace add buildproven/wanderpage
+/plugin install wanderpage@wanderpage
 ```
 
 **Offline, on your Mac.** To keep your photos on your Mac, run the Wanderpage tools locally from the Desktop extension or a Claude

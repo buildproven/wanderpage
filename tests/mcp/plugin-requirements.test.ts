@@ -70,11 +70,14 @@ describe("REQ-PLUGIN requirements", () => {
     expect(section, "README.md Use Wanderpage in Claude section").toBeDefined();
     const text = plain(section ?? "");
     const plugin = text.indexOf("Customize > Plugins, then select **Connect**");
-    const marketplace = text.indexOf("/plugin install wanderpage --marketplace buildproven/claude-plugins");
+    const marketplace = text.indexOf("/plugin marketplace add buildproven/wanderpage");
+    const install = text.indexOf("/plugin install wanderpage@wanderpage");
     const offline = text.indexOf("**Offline, on your Mac.**");
     expect(plugin, "claude.ai plugin install").toBeGreaterThan(-1);
-    expect(marketplace, "marketplace install").toBeGreaterThan(plugin);
-    expect(offline, "offline option").toBeGreaterThan(marketplace);
+    expect(marketplace, "marketplace add").toBeGreaterThan(plugin);
+    expect(install, "marketplace install").toBeGreaterThan(marketplace);
+    expect(offline, "offline option").toBeGreaterThan(install);
+    expect(text).not.toContain("buildproven/claude-plugins");
     expect(text.slice(0, offline)).toMatch(/web, in Claude Desktop, in the mobile apps and in Claude Code/);
     expect(text.slice(offline)).toMatch(/chat on the web and in the mobile apps cannot reach a local server/i);
     expect(text.slice(offline)).toMatch(/\.mcpb/);

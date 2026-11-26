@@ -142,7 +142,10 @@ describe("the Claude plugin package", () => {
     expect(hosted).toMatch(/install it once/i);
     expect(hosted).toMatch(/web, in Claude Desktop, in the mobile apps and in Claude Code/);
     expect(hosted).toContain("upload_photos");
-    expect(hosted).toContain("/plugin install wanderpage --marketplace buildproven/claude-plugins");
+    expect(plain.indexOf("/plugin marketplace add buildproven/wanderpage"), "marketplace add").toBeGreaterThan(plugin);
+    expect(hosted.indexOf("/plugin install wanderpage@wanderpage")).toBeGreaterThan(
+      hosted.indexOf("/plugin marketplace add buildproven/wanderpage")
+    );
     // The Desktop extension and the Claude Code local server come after, as the offline option.
     expect(local).toMatch(/\*\*Claude Desktop extension\.\*\*/);
     expect(local).toMatch(/\.mcpb/);
@@ -150,6 +153,38 @@ describe("the Claude plugin package", () => {
     expect(local).toMatch(/local tools work in Claude Code and Claude Desktop only/i);
     expect(local).toMatch(/chat on the web and in the mobile apps cannot reach a local server/i);
     expect(hosted).not.toMatch(/\.mcpb|claude mcp add/);
+  });
+
+  // @verifies REQ-PLUGIN-3
+  it("BUI-2235 R1 (REQ-PLUGIN-3): .claude-plugin/marketplace.json lists only the root wanderpage plugin", async () => {
+    const plugin = await readJson<PluginManifest>(".claude-plugin/plugin.json");
+    const marketplace = await readJson<{
+      name?: unknown;
+      owner?: { name?: unknown };
+      plugins?: Array<Record<string, unknown>>;
+    }>(".claude-plugin/marketplace.json");
+    expect(marketplace.name).toBe("wanderpage");
+    expect(marketplace.owner?.name).toBe("BuildProven");
+    expect(marketplace.plugins).toEqual([{ name: "wanderpage", source: "./", description: plugin.description }]);
+  });
+
+  // @verifies REQ-PLUGIN-3
+  it("BUI-2235 R2 (REQ-PLUGIN-3): the marketplace entry name equals the plugin.json name", async () => {
+    const plugin = await readJson<PluginManifest>(".claude-plugin/plugin.json");
+    const marketplace = await readJson<{ plugins?: Array<{ name?: unknown }> }>(".claude-plugin/marketplace.json");
+    expect(marketplace.plugins?.map(entry => entry.name)).toEqual([plugin.name]);
+  });
+
+  // @verifies REQ-PLUGIN-3
+  it("BUI-2235 R3 (REQ-PLUGIN-3): the README installs from the public buildproven/wanderpage marketplace and the claude.ai connector URL", async () => {
+    const readme = await readFile(join(repoRoot, "README.md"), "utf8");
+    const plain = claudeSection(readme).replace(/\s+/g, " ");
+    const add = plain.indexOf("/plugin marketplace add buildproven/wanderpage");
+    expect(add, "marketplace add").toBeGreaterThan(-1);
+    expect(plain.indexOf("/plugin install wanderpage@wanderpage"), "install after marketplace add").toBeGreaterThan(add);
+    expect(plain).toContain(productionMcpUrl);
+    expect(readme).not.toContain("--marketplace buildproven/claude-plugins");
+    expect(readme).not.toContain("buildproven/claude-plugins");
   });
 
   // @verifies REQ-AGENT-2
